@@ -1,12 +1,32 @@
 """Routines for working with the ZTF discrete field grid"""
 
 import numpy as np
-import pandas
-from utils import df_write_to_sqlite, df_read_from_sqlite
+import pandas as pd
+from utils import *
+import astropy.coordinates as coords
+import astropy.units as u
+from astropy.time import Time
 
-def load_fields(dbname='test_fields'):
-    df = df_read_from_sqlite(dbname, index_col = 'fieldid')
-    return df
+class Fields:
+	"""Class for accessing field grid."""
+	# TODO: consider using some of PTFFields.py code 
+	def __init__(self,dbname='test_fields'):
+		self._load_fields(dbname=dbname)
+		self.loc = P48_loc
+		self.field_coords = coords.SkyCoord(self.fields['ra'], 
+			self.fields['dec'], frame='icrs', unit='deg')
+		# TODO: convert into Galactic & ecliptic coords and store
+		
+	def _load_fields(self, dbname='test_fields'):
+		df = df_read_from_sqlite(dbname, index_col = 'fieldid')
+		self.fields = df
+
+	def alt_az(self, time):
+		"""return Altitude & Azimuth by field at a given time"""
+		fieldsAltAz = self.field_coords.transform_to(coords.AltAz(obstime=time,
+			location=self.loc))
+		return pd.DataFrame({'alt':fieldsAltAz.alt, 'az':fieldsAltAz.az},
+			index = self.fields.index) 
 
 
 def generate_test_field_grid(dbname='test_fields'):
@@ -34,11 +54,10 @@ def generate_test_field_grid(dbname='test_fields'):
 
     fieldid = np.arange(len(thetas))
     ras = np.rad2deg(np.array(phis))
-     #equatorial Dec=0, positive at northern part
+    #equatorial Dec=0, positive at northern part
     decs = -(np.rad2deg(np.array(thetas))-90)
 
-    df = pandas.DataFrame({'ra':ras,'dec':decs},
+    df = pd.DataFrame({'ra':ras,'dec':decs},
         index = fieldid)
 
     df_write_to_sqlite(df,dbname, index_label='fieldid')
-

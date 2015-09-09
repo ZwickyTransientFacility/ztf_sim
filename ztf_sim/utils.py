@@ -1,6 +1,6 @@
 
 import numpy as np
-import pandas
+import pandas as pd
 from astropy.time import Time
 import astropy.coordinates as coords
 import astropy.units as u
@@ -15,7 +15,7 @@ def df_write_to_sqlite(df, dbname, **kwargs):
 
 def df_read_from_sqlite(dbname, **kwargs):
     engine = create_engine('sqlite:///../data/{}.db'.format(dbname))
-    df = pandas.read_sql(dbname, engine, **kwargs)
+    df = pd.read_sql(dbname, engine, **kwargs)
 
     return df
 
@@ -26,14 +26,14 @@ def _ptf_to_sqlite():
 
     Fragile, as it assumes the formats below--not for general use."""
 
-    import pandas
+    import pd
 
     # main dump
     #e.expid, e.prid, f.ptffield, f.objrad, f.objdecd, e.fid, e.obsmjd,
     #e.nid, e.exptime, e.airmass,
     #e.obslst, e.altitude, e.azimuth, e.moonra, e.moondec, e.moonalt, e.moonphas, \
     #e.windspeed, e.outrelhu
-    df = pandas.read_table('../data/opsim_dump.txt.gz',sep='|',
+    df = pd.read_table('../data/opsim_dump.txt.gz',sep='|',
         names = ['obsHistID','propID','fieldID','fieldRA_deg','fieldDec_deg',
         'filter','expMJD','night','visitExpTime','airmass',
         'lst','altitude','azimuth','moonRA','moonDec','moonAlt','moonPhase',
@@ -42,7 +42,7 @@ def _ptf_to_sqlite():
 
     # sky
     #e.expid, qa.fwhmsex, sdqa.metricvalue
-    df_sky = pandas.read_table('../data/opsim_dump_sky.txt.gz',sep='|',
+    df_sky = pd.read_table('../data/opsim_dump_sky.txt.gz',sep='|',
         names = ['obsHistID','finSeeing', 'filtSkyBrightness'],
         # have to use converters otherwise filtSkyBrightness
         # becomes object and disappears in the mean; dtypes doesn't work 
@@ -58,7 +58,7 @@ def _ptf_to_sqlite():
 
     # limmag
     # e.expid, qa.fwhmsex, sdqa.metricvalue
-    df_lim = pandas.read_table('../data/opsim_dump_sky.txt.gz',sep='|',
+    df_lim = pd.read_table('../data/opsim_dump_sky.txt.gz',sep='|',
         names = ['obsHistID','finSeeing', 'fiveSigmaDepth'],
         converters = {'fiveSigmaDepth':lambda x: np.float(x)},
         skipfooter=1)
