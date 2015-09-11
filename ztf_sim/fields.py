@@ -52,9 +52,13 @@ class Fields:
             slews_by_axis[axis] = slew_time(axis, angle*u.deg)
 
         dfslews = pd.DataFrame(slews_by_axis,index=df.index)
-
-        return dfslews.max(axis=1)
-            
+        
+        dfmax = dfslews.max(axis=1)
+        dfmax = pd.DataFrame(dfmax)
+        dfmax.columns = ['overhead_time']
+	
+        return dfmax
+         
             
 
         
@@ -72,7 +76,12 @@ def generate_test_field_grid(dbname='test_fields'):
     phis = np.array([0.])
 
     for theta in np.arange(dy,np.pi,dy):
-        dphi=dx/(2*np.pi*np.sin(theta+dy/2))*2*np.pi #the longest curve at theta+dy/2, should be more exact than above
+        if ((theta<=np.pi/2) & (theta+dy>np.pi/2)) | ((theta>=np.pi/2) & (theta+dy<np.pi/2)):
+            dphi=dx/(2*np.pi*np.sin(np.pi/2))*2*np.pi
+        elif theta < np.pi/2:        
+            dphi=dx/(2*np.pi*np.sin(theta+dy/2))*2*np.pi #the longest curve at theta+dy/2, should be more exact than above
+        else:
+            dphi=dx/(2*np.pi*np.sin(theta-dy/2))*2*np.pi
         n=np.ceil(2*np.pi/dphi) # number of fields along phi at angle theta
         phi = np.arange(0,n)*(2*np.pi)/n
 
