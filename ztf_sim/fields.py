@@ -56,48 +56,25 @@ class Fields:
         dfmax = dfslews.max(axis=1)
         dfmax = pd.DataFrame(dfmax)
         dfmax.columns = ['overhead_time']
-	
+    
         return dfmax
          
             
 
         
 
+def generate_test_field_grid(filename='../data/ZTF_fields.txt', dbname='../data/test_fields'):
+    """Convert Eran's field grid to sqlite"""
 
-def generate_test_field_grid(dbname='test_fields'):
-    """Rough code for creating a simple ZTF-scale field grid."""
+    df = pd.read_table(filename,delimiter='\s+',skiprows=1,
+            names = ['fieldid','ra','dec','extinction_b-v',
+            'l','b',
+            'ecliptic_lon','ecliptic_lat'],index_col=0)
 
-    # camera view angles - TODO: update to actual numbers
-    dx=np.deg2rad(7) # move along phi
-    dy=np.deg2rad(7) # move along theta
+    # insert label for offset grids
+    grid = pd.Series(df.index >=
+            1000,index=df.index,name='gridid',dtype=np.int8)
 
-    # the centers of the fields; begin with North Pole
-    thetas = np.array([0.])
-    phis = np.array([0.])
+    df = df.join(grid)
 
-    for theta in np.arange(dy,np.pi,dy):
-        if ((theta<=np.pi/2) & (theta+dy>np.pi/2)) | ((theta>=np.pi/2) & (theta+dy<np.pi/2)):
-            dphi=dx/(2*np.pi*np.sin(np.pi/2))*2*np.pi
-        elif theta < np.pi/2:        
-            dphi=dx/(2*np.pi*np.sin(theta+dy/2))*2*np.pi #the longest curve at theta+dy/2, should be more exact than above
-        else:
-            dphi=dx/(2*np.pi*np.sin(theta-dy/2))*2*np.pi
-        n=np.ceil(2*np.pi/dphi) # number of fields along phi at angle theta
-        phi = np.arange(0,n)*(2*np.pi)/n
-
-        thetas = np.append(thetas, theta*np.ones(np.size(phi)))
-        phis = np.append(phis,phi)
-
-    # South Pole
-    thetas = np.append(thetas, np.pi)
-    phis = np.append(phis, 0)
-
-    fieldid = np.arange(len(thetas))
-    ras = np.rad2deg(np.array(phis))
-    #equatorial Dec=0, positive at northern part
-    decs = -(np.rad2deg(np.array(thetas))-90)
-
-    df = pd.DataFrame({'ra':ras,'dec':decs},
-        index = fieldid)
-
-    df_write_to_sqlite(df,dbname, index_label='fieldid')
+    df_write_to_sqlite(df[['ra','dec','gridid']], dbname, index_label='fieldid')
