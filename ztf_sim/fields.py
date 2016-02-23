@@ -63,7 +63,8 @@ class Fields:
 
         
 
-def generate_test_field_grid(filename='../data/ZTF_fields.txt', dbname='../data/test_fields'):
+def generate_test_field_grid(filename='../data/ZTF_fields.txt', 
+    dbname='test_fields'):
     """Convert Eran's field grid to sqlite"""
 
     df = pd.read_table(filename,delimiter='\s+',skiprows=1,
