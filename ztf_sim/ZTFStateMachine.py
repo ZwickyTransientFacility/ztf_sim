@@ -22,11 +22,15 @@ class ZTFStateMachine(object):
         {'trigger': 'stop_filter_change', 'source': 'changing_filters', 
             'dest': 'ready'},
         {'trigger': 'start_expose', 'source': 'ready', 'dest': 'exposing',
-            'after': 'stop_expose', 'conditions': 'check_can_observe'},
+            'after': ['process_exposure','stop_expose']},
         {'trigger': 'stop_expose', 'source': 'exposing', 'dest': 'ready'},
-        {'trigger': 'wait', 'source': ['ready','cant_observe'], 
-            'dest': 'ready'},
-        {'trigger': 'set_cant_observe', 'source':'*', 'dest': 'cant_observe'}
+        # I would like to automatically set the cant_observe state from
+        # start_expose, but that doesn't seem to work.
+        {'trigger': 'check_if_cant_observe', 'source': 'ready', 
+            'dest': 'cant_observe', 'unless': 'can_observe'},
+        {'trigger': 'check_if_ready_now', 'source': 'cant_observe', 
+            'dest': 'ready', 'prepare': 'wait', 
+            'conditions': 'can_observe'}
         ]
 
 
@@ -49,12 +53,14 @@ class ZTFStateMachine(object):
         self.machine = Machine(model=self, states=ZTFStateMachine.states, 
                 initial='ready', transitions=ZTFStateMachine.transitions)
 
-    def check_can_observe(self):
+    def can_observe(self):
         """Check for night and weather"""
         # TODO: figure out if this is the right way to set this up...
-        if False:
-            self.set_cant_observe()
-        return True
+#        if False:
+#            self.set_cant_observe()
+        import random            
+        boolean = random.random() < 0.5
+        return boolean
 
     def slew_allowed(self, target_ha, target_dec, target_domeaz):
         """Check that slew is within allowed limits"""
@@ -87,7 +93,9 @@ class ZTFStateMachine(object):
         self.current_domeaz = target_domeaz
 
 
-    def start_exposing(self, exposure_time = EXPOSURE_TIME):
+    def process_exposure(self, exposure_time = EXPOSURE_TIME):
+        # annoyingly, transitions doesn't let me modify object
+        # variables in the trigger functions themselves
         self.current_time += exposure_time
         # TODO: update ra, dec, domeaz for shifts during exposure
         # TODO: put the logging here? (or as a separate callback)
