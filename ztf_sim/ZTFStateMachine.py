@@ -4,34 +4,7 @@ import numpy as np
 import astropy.units as u
 from utils import slew_time, READOUT_TIME, EXPOSURE_TIME
 
-class ZTFStateMachine(object):
-
-    # Define some states. 
-    states = ['ready', 'cant_observe', 
-            'slewing', 'changing_filters', 'exposing']
-
-    # define the transitions
-    
-    transitions = [
-        {'trigger': 'start_slew', 'source': 'ready', 'dest': 'slewing',
-            'after': 'stop_slew', 'conditions': 'slew_allowed'},
-        {'trigger': 'stop_slew', 'source': 'slewing', 'dest': 'ready'},
-        # for now do not require filter changes to include a slew....
-        {'trigger': 'start_filter_change', 'source': 'ready', 
-            'dest': 'changing_filters', 'after': 'stop_filter_change'},
-        {'trigger': 'stop_filter_change', 'source': 'changing_filters', 
-            'dest': 'ready'},
-        {'trigger': 'start_expose', 'source': 'ready', 'dest': 'exposing',
-            'after': ['process_exposure','stop_expose']},
-        {'trigger': 'stop_expose', 'source': 'exposing', 'dest': 'ready'},
-        # I would like to automatically set the cant_observe state from
-        # start_expose, but that doesn't seem to work.
-        {'trigger': 'check_if_cant_observe', 'source': 'ready', 
-            'dest': 'cant_observe', 'unless': 'can_observe'},
-        {'trigger': 'check_if_ready_now', 'source': 'cant_observe', 
-            'dest': 'ready', 'prepare': 'wait', 
-            'conditions': 'can_observe'}
-        ]
+class ZTFStateMachine(Machine):
 
 
     def __init__(self, current_time = Time('2018-01-01',scale='utc'), 
@@ -40,18 +13,46 @@ class ZTFStateMachine(object):
             current_filter = 'r', filters = ['r','g'],
             current_fieldid = None):
 
+        # Define some states. 
+        states = ['ready', 'cant_observe', 
+                'slewing', 'changing_filters', 'exposing']
+
+        # define the transitions
+        
+        transitions = [
+            {'trigger': 'start_slew', 'source': 'ready', 'dest': 'slewing',
+                'after': 'stop_slew', 'conditions': 'slew_allowed'},
+            {'trigger': 'stop_slew', 'source': 'slewing', 'dest': 'ready'},
+            # for now do not require filter changes to include a slew....
+            {'trigger': 'start_filter_change', 'source': 'ready', 
+                'dest': 'changing_filters', 'after': 'stop_filter_change'},
+            {'trigger': 'stop_filter_change', 'source': 'changing_filters', 
+                'dest': 'ready'},
+            {'trigger': 'start_expose', 'source': 'ready', 'dest': 'exposing',
+                'after': ['process_exposure','stop_expose']},
+            {'trigger': 'stop_expose', 'source': 'exposing', 'dest': 'ready'},
+            # I would like to automatically set the cant_observe state from
+            # start_expose, but that doesn't seem to work.
+            {'trigger': 'check_if_cant_observe', 'source': 'ready', 
+                'dest': 'cant_observe', 'unless': 'can_observe'},
+            {'trigger': 'check_if_ready_now', 'source': 'cant_observe', 
+                'dest': 'ready', 'prepare': 'wait', 
+                'conditions': 'can_observe'}
+            ]
+
+        # Initialize the state machine.  syntax from
+        # https://github.com/tyarkoni/transitions
+        Machine.__init__(self, states=states,
+                transitions=transitions,
+                initial='ready') 
+
         self.current_time = current_time
         self.current_ha = current_ha
         self.current_dec = current_dec
         self.current_domeaz = current_domeaz
         self.current_filter = current_filter
         self.filters = filters
-        self.current_fieldid = None
-
-        # Initialize the state machine.  syntax from
-        # https://github.com/tyarkoni/transitions
-        self.machine = Machine(model=self, states=ZTFStateMachine.states, 
-                initial='ready', transitions=ZTFStateMachine.transitions)
+        self.current_fieldid = current_fieldid
 
     def can_observe(self):
         """Check for night and weather"""
