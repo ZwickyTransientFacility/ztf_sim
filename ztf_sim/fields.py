@@ -20,6 +20,8 @@ class Fields:
         df = df_read_from_sqlite(dbname, index_col = 'fieldid')
         self.fields = df
         # TODO: consider dropping fields below dec < -30
+        # TODO: load last observed time per filter & program
+        # TODO: load total observations per filter & program
 
     def field_coords(self, cuts = None):
         """Generate an astropy SkyCoord object for current fields"""
@@ -65,7 +67,7 @@ class Fields:
         row = df.loc[current_fieldid]
 
         slews_by_axis = {'readout':READOUT_TIME}
-        for axis in ['HA', 'Dec', 'Dome']:
+        for axis in ['ha', 'dec', 'dome']:
             coord = P48_slew_pars[axis]['coord']
             dangle = np.abs(df[coord] - row[coord])
             angle = np.where(dangle < (360. - dangle), dangle, 360. - dangle)
@@ -89,6 +91,7 @@ class Fields:
         Each _range keyword takes a list [min,max].
         gridid is a scalar"""
         # TODO: allow searches by past exposures (total number, last observed)
+        # (by filter and program)
 
 
 	# start with a boolean True series:
