@@ -21,23 +21,24 @@ class ZTFStateMachine(Machine):
         
         transitions = [
             {'trigger': 'start_slew', 'source': 'ready', 'dest': 'slewing',
-                'after': 'stop_slew', 'conditions': 'slew_allowed'},
+                'after': ['process_slew','stop_slew'], 
+                'conditions': 'slew_allowed'},
             {'trigger': 'stop_slew', 'source': 'slewing', 'dest': 'ready'},
             # for now do not require filter changes to include a slew....
             {'trigger': 'start_filter_change', 'source': 'ready', 
-                'dest': 'changing_filters', 'after': 'stop_filter_change'},
+                'dest': 'changing_filters', 
+                'after': ['process_filter_change','stop_filter_change']},
             {'trigger': 'stop_filter_change', 'source': 'changing_filters', 
                 'dest': 'ready'},
-            {'trigger': 'start_expose', 'source': 'ready', 'dest': 'exposing',
-                'after': ['process_exposure','stop_expose']},
-            {'trigger': 'stop_expose', 'source': 'exposing', 'dest': 'ready'},
+            {'trigger': 'start_exposing', 'source': 'ready', 'dest': 'exposing',
+                'after': ['process_exposure','stop_exposing']},
+            {'trigger': 'stop_exposing', 'source': 'exposing', 'dest': 'ready'},
             # I would like to automatically set the cant_observe state from
-            # start_expose, but that doesn't seem to work.
-            {'trigger': 'check_if_cant_observe', 'source': 'ready', 
-                'dest': 'cant_observe', 'unless': 'can_observe'},
-            {'trigger': 'check_if_ready_now', 'source': 'cant_observe', 
-                'dest': 'ready', 'prepare': 'wait', 
-                'conditions': 'can_observe'}
+            # start_exposing, but that doesn't seem to work.
+            {'trigger': 'check_if_ready', 'source': ['ready', 'cant_observe'], 
+                'dest': 'ready', 'unless': 'can_observe'},
+            {'trigger': 'set_cant_observe', 'source': '*', 
+                'dest': 'cant_observe'}
             ]
 
         # Initialize the state machine.  syntax from
@@ -67,11 +68,11 @@ class ZTFStateMachine(Machine):
         """Check that slew is within allowed limits"""
         if np.abs(target_ha) > 90.*u.deg:
             return False
-        if target_dec < -40.*u.deg: # TODO: fix this value
+        if (target_dec < -60.*u.deg) or (target_dec > 90.*u.deg): 
             return False
         return True
 
-    def start_slew(self, target_ha, target_dec, target_domeaz,
+    def process_slew(self, target_ha, target_dec, target_domeaz,
             readout_time = READOUT_TIME):
         # small deviation here: ha of target ra shifts modestly during slew
         # if readout_time is nonzero, assume we are reading during the slew,
@@ -82,13 +83,15 @@ class ZTFStateMachine(Machine):
 	for axis in ['ha', 'dec', 'domeaz']:
             dangle = np.abs(eval("target_{}".format(axis)) -
                     eval("self.current_{}".format(axis)))
-            angle = np.where(dangle < (360. - dangle), dangle, 360. - dangle)
+            angle = np.where(dangle < (360.*u.deg - dangle), dangle, 
+                    360.*u.deg - dangle)
             axis_slew_times.append(slew_time(axis[:4], angle*u.deg))
 
-        slew_time = np.max(axis_slew_times)
+        net_slew_time = np.max([st.value for st in axis_slew_times])*\
+                axis_slew_times[0].unit
 
         # update the time
-        self.current_time += slew_time
+        self.current_time += net_slew_time
         self.current_ha = target_ha
         self.current_dec = target_dec
         self.current_domeaz = target_domeaz

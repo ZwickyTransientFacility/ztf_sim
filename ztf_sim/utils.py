@@ -5,41 +5,7 @@ from astropy.time import Time
 import astropy.coordinates as coords
 import astropy.units as u
 from sqlalchemy import create_engine
-
-P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.35s'),
-    lon=coords.Longitude('-116d51m32.04s'), height=1707.)
-
-P48_slew_pars = {
-    'ha':{'coord':'ra','accel':0.27*u.deg*u.second**(-2.),
-        'decel':0.27*u.deg*u.second**(-2.),'vmax':1.6*u.deg/u.second},
-    'dec':{'coord':'dec','accel':0.2*u.deg*u.second**(-2.),
-        'decel':0.15*u.deg*u.second**(-2.),'vmax':1.2*u.deg/u.second},
-    'dome':{'coord':'az','accel':0.17*u.deg*u.second**(-2.),
-        'decel':0.6*u.deg*u.second**(-2.),'vmax':3.*u.deg/u.second}}
-
-EXPOSURE_TIME = 30.*u.second
-READOUT_TIME = 10.*u.second
-FILTER_CHANGE_TIME = 90.*u.second
-SETTLE_TIME = 2.*u.second
-
-
-def slew_time(axis, angle):
-    vmax = P48_slew_pars[axis]['vmax']
-    acc = P48_slew_pars[axis]['accel']
-    dec = P48_slew_pars[axis]['decel']
-
-    t_acc=vmax/acc
-    t_dec=vmax/dec
-    # TODO: if needed, include conditional for scalars
-#    if 0.5*vmax*(t_acc+t_dec)>=angle:
-#        return np.sqrt(2*angle*(1./acc+1./dec))
-#    else:
-#        return 0.5*(2.*angle/vmax+t_acc+t_dec)
-    slew_time = 0.5*(2.*angle/vmax+t_acc+t_dec)
-    w = 0.5*vmax*(t_acc+t_dec) >= angle
-    slew_time[w] = np.sqrt(2*angle[w]*(1./acc+1./dec))
-    return slew_time + SETTLE_TIME
-
+from constants import *
 
 def df_write_to_sqlite(df, dbname, **kwargs):
     engine = create_engine('sqlite:///../data/{}.db'.format(dbname))
@@ -122,3 +88,29 @@ def _ptf_to_sqlite():
 
     return df
 
+def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
+    """bin an input list of PTF exposure times (all filters,
+    including H-alpha) into 
+    blocks to use for weather analysis."""
+
+    df = pd.read_table('../data/mjd.txt.gz',sep='|',
+        names = ['expMJD'],
+        skipfooter=1)
+    t = Time(df['expMJD'],format='mjd',location=P48_loc)
+    df['year'] = np.floor(t.decimalyear)
+    df['block'] = block_index(t, time_block_size = TIME_BLOCK_SIZE)
+
+    grp = df.groupby(['year','block'])
+    nexps = grp.agg(len)
+    nexps.rename(columns = {'expMJD':'nexps'},inplace=True)
+
+    df_write_to_sqlite(nexps,'weather_blocks')
+
+def block_index(time, time_block_size = TIME_BLOCK_SIZE):
+    """convert an astropy time object into a bin index for years broken up
+    in time_block_size chunks."""
+
+    block_size = time_block_size.to(u.min).value
+
+    return np.floor((time.decimalyear - np.floor(time.decimalyear)) * \
+            (1.*u.year.to(u.min) ) / block_size)
