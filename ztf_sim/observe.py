@@ -1,5 +1,6 @@
 from ZTFStateMachine import ZTFStateMachine
 from astropy.time import Time
+import astropy.units as u
 
 
 def observe():
@@ -11,11 +12,11 @@ def observe():
         if tel.check_if_ready():
             # get coords
             # TODO: filter change
-            if not tel.start_slew():
+            if not tel.start_slew(0*u.deg,0*u.deg,0*u.deg):
                 tel.set_cant_observe()
                 tel.wait()
                 continue
-            if not tel.start_exposing()
+            if not tel.start_exposing():
                 tel.set_cant_observe()
                 tel.wait()
                 continue

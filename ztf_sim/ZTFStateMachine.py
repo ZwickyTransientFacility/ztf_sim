@@ -3,6 +3,8 @@ from astropy.time import Time
 import numpy as np
 import astropy.units as u
 from utils import slew_time, READOUT_TIME, EXPOSURE_TIME
+import logging
+from transitions import logger
 
 class ZTFStateMachine(Machine):
 
@@ -11,7 +13,8 @@ class ZTFStateMachine(Machine):
             current_ha = 0.*u.deg, current_dec = 0.*u.deg,
             current_domeaz = 0.*u.deg,
             current_filter = 'r', filters = ['r','g'],
-            current_fieldid = None):
+            current_fieldid = None,
+            logfile = '../sims/log_ztf_sim'):
 
         # Define some states. 
         states = ['ready', 'cant_observe', 
@@ -55,6 +58,13 @@ class ZTFStateMachine(Machine):
         self.filters = filters
         self.current_fieldid = current_fieldid
 
+        # logging
+        fh = logging.FileHandler(logfile)
+        fh.setLevel(logging.INFO)
+        self.logger = logger
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(fh)
+
     def can_observe(self):
         """Check for night and weather"""
         # TODO: figure out if this is the right way to set this up...
@@ -62,6 +72,7 @@ class ZTFStateMachine(Machine):
 #            self.set_cant_observe()
         import random            
         boolean = random.random() < 0.5
+        self.logger.info(self.current_time.iso)
         return boolean
 
     def slew_allowed(self, target_ha, target_dec, target_domeaz):

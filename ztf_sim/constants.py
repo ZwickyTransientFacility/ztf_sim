@@ -20,6 +20,7 @@ READOUT_TIME = 10.*u.second
 FILTER_CHANGE_TIME = 90.*u.second
 SETTLE_TIME = 2.*u.second
 
+TIME_BLOCK_SIZE = 20.*u.min
 
 def slew_time(axis, angle):
     vmax = P48_slew_pars[axis]['vmax']

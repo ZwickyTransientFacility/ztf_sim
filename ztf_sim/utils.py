@@ -103,14 +103,23 @@ def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
     grp = df.groupby(['year','block'])
     nexps = grp.agg(len)
     nexps.rename(columns = {'expMJD':'nexps'},inplace=True)
+    nexps['nexps'] = nexps['nexps'].astype(np.int8)
 
     df_write_to_sqlite(nexps,'weather_blocks')
 
 def block_index(time, time_block_size = TIME_BLOCK_SIZE):
     """convert an astropy time object into a bin index for years broken up
     in time_block_size chunks."""
+    from datetime import datetime
 
+
+    # get the time at the start of each year
+    year = np.floor(time.decimalyear)
+    # this is an annoying conversion
+    tyear = Time([datetime(y,1,1) for y in year.astype(np.int)])
+
+    # mjd to bin
     block_size = time_block_size.to(u.min).value
+    convert = (1*u.day.to(u.min)) / block_size 
 
-    return np.floor((time.decimalyear - np.floor(time.decimalyear)) * \
-            (1.*u.year.to(u.min) ) / block_size)
+    return np.floor( (time.mjd - tyear.mjd) * convert).astype(np.int)
