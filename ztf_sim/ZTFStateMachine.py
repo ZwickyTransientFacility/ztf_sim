@@ -2,7 +2,8 @@ from transitions import Machine
 from astropy.time import Time
 import numpy as np
 import astropy.units as u
-from utils import slew_time, READOUT_TIME, EXPOSURE_TIME
+from utils import slew_time, READOUT_TIME, EXPOSURE_TIME, TIME_BLOCK_SIZE
+from utils import df_read_from_sqlite, block_index
 import logging
 from transitions import logger
 
@@ -14,7 +15,8 @@ class ZTFStateMachine(Machine):
             current_domeaz = 0.*u.deg,
             current_filter = 'r', filters = ['r','g'],
             current_fieldid = None,
-            logfile = '../sims/log_ztf_sim'):
+            logfile = '../sims/log_ztf_sim', 
+            historical_observability_year = 2015):
 
         # Define some states. 
         states = ['ready', 'cant_observe', 
@@ -58,8 +60,12 @@ class ZTFStateMachine(Machine):
         self.filters = filters
         self.current_fieldid = current_fieldid
 
-        # logging
-        fh = logging.FileHandler(logfile)
+        # historical observability
+        self.historical_observability_year = historical_observability_year
+        self.observability = PTFObservabilityDB()
+
+        # logging.  wipe out existing log.
+        fh = logging.FileHandler(logfile,mode='w')
         fh.setLevel(logging.INFO)
         self.logger = logger
         self.logger.setLevel(logging.INFO)
@@ -67,13 +73,9 @@ class ZTFStateMachine(Machine):
 
     def can_observe(self):
         """Check for night and weather"""
-        # TODO: figure out if this is the right way to set this up...
-#        if False:
-#            self.set_cant_observe()
-        import random            
-        boolean = random.random() < 0.5
         self.logger.info(self.current_time.iso)
-        return boolean
+        return self.observability.check_historical_observability(
+                self.current_time, year=self.historical_observability_year)
 
     def slew_allowed(self, target_ha, target_dec, target_domeaz):
         """Check that slew is within allowed limits"""
@@ -117,3 +119,38 @@ class ZTFStateMachine(Machine):
         
     def wait(self, wait_time = EXPOSURE_TIME):
         self.current_time += wait_time
+
+
+class PTFObservabilityDB:
+    def __init__(self):
+        df = df_read_from_sqlite('weather_blocks')
+        self.df = df.set_index(['year','block'])
+
+    def check_historical_observability(self, time, year=2015, nobs_min=5):
+        """Given a (possibly future) UTC time, look up whether PTF 
+        was observing at that time in specified year.
+
+	Parameters
+	----------
+	time : scalar astropy Time object
+	    UTC Time
+	year : int [2009 -- 2015]
+            year to check PTF historical observing
+        nobs_min : int (default = 3)
+            minimum number of observations per block to count as observable
+	    
+	Returns
+	----------
+        boolean if nobs > nobs_min
+        """
+
+        assert((year >= 2009) and (year <= 2015))
+        assert((nobs_min > 0))
+
+        block = block_index(time, time_block_size = TIME_BLOCK_SIZE)
+
+        try:
+            return self.df.loc[(year,block[0])].values[0] >= nobs_min
+        except KeyError:
+            # blocks are unfilled if there are no observations
+            return False

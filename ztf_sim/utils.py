@@ -24,8 +24,6 @@ def _ptf_to_sqlite():
 
     Fragile, as it assumes the formats below--not for general use."""
 
-    import pd
-
     # main dump
     #e.expid, e.prid, f.ptffield, f.objrad, f.objdecd, e.fid, e.obsmjd,
     #e.nid, e.exptime, e.airmass,
@@ -86,6 +84,7 @@ def _ptf_to_sqlite():
     df['ditheredRA'] = 0.
     df['ditheredDec'] = 0.
 
+    df_write_to_sqlite(df,'ptf')
     return df
 
 def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
@@ -115,7 +114,8 @@ def block_index(time, time_block_size = TIME_BLOCK_SIZE):
 
     # get the time at the start of each year
     year = np.floor(time.decimalyear)
-    # this is an annoying conversion
+    # this is an annoying conversion. blow up scalars:
+    year = np.atleast_1d(year)
     tyear = Time([datetime(y,1,1) for y in year.astype(np.int)])
 
     # mjd to bin
