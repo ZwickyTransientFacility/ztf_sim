@@ -2,8 +2,9 @@ from transitions import Machine
 from astropy.time import Time
 import numpy as np
 import astropy.units as u
-from utils import slew_time, READOUT_TIME, EXPOSURE_TIME, TIME_BLOCK_SIZE
-from utils import df_read_from_sqlite, block_index
+import astropy.coordinates as coords
+from utils import *
+from constants import *
 import logging
 from transitions import logger
 
@@ -74,7 +75,14 @@ class ZTFStateMachine(Machine):
     def can_observe(self):
         """Check for night and weather"""
         self.logger.info(self.current_time.iso)
-        return self.observability.check_historical_observability(
+        if self.historical_observability_year is None:
+            # don't use weather, just check for 18 degree twilight
+            return coords.get_sun(self.current_time).transform_to(
+                     coords.AltAz(obstime=self.current_time, 
+                     location=P48_loc)).alt.is_within_bounds(
+                     upper=-18.*u.deg)
+        else:    
+            return self.observability.check_historical_observability(
                 self.current_time, year=self.historical_observability_year)
 
     def slew_allowed(self, target_ha, target_dec, target_domeaz):
