@@ -7,6 +7,8 @@ def observe():
 
     tel = ZTFStateMachine()
 
+    # set up QueueManager with field requests
+
     while tel.current_time < Time('2018-01-02',scale='utc'):
         
         if tel.check_if_ready():
@@ -20,6 +22,10 @@ def observe():
                 tel.set_cant_observe()
                 tel.wait()
                 continue
+            else:
+                # exposure completed successfully.  now 
+                # a) store exposure information in pointing history sqlite db
+                # b) remove completed request_id
         else:
             tel.set_cant_observe()
             tel.wait()
