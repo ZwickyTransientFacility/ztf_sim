@@ -11,11 +11,12 @@ from transitions import logger
 class ZTFStateMachine(Machine):
 
 
-    def __init__(self, current_time = Time('2018-01-01',scale='utc'), 
+    def __init__(self, current_time = Time('2018-01-01',scale='utc',
+            location=P48_loc), 
             current_ha = 0.*u.deg, current_dec = 0.*u.deg,
             current_domeaz = 0.*u.deg,
             current_filter = 'r', filters = ['r','g'],
-            current_fieldid = None,
+            target_skycoord = None,
             logfile = '../sims/log_ztf_sim', 
             historical_observability_year = 2015):
 
@@ -59,7 +60,7 @@ class ZTFStateMachine(Machine):
         self.current_domeaz = current_domeaz
         self.current_filter = current_filter
         self.filters = filters
-        self.current_fieldid = current_fieldid
+        self.target_skycoord = target_skycoord
 
         # historical observability
         self.historical_observability_year = historical_observability_year
@@ -71,6 +72,16 @@ class ZTFStateMachine(Machine):
         self.logger = logger
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(fh)
+
+    def current_state(self):
+        """Return current state parameters in a dictionary"""
+        return {'current_time': self.current_time,
+                'current_ha': self.current_ha,
+                'current_dec': self.current_dec,
+                'current_domeaz': self.current_domeaz,
+                'current_filter': self.current_filter,
+                'filters': self.filters,
+                'target_skycoord': self.target_skycoord}
 
     def can_observe(self):
         """Check for night and weather"""
@@ -85,19 +96,29 @@ class ZTFStateMachine(Machine):
             return self.observability.check_historical_observability(
                 self.current_time, year=self.historical_observability_year)
 
-    def slew_allowed(self, target_ha, target_dec, target_domeaz):
+    def slew_allowed(self, target_skycoord):
         """Check that slew is within allowed limits"""
+
+        target_ha = RA_to_HA(target_skycoord.ra,self.current_time)
+
         if np.abs(target_ha) > 90.*u.deg:
             return False
-        if (target_dec < -60.*u.deg) or (target_dec > 90.*u.deg): 
+        if ((target_skycoord.dec < -60.*u.deg) or 
+                (target_skycoord.dec > 90.*u.deg)): 
             return False
         return True
 
-    def process_slew(self, target_ha, target_dec, target_domeaz,
+    def process_slew(self, target_skycoord,
             readout_time = READOUT_TIME):
-        # small deviation here: ha of target ra shifts modestly during slew
         # if readout_time is nonzero, assume we are reading during the slew,
         # which sets the lower limit for the time between exposures.
+        
+        self.target_skycoord = target_skycoord
+        
+        target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
+        target_domeaz = sckycoord_to_azimuth(self.target_skycoord, 
+                self.current_time)
+
         
         # calculate time required to slew
         axis_slew_times = [READOUT_TIME]
@@ -113,8 +134,15 @@ class ZTFStateMachine(Machine):
 
         # update the time
         self.current_time += net_slew_time
+        # small deviation here: ha, az of target ra shifts (usually!) 
+        # modestly during slew,
+        # so store the value after the slew is complete.
+        
+        target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
+        target_domeaz = sckycoord_to_azimuth(self.target_skycoord, 
+                self.current_time)
         self.current_ha = target_ha
-        self.current_dec = target_dec
+        self.current_dec = self.target_skycoord.dec
         self.current_domeaz = target_domeaz
 
 
@@ -122,8 +150,15 @@ class ZTFStateMachine(Machine):
         # annoyingly, transitions doesn't let me modify object
         # variables in the trigger functions themselves
         self.current_time += exposure_time
-        # TODO: update ra, dec, domeaz for shifts during exposure
-        # TODO: put the logging here? (or as a separate callback)
+        # update ha and domeaz for tracking during the exposure
+        target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
+        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
+                self.current_time)
+        self.current_ha = target_ha
+        self.current_domeaz = target_domeaz
+
+        # TODO: put in logic that near-zenith pointings could create 
+        # long and slow dome slews during the exposure
         
     def wait(self, wait_time = EXPOSURE_TIME):
         self.current_time += wait_time

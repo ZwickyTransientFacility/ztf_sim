@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 from astropy.time import Time
-import astropy.coordinates as coords
+import astropy.coordinates as coord
 import astropy.units as u
 from sqlalchemy import create_engine
 from constants import *
@@ -16,6 +16,61 @@ def df_read_from_sqlite(dbname, **kwargs):
     df = pd.read_sql(dbname, engine, **kwargs)
 
     return df
+
+def RA_to_HA(ra, time):
+    """convert ra to hour angle. """
+
+    assert(time.location is not None)
+
+    # TODO: astropy currently breaks on future dates due to IERS problems
+    # issue 3275
+    # hacky workaround from
+    # https://groups.google.com/forum/#!msg/astropy-dev/N2Ug4RPU4DU/Gr5YNOANARUJ
+    time.delta_ut1_utc = 0.
+    LST = time.sidereal_time('apparent')
+
+    return LST - ra
+
+def skycoord_to_azimuth(skycoord, time):
+    return skycoord.transform_to(coord.AltAz(obstime=time, location=P48_loc)).az
+
+
+def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
+    """bin an input list of PTF exposure times (all filters,
+    including H-alpha) into 
+    blocks to use for weather analysis."""
+
+    df = pd.read_table('../data/mjd.txt.gz',sep='|',
+        names = ['expMJD'],
+        skipfooter=1)
+    t = Time(df['expMJD'],format='mjd',location=P48_loc)
+    df['year'] = np.floor(t.decimalyear)
+    df['block'] = block_index(t, time_block_size = TIME_BLOCK_SIZE)
+
+    grp = df.groupby(['year','block'])
+    nexps = grp.agg(len)
+    nexps.rename(columns = {'expMJD':'nexps'},inplace=True)
+    nexps['nexps'] = nexps['nexps'].astype(np.int8)
+
+    df_write_to_sqlite(nexps,'weather_blocks')
+
+def block_index(time, time_block_size = TIME_BLOCK_SIZE):
+    """convert an astropy time object into a bin index for years broken up
+    in time_block_size chunks."""
+    from datetime import datetime
+
+
+    # get the time at the start of each year
+    year = np.floor(time.decimalyear)
+    # this is an annoying conversion. blow up scalars:
+    year = np.atleast_1d(year)
+    tyear = Time([datetime(y,1,1) for y in year.astype(np.int)])
+
+    # mjd to bin
+    block_size = time_block_size.to(u.min).value
+    convert = (1*u.day.to(u.min)) / block_size 
+
+    return np.floor( (time.mjd - tyear.mjd) * convert).astype(np.int)
 
 def _ptf_to_sqlite():
     """Convert observation history SQL dump from IPAC db to OpSim db format.
@@ -86,40 +141,3 @@ def _ptf_to_sqlite():
 
     df_write_to_sqlite(df,'ptf')
     return df
-
-def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
-    """bin an input list of PTF exposure times (all filters,
-    including H-alpha) into 
-    blocks to use for weather analysis."""
-
-    df = pd.read_table('../data/mjd.txt.gz',sep='|',
-        names = ['expMJD'],
-        skipfooter=1)
-    t = Time(df['expMJD'],format='mjd',location=P48_loc)
-    df['year'] = np.floor(t.decimalyear)
-    df['block'] = block_index(t, time_block_size = TIME_BLOCK_SIZE)
-
-    grp = df.groupby(['year','block'])
-    nexps = grp.agg(len)
-    nexps.rename(columns = {'expMJD':'nexps'},inplace=True)
-    nexps['nexps'] = nexps['nexps'].astype(np.int8)
-
-    df_write_to_sqlite(nexps,'weather_blocks')
-
-def block_index(time, time_block_size = TIME_BLOCK_SIZE):
-    """convert an astropy time object into a bin index for years broken up
-    in time_block_size chunks."""
-    from datetime import datetime
-
-
-    # get the time at the start of each year
-    year = np.floor(time.decimalyear)
-    # this is an annoying conversion. blow up scalars:
-    year = np.atleast_1d(year)
-    tyear = Time([datetime(y,1,1) for y in year.astype(np.int)])
-
-    # mjd to bin
-    block_size = time_block_size.to(u.min).value
-    convert = (1*u.day.to(u.min)) / block_size 
-
-    return np.floor( (time.mjd - tyear.mjd) * convert).astype(np.int)

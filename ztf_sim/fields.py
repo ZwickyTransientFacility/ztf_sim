@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 from utils import *
-import astropy.coordinates as coords
+import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
 
@@ -29,7 +29,7 @@ class Fields:
             fields = self.fields
         else:
             fields = self.fields[cuts]
-        return coords.SkyCoord(fields['ra'], 
+        return coord.SkyCoord(fields['ra'], 
             fields['dec'], frame='icrs', unit='deg')
 
     def alt_az(self, time, cuts = None):
@@ -41,7 +41,7 @@ class Fields:
             index = self.fields[cuts].index
 
         fieldsAltAz = self.field_coords(cuts=cuts).transform_to(
-            coords.AltAz(obstime=time, location=self.loc))
+            coord.AltAz(obstime=time, location=self.loc))
         return pd.DataFrame({'alt':fieldsAltAz.alt, 'az':fieldsAltAz.az},
             index = index)
 

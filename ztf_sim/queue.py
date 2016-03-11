@@ -10,18 +10,18 @@ class QueueManager:
         else:
             self.rp = rp
 
-    def next_obs(self, current_time, current_xyz):
+    def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
         # don't store the telescope state locally!
         
         # define functions that actually do the work in subclasses
-        self._next_obs()
+        return self._next_obs(current_state)
 
     def update_queue(self, **kwargs):
         """Recalculate queue"""
 
         # define functions that actually do the work in subclasses
-        self._update_queue()
+        return self._update_queue()
 
 
 class GreedyQueueManager(QueueManager):
@@ -30,15 +30,21 @@ class GreedyQueueManager(QueueManager):
         super(GreedyQueueManager, self).__init__(**kwargs)
 
 
-    def _next_obs(self):
+    def _next_obs(self, current_state):
         """Select the highest value request."""
-        pass
+        
+        return {'target_fieldid': fieldid,
+                'target_ra': ra,
+                'target_dec': dec,
+                'target_filterid': filterid,
+                'target_program': program,
+                'request_id': request_id}
 
     def _update_queue(self):
         """Calculate greedy weighting of requests in the Pool using current 
         telescope state only"""
 
-        # initialize to zero so set fields aren't counted
+        # initialize all to zero so fields below the horizon aren't counted
         self.rp.pool['value'] = 0.
 
         # select requests with active cadence windows
