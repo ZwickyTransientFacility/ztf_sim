@@ -8,7 +8,8 @@ def observe():
 
     tel = ZTFStateMachine()
 
-    # set up QueueManager with field requests
+    # set up QueueManager with field requests (Tom Barlow function)
+    # reload each night?
     Q = QueueManager()
 
     while tel.current_time < Time('2018-01-02',scale='utc'):

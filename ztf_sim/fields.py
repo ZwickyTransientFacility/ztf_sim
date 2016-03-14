@@ -3,9 +3,12 @@
 import numpy as np
 import pandas as pd
 from utils import *
+from constants import *
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
+from collections import defaultdict
+import itertools
 
 class Fields:
     """Class for accessing field grid."""
@@ -18,10 +21,24 @@ class Fields:
         """Loads a field grid from ../data/{dbname}.db.  
         Expects fieldid, ra (deg), dec (deg) columns"""
         df = df_read_from_sqlite(dbname, index_col = 'fieldid')
-        self.fields = df
         # TODO: consider dropping fields below dec < -30
+        
+        # initialize the last observed time
         # TODO: load last observed time per filter & program
+        
+        for program_id in program_ids:
+            for filter_id in filter_ids:
+                df['last_observed_{}_{}'.format(program_id,filter_id)] = \
+                        Time('2001-01-01')
+        
         # TODO: load total observations per filter & program
+        
+        for program_id in program_ids:
+            for filter_id in filter_ids:
+                df['n_obs_{}_{}'.format(program_id,filter_id)] = 0
+                        
+        
+        self.fields = df
 
     def field_coords(self, cuts = None):
         """Generate an astropy SkyCoord object for current fields"""
@@ -85,14 +102,15 @@ class Fields:
     	ra_range = None, dec_range = None,
     	l_range = None, b_range = None, 
         ecliptic_lon_range = None, ecliptic_lat_range = None, 
-        gridid = None): 
+        grid_id = None, 
+        program_id = None, filter_id = None, 
+        n_obs_range = None, last_observed_range = None): 
 	"""Select a subset of fields based on their sky positions.
 
         Each _range keyword takes a list [min,max].
-        gridid is a scalar"""
-        # TODO: allow searches by past exposures (total number, last observed)
-        # (by filter and program)
-
+        grid_id is a scalar
+        (for now), n_obs_range and last_observed_range require specifying
+        program_id and filter_id"""
 
 	# start with a boolean True series:
 	cuts = (self.fields['ra'] == self.fields['ra'])
@@ -105,11 +123,25 @@ class Fields:
 		cuts = cuts & (self.fields[range_keys[i]] >= arg[0]) & \
 		    (self.fields[range_keys[i]] <= arg[1])
 
-	scalar_keys = ['gridid']
+	scalar_keys = ['grid_id']
 
-	for i, arg in enumerate([gridid]):
+	for i, arg in enumerate([grid_id]):
 	    if arg is not None:
 		cuts = cuts & (self.fields[scalar_keys[i]] == arg) 
+
+        # n_obs and last_observed require special treatment,
+        # since we have to specify the program_id and filter_id
+        
+        pf_keys = ['n_obs', 'last_observed']
+
+        for i, arg in enumerate([n_obs_range, last_observed_range]):
+            if arg is not None:
+                assert (program_id is not None) and (filter_id is not None):
+                    # TODO: allow combined selections across several filters
+                    # and/or programs
+                    key = '{}_{}_{}'.format(pf_keys[i],program_id, filter_id)
+                    cuts = cuts & (self.fields[key >= arg[0]) & \
+                        (self.fields[key <= arg[1])
 
 	return cuts
 	     
@@ -128,9 +160,9 @@ def generate_test_field_grid(filename='../data/ZTF_fields.txt',
 
     # insert label for offset grids
     grid = pd.Series(df.index >=
-            1000,index=df.index,name='gridid',dtype=np.int8)
+            1000,index=df.index,name='grid_id',dtype=np.int8)
 
     df = df.join(grid)
 
     df_write_to_sqlite(df[['ra','dec','l','b','ecliptic_lon','ecliptic_lat',
-        'gridid']], dbname, index_label='fieldid')
+        'grid_id']], dbname, index_label='fieldid')

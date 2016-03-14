@@ -22,6 +22,17 @@ SETTLE_TIME = 2.*u.second
 
 TIME_BLOCK_SIZE = 20.*u.min
 
+program_name_to_id = {'collaboration':1, 'MSIP':2, 'Caltech':3}
+program_names = program_name_to_id.keys()
+program_id_to_name = {v: k for k, v in program_name_to_id.items()}
+program_ids = program_id_to_name.keys()
+
+filter_name_to_id = {'g':1, 'r':2}
+filter_names = filter_name_to_id.keys()
+filter_id_to_name = {v: k for k, v in filter_name_to_id.items()}
+filter_ids = filter_id_to_name.keys()
+
+
 def slew_time(axis, angle):
     vmax = P48_slew_pars[axis]['vmax']
     acc = P48_slew_pars[axis]['accel']
