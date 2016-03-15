@@ -136,12 +136,12 @@ class Fields:
 
         for i, arg in enumerate([n_obs_range, last_observed_range]):
             if arg is not None:
-                assert (program_id is not None) and (filter_id is not None):
-                    # TODO: allow combined selections across several filters
-                    # and/or programs
-                    key = '{}_{}_{}'.format(pf_keys[i],program_id, filter_id)
-                    cuts = cuts & (self.fields[key >= arg[0]) & \
-                        (self.fields[key <= arg[1])
+                assert ((program_id is not None) and (filter_id is not None))
+                # TODO: allow combined selections across several filters
+                # and/or programs
+                key = '{}_{}_{}'.format(pf_keys[i],program_id, filter_id)
+                cuts = cuts & (self.fields[key] >= arg[0]) & \
+                    (self.fields[key] <= arg[1])
 
 	return cuts
 	     
