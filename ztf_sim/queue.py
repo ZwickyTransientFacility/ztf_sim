@@ -39,6 +39,9 @@ class GreedyQueueManager(QueueManager):
 
     def _next_obs(self, current_state):
         """Select the highest value request."""
+
+        # since this is a greedy queue, we update the queue after each obs
+        self._update_queue(current_state)
         
         return {'target_fieldid': fieldid,
                 'target_ra': ra,
@@ -47,18 +50,28 @@ class GreedyQueueManager(QueueManager):
                 'target_program': program,
                 'request_id': request_id}
 
-    def _update_queue(self):
+    def _update_queue(self, current_state):
         """Calculate greedy weighting of requests in the Pool using current 
         telescope state only"""
 
-        # initialize all to zero so fields below the horizon aren't counted
-        self.rp.pool['value'] = 0.
+        # compute current alt and az
+        self.fields.alt_az(current_state['current_time'])
 
-        # select requests with active cadence windows
+        # join with fields so we have the information we need
+        df = self.rp.pool.join(self.fields.fields,on='field_id')
 
-        # zenith cut (or airmass weighting)
+        # initialize cadence windows
+        df['in_cadence_window'] = False
+
+        # use cadence functions to compute requests with active cadence windows
+        for idx, row in df.iterrows():
+            df['in_cadence_window'].ix[idx] = \
+                    eval('{}(row, current_state)'.format(row['cadence_func']))
+
+        # zenith cut (or add airmass weighting to value below)
         
-        # slew time
+        # value = 1./(obs_time + slew time)
+        
         pass
 
 
