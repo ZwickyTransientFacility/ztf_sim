@@ -34,6 +34,11 @@ def RA_to_HA(ra, time):
 def skycoord_to_azimuth(skycoord, time):
     return skycoord.transform_to(coord.AltAz(obstime=time, location=P48_loc)).az
 
+def airmass_to_zenith_angle(airmass):
+    return np.degrees(np.arccos(1./airmass))
+
+def zenith_angle_to_airmass(zenith_angle):
+    return 1./np.cos(np.radians(zenith_angle))
 
 def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
     """bin an input list of PTF exposure times (all filters,

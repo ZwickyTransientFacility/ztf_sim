@@ -121,6 +121,7 @@ class ZTFStateMachine(Machine):
 
         
         # calculate time required to slew
+        # TODO: duplicates codes in fields.py--consider refactoring
         axis_slew_times = [READOUT_TIME]
 	for axis in ['ha', 'dec', 'domeaz']:
             dangle = np.abs(eval("target_{}".format(axis)) -
