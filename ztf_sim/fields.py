@@ -10,7 +10,7 @@ from astropy.time import Time
 from collections import defaultdict
 import itertools
 
-class Fields:
+class Fields(object):
     """Class for accessing field grid."""
     # TODO: consider using some of PTFFields.py code 
     def __init__(self,dbname='test_fields'):
@@ -39,8 +39,9 @@ class Fields:
                         
         
         self.fields = df
+        self.field_coords = self._field_coords()
 
-    def field_coords(self, cuts = None):
+    def _field_coords(self, cuts = None):
         """Generate an astropy SkyCoord object for current fields"""
         if cuts is None:
             fields = self.fields
@@ -54,11 +55,14 @@ class Fields:
 
         if cuts is None:
             index = self.fields.index
+            fieldsAltAz = self.field_coords.transform_to(
+                coord.AltAz(obstime=time, location=self.loc))
         else:
+            # warning: specifying cuts makes this much slower
             index = self.fields[cuts].index
+            fieldsAltAz = self._field_coords(cuts=cuts).transform_to(
+                coord.AltAz(obstime=time, location=self.loc))
 
-        fieldsAltAz = self.field_coords(cuts=cuts).transform_to(
-            coord.AltAz(obstime=time, location=self.loc))
         return pd.DataFrame({'alt':fieldsAltAz.alt, 'az':fieldsAltAz.az},
             index = index)
 
@@ -82,8 +86,16 @@ class Fields:
 
         slews_by_axis = {'readout':READOUT_TIME}
         for axis in ['ha', 'dec', 'dome']:
+            if axis == 'dome':
+                current_coord = current_state['current_domeaz'].value
+            if axis == 'ha':
+                # convert to RA for ease of subtraction
+                current_coord = RA_to_HA(current_state['current_ha'],
+                        current_state['current_time']).degree
+            if axis == 'dec':
+                current_coord = current_state['current_dec'].value
             coord = P48_slew_pars[axis]['coord']
-            dangle = np.abs(df[coord] - row[coord])
+            dangle = np.abs(df[coord] - current_coord)
             angle = np.where(dangle < (360. - dangle), dangle, 360. - dangle)
             slews_by_axis[axis] = slew_time(axis, angle*u.deg)
 

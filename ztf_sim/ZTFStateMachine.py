@@ -2,7 +2,7 @@ from transitions import Machine
 from astropy.time import Time
 import numpy as np
 import astropy.units as u
-import astropy.coordinates as coords
+import astropy.coordinates as coord
 from utils import *
 from constants import *
 import logging
@@ -16,6 +16,7 @@ class ZTFStateMachine(Machine):
             current_ha = 0.*u.deg, current_dec = 0.*u.deg,
             current_domeaz = 0.*u.deg,
             current_filter = 'r', filters = ['r','g'],
+            current_seeing = 2.0 * u.arcsec,
             target_skycoord = None,
             logfile = '../sims/log_ztf_sim', 
             historical_observability_year = 2015):
@@ -43,7 +44,7 @@ class ZTFStateMachine(Machine):
             # I would like to automatically set the cant_observe state from
             # start_exposing, but that doesn't seem to work.
             {'trigger': 'check_if_ready', 'source': ['ready', 'cant_observe'], 
-                'dest': 'ready', 'unless': 'can_observe'},
+                'dest': 'ready', 'conditions': 'can_observe'},
             {'trigger': 'set_cant_observe', 'source': '*', 
                 'dest': 'cant_observe'}
             ]
@@ -60,6 +61,7 @@ class ZTFStateMachine(Machine):
         self.current_domeaz = current_domeaz
         self.current_filter = current_filter
         self.filters = filters
+        self.current_seeing = current_seeing
         self.target_skycoord = target_skycoord
 
         # historical observability
@@ -73,28 +75,37 @@ class ZTFStateMachine(Machine):
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(fh)
 
-    def current_state(self):
+    def current_state_dict(self):
         """Return current state parameters in a dictionary"""
         return {'current_time': self.current_time,
                 'current_ha': self.current_ha,
                 'current_dec': self.current_dec,
                 'current_domeaz': self.current_domeaz,
                 'current_filter': self.current_filter,
+                'current_seeing': self.current_seeing,
                 'filters': self.filters,
                 'target_skycoord': self.target_skycoord}
 
     def can_observe(self):
         """Check for night and weather"""
         self.logger.info(self.current_time.iso)
-        if self.historical_observability_year is None:
-            # don't use weather, just check for 18 degree twilight
-            return coords.get_sun(self.current_time).transform_to(
-                     coords.AltAz(obstime=self.current_time, 
+
+        # start by checking for 12 degree twilight
+        # TODO: optimization: fast-forward to sunset
+        if coord.get_sun(self.current_time).transform_to(
+                     coord.AltAz(obstime=self.current_time, 
                      location=P48_loc)).alt.is_within_bounds(
-                     upper=-18.*u.deg)
-        else:    
-            return self.observability.check_historical_observability(
+                             upper=-12.*u.deg):
+            if self.historical_observability_year is None:
+                # don't use weather, just use 12 degree twilight
+                return True
+            else:    
+                return self.observability.check_historical_observability(
                 self.current_time, year=self.historical_observability_year)
+        else:
+            # daytime
+            return False
+
 
     def slew_allowed(self, target_skycoord):
         """Check that slew is within allowed limits"""
@@ -116,8 +127,9 @@ class ZTFStateMachine(Machine):
         self.target_skycoord = target_skycoord
         
         target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
-        target_domeaz = sckycoord_to_azimuth(self.target_skycoord, 
+        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
                 self.current_time)
+        target_dec = target_skycoord.dec
 
         
         # calculate time required to slew
@@ -140,7 +152,7 @@ class ZTFStateMachine(Machine):
         # so store the value after the slew is complete.
         
         target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
-        target_domeaz = sckycoord_to_azimuth(self.target_skycoord, 
+        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
                 self.current_time)
         self.current_ha = target_ha
         self.current_dec = self.target_skycoord.dec
@@ -165,7 +177,7 @@ class ZTFStateMachine(Machine):
         self.current_time += wait_time
 
 
-class PTFObservabilityDB:
+class PTFObservabilityDB(object):
     def __init__(self):
         df = df_read_from_sqlite('weather_blocks')
         self.df = df.set_index(['year','block'])
@@ -195,6 +207,6 @@ class PTFObservabilityDB:
 
         try:
             return self.df.loc[(year,block[0])].values[0] >= nobs_min
-        except KeyError:
+        except TypeError, KeyError:
             # blocks are unfilled if there are no observations
             return False

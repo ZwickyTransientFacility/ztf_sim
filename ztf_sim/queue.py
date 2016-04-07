@@ -2,8 +2,11 @@
 import numpy as np
 import pandas as pd
 from fields import Fields
+from cadence import *
+from constants import *
+from utils import *
 
-class QueueManager:
+class QueueManager(object):
 
     def __init__(self, rp = None, fields = None):
         if rp is None:
@@ -51,6 +54,7 @@ class GreedyQueueManager(QueueManager):
                 'target_dec': self.queue.ix[max_idx].dec,
                 'target_filter_id': self.queue.ix[max_idx].filter_id,
                 'target_program_id': self.queue.ix[max_idx].program_id,
+                'target_exposure_time': EXPOSURE_TIME,
                 'request_id': max_idx}
 
     def _update_queue(self, current_state):
@@ -60,27 +64,34 @@ class GreedyQueueManager(QueueManager):
         # join with fields so we have the information we need
         df = self.rp.pool.join(self.fields.fields,on='field_id')
 
-        # initialize cadence windows
-        df['in_cadence_window'] = False
 
         # use cadence functions to compute requests with active cadence windows
+        in_window = {}
         for idx, row in df.iterrows():
-            df['in_cadence_window'].ix[idx] = \
-                    eval('{}(row, current_state)'.format(row['cadence_func']))
+            # this is way, way slower
+            #df['in_cadence_window'].ix[idx] = \
+            in_window[idx] = \
+                eval('{}(row, current_state)'.format(row['cadence_func']))
 
-        cadence_cuts = df['in_cadence_window'] 
+        cadence_cuts = pd.Series(in_window)
         df = df[cadence_cuts]
 
         # compute readout/slew overhead times, plus current altitude
         # TODO: need to add overhead for filter changes
-        df_overhead, df_alt = self.fields.overhead_time(current_state, 
-                cuts=cadence_cuts)
+        df_overhead, df_alt = self.fields.overhead_time(current_state) 
+        # TODO: can't pass cadence_cuts here trivially, 
+        # since df has index request_id, not field_id
+        #        cuts=cadence_cuts)
 
-        df = df.join(df_overhead, left_on='field_id')
+        df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
 
+        # compute airmasses by field_id
+        airmass = zenith_angle_to_airmass(90. - df_alt) 
+        airmass.name = 'airmass'
+        df = pd.merge(df, pd.DataFrame(airmass),
+                left_on='field_id', right_index=True)
         # airmass cut (or add airmass weighting to value below)
-        airmass_cuts = zenith_angle_to_airmass(90.*u.deg - df_alt) <= MAX_AIRMASS 
-        df = df[airmass_cuts]
+        df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
         # TODO: penalize volume for both extinction (airmass) and fwhm penalty
         # due to atmospheric refraction (use a lookup table, probably)
@@ -88,12 +99,12 @@ class GreedyQueueManager(QueueManager):
         
         # value = 1./(obs_time + slew time)
         # TODO: for now, make this unitless
-        df['value'] = 1.*u.sec/(EXPOSURE_TIME + df['overhead_time'])
-        
+        df['value'] = 1./(EXPOSURE_TIME.value + df['overhead_time'])
+       
         self.queue = df
 
 
-class RequestPool:
+class RequestPool(object):
 
     def __init__(self):
         # initialize empty dataframe to add to

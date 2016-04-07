@@ -34,19 +34,19 @@ def time_since_last_obs(request_row, current_state):
         last_obses = []
         for filter_id in FILTER_IDS:
             last_obses.append(row['last_observed_{}_{}'.format(
-                row['program_id'],row['filter_id']))
+                row['program_id'],row['filter_id'])])
         last_obs = np.max(last_obses)
     else: 
         if pars['prev_filter'] == 'same':
             last_obs_filter = row['filter_id']
-        else if pars['prev_filter'] == 'other':
+        elif pars['prev_filter'] == 'other':
             assert(len(FILTER_IDS) == 2)
             raise NotImplementedError
-        else if pars['prev_filter'] in FILTER_IDS:
+        elif pars['prev_filter'] in FILTER_IDS:
             last_obs_filter = pars['prev_filter']
    
         last_obs = row['last_observed_{}_{}'.format(
-            row['program_id'],row['filter_id'])
+            row['program_id'],row['filter_id'])]
 
     window_start_ut = last_obs + pars['window_start']
     window_stop_ut = last_obs + pars['window_stop']

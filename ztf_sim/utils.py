@@ -17,6 +17,20 @@ def df_read_from_sqlite(dbname, **kwargs):
 
     return df
 
+def HA_to_RA(ha, time):
+    """convert hour angle to ra. """
+
+    assert(time.location is not None)
+
+    # TODO: astropy currently breaks on future dates due to IERS problems
+    # issue 3275
+    # hacky workaround from
+    # https://groups.google.com/forum/#!msg/astropy-dev/N2Ug4RPU4DU/Gr5YNOANARUJ
+    time.delta_ut1_utc = 0.
+    LST = time.sidereal_time('apparent')
+
+    return LST - ha
+
 def RA_to_HA(ra, time):
     """convert ra to hour angle. """
 
@@ -49,7 +63,7 @@ def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
         names = ['expMJD'],
         skipfooter=1)
     t = Time(df['expMJD'],format='mjd',location=P48_loc)
-    df['year'] = np.floor(t.decimalyear)
+    df['year'] = np.floor(t.decimalyear).astype(np.int)
     df['block'] = block_index(t, time_block_size = TIME_BLOCK_SIZE)
 
     grp = df.groupby(['year','block'])
