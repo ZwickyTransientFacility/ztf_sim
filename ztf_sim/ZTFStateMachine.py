@@ -127,8 +127,8 @@ class ZTFStateMachine(Machine):
         self.target_skycoord = target_skycoord
         
         target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
-        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
-                self.current_time)
+        target_domeaz = skycoord_to_altaz(self.target_skycoord, 
+                self.current_time).az
         target_dec = target_skycoord.dec
 
         
@@ -152,8 +152,8 @@ class ZTFStateMachine(Machine):
         # so store the value after the slew is complete.
         
         target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
-        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
-                self.current_time)
+        target_domeaz = skycoord_to_altaz(self.target_skycoord, 
+                self.current_time).az
         self.current_ha = target_ha
         self.current_dec = self.target_skycoord.dec
         self.current_domeaz = target_domeaz
@@ -165,8 +165,8 @@ class ZTFStateMachine(Machine):
         self.current_time += exposure_time
         # update ha and domeaz for tracking during the exposure
         target_ha = RA_to_HA(self.target_skycoord.ra,self.current_time)
-        target_domeaz = skycoord_to_azimuth(self.target_skycoord, 
-                self.current_time)
+        target_domeaz = skycoord_to_altaz(self.target_skycoord, 
+                self.current_time).az
         self.current_ha = target_ha
         self.current_domeaz = target_domeaz
 

@@ -2,6 +2,12 @@
 import numpy as np
 from sqlalchemy import create_engine
 import sqlite3
+import astropy.coordinates as coord
+import astropy.units as u
+# replace with astropy equivalent when available
+import astroplan.moon 
+from utils import *
+from constants import *
 
 class ObsLogger:
 
@@ -44,9 +50,10 @@ class ObsLogger:
         vSkyBright         REAL,
         filtSkyBright      REAL,
         rotSkyPos          REAL,
+        rotTelPos          REAL,
         lst                REAL,
-        alt                REAL,
-        az                 REAL,
+        altitude           REAL,
+        azimuth            REAL,
         dist2Moon          REAL,
         solarElong         REAL,
         moonRA             REAL,
@@ -55,7 +62,7 @@ class ObsLogger:
         moonAZ             REAL,
         moonPhase          REAL,
         sunAlt             REAL,
-        sunAZ              REAL,
+        sunAz              REAL,
         phaseAngle         REAL,
         rScatter           REAL,
         mieScatter         REAL,
@@ -81,23 +88,67 @@ class ObsLogger:
         record['sessionID'] = 0
         record['propID'] = request['target_program_id']
         record['fieldID'] = request['target_field_id']
-        record['fieldRA'] = request['target_ra']
-        record['fieldDec'] = request['target_dec']
+        record['fieldRA'] = np.radians(request['target_ra'])
+        record['fieldDec'] = np.radians(request['target_dec'])
+
         # TODO: double check if target_filter_id is letter or number
         record['filter'] = request['target_filter_id']
         # times are recorded at start of exposure
         exposure_start = state['current_time'] - request['target_exposure_time']
+        # see note in utils.py
+        exposure_start.delta_ut1_utc = 0. 
+
         record['expDate'] = (exposure_start - self.survey_start_time).sec
         record['expMJD'] = exposure_start.mjd
         record['night'] = np.floor((exposure_start - self.survey_start_time).jd
                 ).astype(np.int)
-        record['visitTime'] = request['target_exposure_time'].value
-        record['visitExpTime'] = request['target_exposure_time'].value
+        record['visitTime'] = request['target_exposure_time'].to(u.second).value
+        record['visitExpTime'] = request['target_exposure_time'].to(u.second).value
         # finRank
-        record['FWHMgeom'] = state['current_seeing'].value
-        record['FWHMeff'] = state['current_seeing'].value
+        record['FWHMgeom'] = state['current_seeing'].to(u.arcsec).value
+        record['FWHMeff'] = state['current_seeing'].to(u.arcsec).value
         # transparency
-        #record['airmass']
+
+        # compute some values we will need
+        sc = coord.SkyCoord(record['fieldRA']*u.radian,
+                        record['fieldDec']*u.radian)
+        altaz = skycoord_to_altaz(sc,exposure_start)
+        record['airmass'] = altaz.secz.value
+        # vSkyBright
+        # record['filtSkyBrightness'] TODO
+        record['rotSkyPos'] = 0. # TODO: confirm
+        record['rotTelPos'] = 0.
+        record['lst'] = exposure_start.sidereal_time('apparent').to(
+		u.hourangle).value
+        record['altitude'] = altaz.alt.to(u.radian).value
+        record['azimuth'] = altaz.az.to(u.radian).value
+
+        sun = coord.get_sun(exposure_start)
+        sun_altaz = skycoord_to_altaz(sun,exposure_start)
+        moon_altaz = astroplan.moon.get_moon(exposure_start,P48_loc)
+        moon = moon_altaz.icrs
+        record['dist2Moon'] = sc.separation(moon).to(u.radian).value
+        record['solarElong'] = sc.separation(sun).to(u.deg).value
+        record['moonRA'] = moon.ra.to(u.radian).value
+        record['moonDec'] = moon.dec.to(u.radian).value
+        record['moonAlt'] = moon_altaz.alt.to(u.radian).value
+        record['moonAZ'] = moon_altaz.az.to(u.radian).value
+        record['moonPhase'] = astroplan.moon.moon_illumination(
+                exposure_start, P48_loc) * 100.
+        record['sunAlt'] = sun_altaz.alt.to(u.radian).value
+        record['sunAz'] = sun_altaz.az.to(u.radian).value
+        # phaseAngle, rScatter, mieScatter, moonBright, darkBright
+        # rawSeeing
+        # wind
+        # humidity
+        if self.prev_obs is not None:
+            sc_prev = coord.SkyCoord(self.prev_obs['fieldRA']*u.radian,
+                            self.prev_obs['fieldDec']*u.radian)
+            record['slewDist'] = sc.separation(sc_prev).to(u.radian).value
+            record['slewTime'] = record['expDate'] - self.prev_obs['expDate']
+        # record['fiveSigmaDepth']
+        record['ditheredRA'] = 0.
+        record['ditheredDec'] = 0.
 
         # use placeholders to create the INSERT query
         columns = ', '.join(record.keys())
@@ -106,5 +157,8 @@ class ObsLogger:
                 columns, placeholders)
         query_filled = query.format(**record)
         self.conn.execute(query_filled)
+
+        # save record for next obs
+        self.prev_obs = record
 
         pass
