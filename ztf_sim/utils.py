@@ -55,6 +55,35 @@ def airmass_to_zenith_angle(airmass):
 def zenith_angle_to_airmass(zenith_angle):
     return 1./np.cos(np.radians(zenith_angle))
 
+def approx_hours_of_darkness(time, axis=coord.Angle(23.44*u.degree), 
+        latitude=P48_loc.latitude, twilight=coord.Angle(12.*u.degree)):
+    """Compute the hours of darkness (greater than t degrees twilight)
+
+    The main approximation is a casual treatment of the time since the solstice"""
+#    diff = date - pd.datetime(2000, 12, 21)
+#    day = diff.total_seconds() / 24. / 3600
+#    doy %= 365.25
+
+    # TODO: actually compute the most recent solstice
+    solstice = Time('2008-12-21')
+
+    diff = (time-solstice).sec * u.second
+    doy = np.floor((diff % (1*u.year)).to(u.day).value)
+
+    # vectorize, if needed
+    #if len(np.atleast1d(doy)) == 1:
+    #    doy = np.array([doy])
+
+    m = 1. - np.tan(latitude.radian) * np.tan(axis.radian *
+        np.cos(doy * np.pi / 182.625))
+    i = np.tan(twilight.radian)/np.cos(latitude.radian)
+    n = m + i
+    n = np.max([0, np.min([n, 2])])
+    # vectorize
+    #n[n > 2] = 2
+    #n[n < 0] = 0
+    return 24.*u.hour * (1. - np.degrees(np.arccos(1 - n)) / 180.)
+
 def bin_ptf_obstimes(time_block_size = TIME_BLOCK_SIZE):
     """bin an input list of PTF exposure times (all filters,
     including H-alpha) into 
