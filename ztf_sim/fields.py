@@ -153,8 +153,23 @@ class Fields(object):
                     (self.fields[key] <= arg[1])
 
 	return cuts
+
+    def select_field_ids(self, **kwargs):
+        cuts = self.select_fields(**kwargs)
+        return self.fields[cuts].index
+
+    def mark_field_observed(self, request, current_state):
+        """Update time last observed and number of observations for a single field"""
 	     
-		
+        field_id = request['target_field_id']
+        program_id = request['target_program_id']
+        filter_id = request['target_filter_id']
+        time_obs = current_state['current_time'] - EXPOSURE_TIME
+        
+        self.fields.ix[field_id]['last_observed_{}_{}'.format(program_id,filter_id)] = \
+                        time_obs
+        
+        self.fields.ix[field_id]['n_obs_{}_{}'.format(program_id,filter_id)] += 1
 
         
 

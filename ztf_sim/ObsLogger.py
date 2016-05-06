@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 import sqlite3
 import astropy.coordinates as coord
 import astropy.units as u
-# replace with astropy equivalent when available
+# TODO: replace with astropy equivalent when available
 import astroplan.moon 
 from utils import *
 from constants import *

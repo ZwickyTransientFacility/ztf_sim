@@ -34,15 +34,26 @@ def observe(run_name = run_name):
             # no weather
             historical_observability_year=None)
 
-    # set up QueueManager with field requests (Tom Barlow function)
-    # reload each night?
-    Q = GreedyQueueManager()
+    # set up Observing Programs
+    #CollabOP = CollaborationObservingProgram()
+    MSIPOP = MSIPObservingProgram(
+            Q.fields.select_field_ids(dec_range=[-30,90], grid_id = 0)
+    MSIPOP.observing_time_fraction = 1.0
+    #CaltechOP = CaltechObservingProgram()
+    #observing_programs = [CollabOP, MSIPOP, CaltechOP]
+    observing_programs = [MSIPOP]
+
+    # set up QueueManager 
+    Q = GreedyQueueManager(observing_programs)
+
+    # initialize nightly field requests (Tom Barlow function)
+    Q.assign_nightly_requests(tel.current_state_dict())
 
     # temporary loading to test things
-    Q.rp.add_requests(1,
-            Q.fields.fields[
-                Q.fields.select_fields(dec_range=[-30,90])].index, 2,
-            'no_cadence',{})
+    #Q.rp.add_requests(1,
+    #        Q.fields.fields[
+    #            Q.fields.select_fields(dec_range=[-30,90])].index, 2,
+    #        'no_cadence',{})
 
 
     # initialize sqlite history
@@ -51,6 +62,8 @@ def observe(run_name = run_name):
 
     #while tel.current_time < Time('2018-01-02',scale='utc'):
     while tel.current_time < Time('2018-01-01 05:00:00',scale='utc'):
+
+        # TODO: reload queue with new requests on update interval (nightly
         
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
@@ -76,8 +89,11 @@ def observe(run_name = run_name):
             else:
                 # exposure completed successfully.  now 
                 # a) store exposure information in pointing history sqlite db
-                log.log_pointing(tel.current_state_dict(), next_obs)
-                # b) remove completed request_id
+                current_state = tel.current_state_dict()
+                log.log_pointing(current_state, next_obs)
+                # b) update Fields 
+                Q.fields.mark_field_observed(next_obs, current_state)
+                # c) remove completed request_id
                 Q.rp.remove_requests(next_obs['request_id'])
         else:
             tel.set_cant_observe()

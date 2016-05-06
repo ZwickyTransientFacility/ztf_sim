@@ -10,7 +10,6 @@ from transitions import logger
 
 class ZTFStateMachine(Machine):
 
-
     def __init__(self, current_time = Time('2018-01-01',scale='utc',
             location=P48_loc), 
             current_ha = 0.*u.deg, current_dec = 0.*u.deg,

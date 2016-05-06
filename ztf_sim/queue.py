@@ -8,7 +8,11 @@ from utils import *
 
 class QueueManager(object):
 
-    def __init__(self, rp = None, fields = None):
+    def __init__(self, observing_programs, rp = None, fields = None):
+
+        # list of ObservingPrograms
+        self.observing_programs = observing_programs
+
         if rp is None:
             # initialize an empty RequestPool
             self.rp = RequestPool()
@@ -19,6 +23,11 @@ class QueueManager(object):
             self.fields = Fields()
         else:
             self.fields = fields
+
+    def assign_nightly_requests(self, current_state):
+        for program in self.observing_programs:
+            #self.rp.add_requests = ...
+            pass
 
     def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
@@ -151,3 +160,6 @@ class RequestPool(object):
         request_ids : scalar or list
             requests to drop (index of self.pool)"""
         self.pool = self.pool.drop(request_ids)
+
+    def clear_all_requests(self):
+        self.pool = pd.DataFrame()
