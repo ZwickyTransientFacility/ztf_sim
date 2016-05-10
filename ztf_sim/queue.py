@@ -8,7 +8,7 @@ from utils import *
 
 class QueueManager(object):
 
-    def __init__(self, observing_programs, rp = None, fields = None):
+    def __init__(self, observing_programs = [], rp = None, fields = None):
 
         # list of ObservingPrograms
         self.observing_programs = observing_programs
@@ -23,6 +23,9 @@ class QueueManager(object):
             self.fields = Fields()
         else:
             self.fields = fields
+
+    def add_observing_program(self, observing_program):
+        self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state):
         for program in self.observing_programs:

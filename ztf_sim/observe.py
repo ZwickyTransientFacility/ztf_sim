@@ -34,17 +34,19 @@ def observe(run_name = run_name):
             # no weather
             historical_observability_year=None)
 
+    # set up QueueManager 
+    Q = GreedyQueueManager()
+
     # set up Observing Programs
     #CollabOP = CollaborationObservingProgram()
+    #Q.add_observing_program(CollabOP)
     MSIPOP = MSIPObservingProgram(
-            Q.fields.select_field_ids(dec_range=[-30,90], grid_id = 0)
+            Q.fields.select_field_ids(dec_range=[-30,90], grid_id = 0))
     MSIPOP.observing_time_fraction = 1.0
+    Q.add_observing_program(MSIPOP)
     #CaltechOP = CaltechObservingProgram()
-    #observing_programs = [CollabOP, MSIPOP, CaltechOP]
-    observing_programs = [MSIPOP]
+    #Q.add_observing_program(CaltechOP)
 
-    # set up QueueManager 
-    Q = GreedyQueueManager(observing_programs)
 
     # initialize nightly field requests (Tom Barlow function)
     Q.assign_nightly_requests(tel.current_state_dict())
