@@ -69,9 +69,13 @@ def skycoord_to_altaz(skycoord, time):
 
 
 def airmass_to_zenith_angle(airmass):
-    return np.degrees(np.arccos(1. / airmass))
+    return np.degrees(np.arccos(1. / airmass)) * u.deg
 
 # cf altaz.secz.value
+
+
+def airmass_to_altitude(airmass):
+    return 90. * u.deg - airmass_to_zenith_angle
 
 
 def zenith_angle_to_airmass(zenith_angle):
@@ -183,7 +187,7 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
 
     block_start = block_index(evening_twilight,
                               time_block_size=time_block_size)
-    block_end = block_index(evening_twilight,
+    block_end = block_index(morning_twilight,
                             time_block_size=time_block_size)
 
     blocks = np.arange(block_start, block_end + 1, 1)
