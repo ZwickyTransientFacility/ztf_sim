@@ -6,10 +6,10 @@ import numpy as np
 from constants import *
 
 
-
 def no_cadence(*args):
     """No cadence requirement--can be observed at any time."""
     return True
+
 
 def time_since_last_obs(request_row, current_state):
     """
@@ -26,27 +26,27 @@ def time_since_last_obs(request_row, current_state):
     """
 
     now = current_state['current_time']
-    pars = row['cadence_pars']
+    pars = request_row['cadence_pars']
 
     # which filter are we using to determine the time of last observation?
     # TODO: for now, require last observation to be from the same program
     if pars['prev_filter'] == 'any':
         last_obses = []
         for filter_id in FILTER_IDS:
-            last_obses.append(row['last_observed_{}_{}'.format(
-                row['program_id'],row['filter_id'])])
+            last_obses.append(request_row['last_observed_{}_{}'.format(
+                request_row['program_id'], request_row['filter_id'])])
         last_obs = np.max(last_obses)
-    else: 
+    else:
         if pars['prev_filter'] == 'same':
-            last_obs_filter = row['filter_id']
+            last_obs_filter = request_row['filter_id']
         elif pars['prev_filter'] == 'other':
             assert(len(FILTER_IDS) == 2)
             raise NotImplementedError
         elif pars['prev_filter'] in FILTER_IDS:
             last_obs_filter = pars['prev_filter']
-   
-        last_obs = row['last_observed_{}_{}'.format(
-            row['program_id'],row['filter_id'])]
+
+        last_obs = request_row['last_observed_{}_{}'.format(
+            request_row['program_id'], request_row['filter_id'])]
 
     window_start_ut = last_obs + pars['window_start']
     window_stop_ut = last_obs + pars['window_stop']

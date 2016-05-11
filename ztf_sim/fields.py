@@ -93,8 +93,9 @@ class Fields(object):
 
         min_alt = airmass_to_altitude(max_airmass)
 
-        observable_hours = (block_alt >= min_alt).sum(axis=1) * \
+        observable_hours = (self.block_alt >= min_alt).sum(axis=1) * \
             (TIME_BLOCK_SIZE.to(u.hour))
+        observable_hours.name = 'observable_hours'
         self.observable_hours = observable_hours
 
     def alt_az(self, time, cuts=None):
@@ -179,6 +180,8 @@ class Fields(object):
             # check that we've computed observable_hours
             assert(self.observable_hours is not None)
             fields = self.fields.join(self.observable_hours)
+        else:
+            fields = self.fields
 
         range_keys = ['ra', 'dec', 'l', 'b', 'ecliptic_lon', 'ecliptic_lat',
                       'observable_hours']

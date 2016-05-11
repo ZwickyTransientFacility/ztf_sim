@@ -1,4 +1,5 @@
 from constants import *
+from utils import approx_hours_of_darkness
 
 
 class ObservingProgram(object):
@@ -29,10 +30,12 @@ class ObservingProgram(object):
     def number_of_allowed_requests(self, time):
         """ Count the (maximal) number of requests allowed for this program tonight."""
 
-        obs_time = approx_hours_of_darknesss(
+        obs_time = approx_hours_of_darkness(
             time) * self.observing_time_fraction
 
-        return np.round(obs_time / (EXPOSURE_TIME + READOUT_TIME))
+        n_requests = (obs_time.to(u.min) /
+                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value
+        return np.round(n_requests).astype(np.int)
 
 
 # TODO: make these more functional, rather than hard-coding the behavior
@@ -63,15 +66,15 @@ class MSIPObservingProgram(ObservingProgram):
         fields.compute_blocks(time)
         fields.compute_observability()
 
-        obs_fields_ids = fields.select_field_ids(last_observed_range=  # subtract an extra day since
-                                                 # we are at the start of the
-                                                 # night
-                                                 [Time('2001-01-01'), time - \
-                                                  internight_gap - 1 * u.day],
-                                                 program_id=self.program_id,
-                                                 filter_id=FILTER_NAME_TO_ID[
-                                                     'r'],
-                                                 observable_hours_range=[1, 100.])
+        obs_field_ids = fields.select_field_ids(last_observed_range=  # subtract an extra day since
+                                                # we are at the start of the
+                                                # night
+                                                [Time('2001-01-01'), time - \
+                                                 internight_gap - 1 * u.day],
+                                                program_id=self.program_id,
+                                                filter_id=FILTER_NAME_TO_ID[
+                                                    'r'],
+                                                observable_hours_range=[1, 100.])
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
 
@@ -81,7 +84,7 @@ class MSIPObservingProgram(ObservingProgram):
 
         n_fields = np.round(n_requests / n_visits_per_night)
 
-        request_fields = fields.loc[pool_ids]
+        request_fields = fields.fields.loc[pool_ids]
 
         # now grab the top n_fields sorted by last observed date
         last_obs_key = 'last_observed_{}_{}'.format(self.program_id,
@@ -96,21 +99,22 @@ class MSIPObservingProgram(ObservingProgram):
         # first visit
         request_set.append(
             {'program_id': self.program_id,
-             'field_ids': request_fields,
+             'field_ids': request_fields.index,
              'filter_id': FILTER_NAME_TO_ID['r'],
-             'cadence_func': time_since_last_obs,
-             'cadence_pars': {'window_start': intranight_gap,
-                              'window_stop': np.inf * u.day,
+             'cadence_func': 'time_since_last_obs',
+             'cadence_pars': {'window_start': internight_gap,
+                              'window_stop': 100 * u.year,  # inf causes problems
                               'prev_filter': 'any'},
              'priority': 1})
         # second visit
+        request_set.append(
             {'program_id': self.program_id,
-             'field_ids': request_fields,
+             'field_ids': request_fields.index,
              'filter_id': FILTER_NAME_TO_ID['r'],
-             'cadence_func': time_since_last_obs,
+             'cadence_func': 'time_since_last_obs',
              'cadence_pars': {'window_start': 40. * u.min,
-                             'window_stop': 100 * u.min,
-                             'prev_filter': 'any'}
+                              'window_stop': 100 * u.min,
+                              'prev_filter': 'any'},
              'priority': 1})
 
         return request_set

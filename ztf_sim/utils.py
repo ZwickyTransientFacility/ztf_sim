@@ -75,7 +75,7 @@ def airmass_to_zenith_angle(airmass):
 
 
 def airmass_to_altitude(airmass):
-    return 90. * u.deg - airmass_to_zenith_angle
+    return 90. * u.deg - airmass_to_zenith_angle(airmass)
 
 
 def zenith_angle_to_airmass(zenith_angle):
