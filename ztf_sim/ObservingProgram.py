@@ -69,8 +69,8 @@ class MSIPObservingProgram(ObservingProgram):
         obs_field_ids = fields.select_field_ids(last_observed_range=  # subtract an extra day since
                                                 # we are at the start of the
                                                 # night
-                                                [Time('2001-01-01'), time - \
-                                                 internight_gap - 1 * u.day],
+                                                [Time('2001-01-01').mjd,
+                                                 (time - internight_gap - 1 * u.day).mjd],
                                                 program_id=self.program_id,
                                                 filter_id=FILTER_NAME_TO_ID[
                                                     'r'],
@@ -102,8 +102,9 @@ class MSIPObservingProgram(ObservingProgram):
              'field_ids': request_fields.index,
              'filter_id': FILTER_NAME_TO_ID['r'],
              'cadence_func': 'time_since_last_obs',
-             'cadence_pars': {'window_start': internight_gap,
-                              'window_stop': 100 * u.year,  # inf causes problems
+             'cadence_pars': {'window_start': internight_gap.to(u.day).value,
+                              # inf causes problems
+                              'window_stop': (100 * u.year).to(u.day).value,
                               'prev_filter': 'any'},
              'priority': 1})
         # second visit
@@ -112,8 +113,8 @@ class MSIPObservingProgram(ObservingProgram):
              'field_ids': request_fields.index,
              'filter_id': FILTER_NAME_TO_ID['r'],
              'cadence_func': 'time_since_last_obs',
-             'cadence_pars': {'window_start': 40. * u.min,
-                              'window_stop': 100 * u.min,
+             'cadence_pars': {'window_start': (40. * u.min).to(u.day).value,
+                              'window_stop': (100 * u.min).to(u.day).value,
                               'prev_filter': 'any'},
              'priority': 1})
 

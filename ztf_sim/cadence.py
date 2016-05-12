@@ -25,7 +25,7 @@ def time_since_last_obs(request_row, current_state):
         which filter to use to determine time of last observation
     """
 
-    now = current_state['current_time']
+    now = current_state['current_time'].mjd
     pars = request_row['cadence_pars']
 
     # which filter are we using to determine the time of last observation?

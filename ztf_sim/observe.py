@@ -7,7 +7,7 @@ from ObsLogger import ObsLogger
 from ObservingProgram import *
 from constants import *
 
-profile = False
+profile = True
 
 if profile:
     try:
@@ -23,17 +23,18 @@ if profile:
 run_name = 'test_run'
 
 
-def observe(run_name=run_name):
+def observe(run_name=run_name, start_time='2018-01-01 04:00:00',
+            weather_year=None, survey_duration=1 * u.hour):
 
     if profile:
         profiler = Profiler()
         profiler.start()
 
+    survey_start_time = Time(start_time, scale='utc', location=P48_loc)
+
     tel = ZTFStateMachine(
-        current_time=Time('2018-01-01 04:00:00', scale='utc',
-                          location=P48_loc),
-        # no weather
-        historical_observability_year=None)
+        current_time=survey_start_time,
+        historical_observability_year=weather_year)
 
     # set up QueueManager
     Q = GreedyQueueManager()
@@ -61,8 +62,7 @@ def observe(run_name=run_name):
     log = ObsLogger(run_name, tel.current_time)
     log.create_pointing_log(clobber=True)
 
-    # while tel.current_time < Time('2018-01-02',scale='utc'):
-    while tel.current_time < Time('2018-01-01 05:00:00', scale='utc'):
+    while tel.current_time < (survey_start_time + survey_duration):
 
         # TODO: reload queue with new requests on update interval (nightly
 

@@ -38,7 +38,7 @@ class Fields(object):
         for program_id in PROGRAM_IDS:
             for filter_id in FILTER_IDS:
                 df['last_observed_{}_{}'.format(program_id, filter_id)] = \
-                    Time('2001-01-01')
+                    Time('2001-01-01').mjd
 
         # TODO: load total observations per filter & program
 
