@@ -19,13 +19,15 @@ def train_sky_model():
         df, df['sky_brightness'], test_size=0.2)
 
     # don't really need to standardize for RF, but preprocessing is nice
+    # preprocessing through sklearn_pandas raises a deprecation warning
+    # from sklearn, so skip it.
     mapper = DataFrameMapper([
-        ('moonillf', preprocessing.StandardScaler()),
-        ('moonalt',  preprocessing.StandardScaler()),
-        ('moon_dist',  preprocessing.StandardScaler()),
-        ('azimuth',  preprocessing.StandardScaler()),
-        ('altitude',  preprocessing.StandardScaler()),
-        ('sunalt',  preprocessing.StandardScaler()),
+        ('moonillf', None),  # preprocessing.StandardScaler()),
+        ('moonalt',  None),
+        ('moon_dist',  None),
+        ('azimuth',  None),
+        ('altitude',  None),
+        ('sunalt',  None),
         ('filterkey',  None)])
 
     clf = pipeline.Pipeline([
@@ -35,6 +37,6 @@ def train_sky_model():
     clf.fit(X_train, y_train)
     print clf.score(X_test, y_test)
 
-    joblib.dump('../data/sky_model.pkl')
+    joblib.dump(clf, '../data/sky_model/sky_model.pkl')
 
     return clf
