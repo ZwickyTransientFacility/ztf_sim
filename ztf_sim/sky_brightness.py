@@ -1,5 +1,5 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline, kernel_ridge
+from sklearn import cross_validation, ensemble, preprocessing, pipeline, neighbors
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
 import pandas as pd
@@ -31,11 +31,12 @@ class SkyBrightness(object):
             return self.clf_r.predict(df)
 
 
-def train_sky_model(filter_name='r'):
+def train_sky_model(filter_name='r', df=None):
 
     filterid_map = {'r': 2, 'g': 1}
 
-    df = pd.read_csv('../data/ptf-iptf_diq.csv.gz')
+    if df is None:
+        df = pd.read_csv('../data/ptf-iptf_diq.csv.gz')
     # note that this is by pid, so there are multiple entries per image...
 
     df = df[df['filterkey'] == filterid_map[filter_name]]
@@ -61,7 +62,7 @@ def train_sky_model(filter_name='r'):
 
     clf = pipeline.Pipeline([
         ('featurize', mapper),
-        ('kr', kernel_ridge.KernelRidge())])
+        ('knr', neighbors.KNeighborsRegressor(n_neighbors=15, weights='distance', algorithm='auto'))])
     #('lm', linear_model.BayesianRidge())])
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
