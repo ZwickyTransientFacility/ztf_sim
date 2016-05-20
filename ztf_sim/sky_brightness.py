@@ -6,10 +6,39 @@ import pandas as pd
 import numpy as np
 
 
-def train_sky_model():
+class SkyBrightness(object):
+
+    def __init__(self):
+        self.clf_r = joblib.load('../data/sky_model/sky_model_r.pkl')
+        self.clf_g = joblib.load('../data/sky_model/sky_model_g.pkl')
+
+    def predict(self, df):
+        """df is a dataframe with columns:
+        mooonillf: 0-1
+        moonalt: degrees
+        moon_dist: degrees
+        azimuth: degrees
+        altitude: degrees
+        sunalt: degrees
+        filterkey: 1, 2"""
+        # TODO: make this return a dataframe?
+
+        # for now, only can run on one filterkey
+        assert(len(set(df['filterkey'])) == 1)
+        if df['filterkey'][0] == 1:
+            return self.clf_g.predict(df)
+        if df['filterkey'][0] == 2:
+            return self.clf_r.predict(df)
+
+
+def train_sky_model(filter_name='r'):
+
+    filterid_map = {'r': 2, 'g': 1}
 
     df = pd.read_csv('../data/ptf-iptf_diq.csv.gz')
     # note that this is by pid, so there are multiple entries per image...
+
+    df = df[df['filterkey'] == filterid_map[filter_name]]
 
     # IPAC stores negative moonillf, but astroplan.moon_illumination does not
     df['moonillf'] = np.abs(df['moonillf'])
@@ -27,8 +56,8 @@ def train_sky_model():
         ('moon_dist',  None),
         ('azimuth',  None),
         ('altitude',  None),
-        ('sunalt',  None),
-        ('filterkey',  None)])
+        ('sunalt',  None)])
+    #('filterkey',  None)])
 
     clf = pipeline.Pipeline([
         ('featurize', mapper),
@@ -37,6 +66,6 @@ def train_sky_model():
     clf.fit(X_train, y_train)
     print clf.score(X_test, y_test)
 
-    joblib.dump(clf, '../data/sky_model/sky_model.pkl')
+    joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 
     return clf
