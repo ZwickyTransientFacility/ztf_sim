@@ -1,5 +1,5 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline, gaussian_process
+from sklearn import cross_validation, ensemble, preprocessing, pipeline, kernel_ridge
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
 import pandas as pd
@@ -61,7 +61,7 @@ def train_sky_model(filter_name='r'):
 
     clf = pipeline.Pipeline([
         ('featurize', mapper),
-        ('gp', gaussian_process.GaussianProcess())])
+        ('kr', kernel_ridge.KernelRidge())])
     #('lm', linear_model.BayesianRidge())])
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
