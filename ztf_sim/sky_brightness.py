@@ -1,5 +1,5 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline
+from sklearn import cross_validation, ensemble, preprocessing, pipeline, gaussian_process
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
 import pandas as pd
@@ -51,17 +51,19 @@ def train_sky_model(filter_name='r'):
     # preprocessing through sklearn_pandas raises a deprecation warning
     # from sklearn, so skip it.
     mapper = DataFrameMapper([
-        ('moonillf', None),  # preprocessing.StandardScaler()),
-        ('moonalt',  None),
-        ('moon_dist',  None),
-        ('azimuth',  None),
-        ('altitude',  None),
-        ('sunalt',  None)])
+        ('moonillf', preprocessing.StandardScaler()),
+        ('moonalt',   preprocessing.StandardScaler()),
+        ('moon_dist', preprocessing.StandardScaler()),
+        ('azimuth',  preprocessing.StandardScaler()),
+        ('altitude', preprocessing.StandardScaler()),
+        ('sunalt',   preprocessing.StandardScaler())])
     #('filterkey',  None)])
 
     clf = pipeline.Pipeline([
         ('featurize', mapper),
-        ('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
+        ('gp', gaussian_process.GaussianProcess())])
+    #('lm', linear_model.BayesianRidge())])
+    #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
     clf.fit(X_train, y_train)
     print clf.score(X_test, y_test)
