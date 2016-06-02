@@ -26,9 +26,20 @@ class SkyBrightness(object):
         # for now, only can run on one filterkey
         assert(len(set(df['filterkey'])) == 1)
         if df['filterkey'][0] == 1:
-            return self.clf_g.predict(df)
+            y = self.clf_g.predict(df)
         if df['filterkey'][0] == 2:
-            return self.clf_r.predict(df)
+            y = self.clf_r.predict(df)
+        return pd.Series(y, index=df.index, name='sky_brightness')
+
+
+class FakeSkyBrightness(object):
+
+    def __init__(self):
+        pass
+
+    def predict(self, df):
+        y = np.ones(len(df)) * 21.
+        return pd.Series(y, index=df.index, name='sky_brightness')
 
 
 def train_sky_model(filter_name='r', df=None):
