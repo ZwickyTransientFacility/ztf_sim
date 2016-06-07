@@ -42,6 +42,8 @@ FILTER_NAMES = FILTER_NAME_TO_ID.keys()
 FILTER_ID_TO_NAME = {v: k for k, v in FILTER_NAME_TO_ID.items()}
 FILTER_IDS = FILTER_ID_TO_NAME.keys()
 
+PIXEL_SCALE = 1.006  # arcsec/pixel
+
 
 def slew_time(axis, angle):
     vmax = P48_slew_pars[axis]['vmax']

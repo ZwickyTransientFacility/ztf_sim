@@ -21,7 +21,6 @@ class SkyBrightness(object):
         altitude: degrees
         sunalt: degrees
         filterkey: 1, 2"""
-        # TODO: make this return a dataframe?
 
         # for now, only can run on one filterkey
         assert(len(set(df['filterkey'])) == 1)
@@ -38,7 +37,7 @@ class FakeSkyBrightness(object):
         pass
 
     def predict(self, df):
-        y = np.ones(len(df)) * 21.
+        y = np.ones(len(df)) * 20.
         return pd.Series(y, index=df.index, name='sky_brightness')
 
 

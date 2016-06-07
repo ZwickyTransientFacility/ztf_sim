@@ -82,6 +82,24 @@ def zenith_angle_to_airmass(zenith_angle):
     return 1. / np.cos(np.radians(zenith_angle))
 
 
+def altitude_to_airmass(altitude):
+    za = 90. - altitude  # if I make 90 a Quantity I have DataFrame troubles
+    return zenith_angle_to_airmass(za)
+
+
+def seeing_at_zenith(pointing_seeing, altitude):
+    """Convert seeing at current pointing to zenith by multiplying by X^-3/5"""
+    X = altitude_to_airmass(altitude)
+    return pointing_seeing * (X**(-3. / 5.))
+
+
+def seeing_at_pointing(zenith_seeing, altitude):
+    """Convert zenith seeing to seeing at current altitude by multiplying by 
+    X^3/5"""
+    X = altitude_to_airmass(altitude)
+    return zenith_seeing * (X**(3. / 5.))
+
+
 def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
                              latitude=P48_loc.latitude, twilight=coord.Angle(12. * u.degree)):
     """Compute the hours of darkness (greater than t degrees twilight)
@@ -110,6 +128,18 @@ def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
     # n[n > 2] = 2
     # n[n < 0] = 0
     return 24. * u.hour * (1. - np.degrees(np.arccos(1 - n)) / 180.)
+
+
+def altitude_to_fwhm(altitude, filternum):
+    # values from linear fit to PTF data: in
+    # notebooks/plot_sky_brightness_model.ipynb
+
+    if filternum == 1:
+        return 3.258 - 0.00925 * altitude
+    elif filternum == 2:
+        return 3.049 - 0.0117 * altitude
+    else:
+        raise NotImplementedError('FWHM not implemented for this filter')
 
 
 def bin_ptf_obstimes(time_block_size=TIME_BLOCK_SIZE):

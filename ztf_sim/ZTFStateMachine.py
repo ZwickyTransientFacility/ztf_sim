@@ -16,7 +16,7 @@ class ZTFStateMachine(Machine):
                  current_ha=0. * u.deg, current_dec=0. * u.deg,
                  current_domeaz=0. * u.deg,
                  current_filter='r', filters=['r', 'g'],
-                 current_seeing=2.0 * u.arcsec,
+                 current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,
                  logfile='../sims/log_ztf_sim',
                  historical_observability_year=2015):
@@ -61,7 +61,7 @@ class ZTFStateMachine(Machine):
         self.current_domeaz = current_domeaz
         self.current_filter = current_filter
         self.filters = filters
-        self.current_seeing = current_seeing
+        self.current_zenith_seeing = current_zenith_seeing
         self.target_skycoord = target_skycoord
 
         # historical observability
@@ -82,7 +82,7 @@ class ZTFStateMachine(Machine):
                 'current_dec': self.current_dec,
                 'current_domeaz': self.current_domeaz,
                 'current_filter': self.current_filter,
-                'current_seeing': self.current_seeing,
+                'current_zenith_seeing': self.current_zenith_seeing,
                 'filters': self.filters,
                 'target_skycoord': self.target_skycoord}
 

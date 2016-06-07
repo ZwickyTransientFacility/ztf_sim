@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd
 from fields import Fields
+from sky_brightness import SkyBrightness, FakeSkyBrightness
+from magnitudes import limiting_mag
 from cadence import *
 from constants import *
 from utils import *
@@ -24,6 +26,8 @@ class QueueManager(object):
             self.fields = Fields()
         else:
             self.fields = fields
+
+        self.Sky = FakeSkyBrightness()
 
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
@@ -101,22 +105,43 @@ class GreedyQueueManager(QueueManager):
         #        cuts=cadence_cuts)
 
         df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
+        df['altitude'] = df_alt
 
         # compute airmasses by field_id
-        airmass = zenith_angle_to_airmass(90. - df_alt)
-        airmass.name = 'airmass'
-        df = pd.merge(df, pd.DataFrame(airmass),
-                      left_on='field_id', right_index=True)
+        # airmass = zenith_angle_to_airmass(90. - df_alt)
+        # airmass.name = 'airmass'
+        # df = pd.merge(df, pd.DataFrame(airmass),
+        #              left_on='field_id', right_index=True)
         # airmass cut (or add airmass weighting to value below)
-        df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
+        # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
-        # TODO: penalize volume for both extinction (airmass) and fwhm penalty
-        # due to atmospheric refraction (use a lookup table, probably)
-        # as well as moon phase and distance
+        # conservative altitude cut; airmass weighting applied naturally below
+        df = df[df['altitude'] > 20]
 
-        # value = 1./(obs_time + slew time)
-        # TODO: for now, make this unitless
-        df['value'] = 1. / (EXPOSURE_TIME.value + df['overhead_time'])
+        # compute sky brightness
+        df['sky_brightness'] = self.Sky.predict(df)
+        #df = pd.merge(df, df_sky, left_on='field_id', right_index=True)
+
+        # compute seeing at each pointing
+        df['seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
+                                          df['altitude'])
+        #df_seeing.name = 'seeking'
+        #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
+
+        df['limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
+                                          df['sky_brightness'],
+                                          filter_id=df['filter_id'],
+                                          altitude=df['altitude'], SNR=5.)
+        #df_limmag.name = 'limiting_mag'
+        #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
+
+        # penalizes volume for both extinction (airmass) and fwhm penalty
+        # due to atmospheric refraction, plus sky brightness from
+        # moon phase and distance, overhead time
+        # == 1 for 21st mag, 15 sec overhead
+        df['value'] = 10.**(0.6 * (df['limiting_mag'] - 21)) / \
+            ((EXPOSURE_TIME.value + df['overhead_time']) /
+             (EXPOSURE_TIME.value + 15.))
 
         self.queue = df
 
