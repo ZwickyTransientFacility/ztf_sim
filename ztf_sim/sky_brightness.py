@@ -1,7 +1,9 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline, neighbors
+from sklearn import cross_validation, ensemble, preprocessing, pipeline 
+from sklearn import neighbors, svm, linear_model
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
+import xgboost as xgb
 import pandas as pd
 import numpy as np
 
@@ -72,12 +74,14 @@ def train_sky_model(filter_name='r', df=None):
 
     clf = pipeline.Pipeline([
         ('featurize', mapper),
-        ('knr', neighbors.KNeighborsRegressor(n_neighbors=15, weights='distance', algorithm='auto'))])
+        ('xgb', xgb.XGBRegressor())])
+        #('svr', svm.SVR(kernel='poly',degree=2))])
+    #('knr', neighbors.KNeighborsRegressor(n_neighbors=15, weights='distance', algorithm='auto'))])
     #('lm', linear_model.BayesianRidge())])
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
-    clf.fit(X_train, y_train)
-    print clf.score(X_test, y_test)
+    clf.fit(X_train, y_train.reshape(-1,1))
+    print clf.score(X_test, y_test.reshape(-1,1))
 
     joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 
