@@ -34,7 +34,11 @@ def HA_to_RA(ha, time):
     time.delta_ut1_utc = 0.
     LST = time.sidereal_time('apparent')
 
-    return LST - ha
+    ra = (LST - ha).to(u.deg)
+    # wrap_angle isn't inherited
+    ra.wrap_at(360. * u.deg)
+
+    return ra
 
 
 def RA_to_HA(ra, time):
@@ -49,7 +53,11 @@ def RA_to_HA(ra, time):
     time.delta_ut1_utc = 0.
     LST = time.sidereal_time('apparent')
 
-    return LST - ra
+    ha = (LST - ra).to(u.deg)
+    # wrap_angle isn't inherited
+    ha.wrap_at(360. * u.deg)
+
+    return ha
 
 
 def previous_12deg_evening_twilight(time):
@@ -94,7 +102,7 @@ def seeing_at_zenith(pointing_seeing, altitude):
 
 
 def seeing_at_pointing(zenith_seeing, altitude):
-    """Convert zenith seeing to seeing at current altitude by multiplying by 
+    """Convert zenith seeing to seeing at current altitude by multiplying by
     X^3/5"""
     X = altitude_to_airmass(altitude)
     return zenith_seeing * (X**(3. / 5.))
