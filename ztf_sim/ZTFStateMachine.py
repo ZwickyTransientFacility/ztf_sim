@@ -117,9 +117,9 @@ class ZTFStateMachine(Machine):
 
         target_ha = RA_to_HA(target_skycoord.ra, self.current_time)
 
-        if np.abs(target_ha) > 90. * u.deg:
+        if (target_ha > 90. * u.deg) and (target_ha < 270. * u.deg):
             return False
-        if ((target_skycoord.dec < -60. * u.deg) or
+        if ((target_skycoord.dec < -35. * u.deg) or
                 (target_skycoord.dec > 90. * u.deg)):
             return False
         return True

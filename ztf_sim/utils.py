@@ -36,7 +36,7 @@ def HA_to_RA(ha, time):
 
     ra = (LST - ha).to(u.deg)
     # wrap_angle isn't inherited
-    ra.wrap_at(360. * u.deg)
+    ra = ra.wrap_at(360. * u.deg)
 
     return ra
 
@@ -55,7 +55,7 @@ def RA_to_HA(ra, time):
 
     ha = (LST - ra).to(u.deg)
     # wrap_angle isn't inherited
-    ha.wrap_at(360. * u.deg)
+    ha = ha.wrap_at(360. * u.deg)
 
     return ha
 

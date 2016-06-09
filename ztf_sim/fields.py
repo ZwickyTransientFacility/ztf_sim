@@ -154,7 +154,7 @@ class Fields(object):
         dfmax = pd.DataFrame(dfmax)
         dfmax.columns = ['overhead_time']
 
-        return dfmax, df_altaz['alt']
+        return dfmax, df_altaz
 
     def select_fields(self,
                       ra_range=None, dec_range=None,

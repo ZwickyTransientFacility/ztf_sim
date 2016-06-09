@@ -1,5 +1,5 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline 
+from sklearn import cross_validation, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
@@ -25,10 +25,10 @@ class SkyBrightness(object):
         filterkey: 1, 2"""
 
         # for now, only can run on one filterkey
-        assert(len(set(df['filterkey'])) == 1)
-        if df['filterkey'][0] == 1:
+        assert(len(set(df['filter_id'])) == 1)
+        if df['filter_id'].iloc[0] == 1:
             y = self.clf_g.predict(df)
-        if df['filterkey'][0] == 2:
+        if df['filter_id'].iloc[0] == 2:
             y = self.clf_r.predict(df)
         return pd.Series(y, index=df.index, name='sky_brightness')
 
@@ -75,13 +75,13 @@ def train_sky_model(filter_name='r', df=None):
     clf = pipeline.Pipeline([
         ('featurize', mapper),
         ('xgb', xgb.XGBRegressor())])
-        #('svr', svm.SVR(kernel='poly',degree=2))])
+    #('svr', svm.SVR(kernel='poly',degree=2))])
     #('knr', neighbors.KNeighborsRegressor(n_neighbors=15, weights='distance', algorithm='auto'))])
     #('lm', linear_model.BayesianRidge())])
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
-    clf.fit(X_train, y_train.reshape(-1,1))
-    print clf.score(X_test, y_test.reshape(-1,1))
+    clf.fit(X_train, y_train.reshape(-1, 1))
+    print clf.score(X_test, y_test.reshape(-1, 1))
 
     joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 

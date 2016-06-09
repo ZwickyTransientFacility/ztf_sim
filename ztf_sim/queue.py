@@ -4,6 +4,9 @@ import pandas as pd
 from fields import Fields
 from sky_brightness import SkyBrightness, FakeSkyBrightness
 from magnitudes import limiting_mag
+import astropy.coordinates as coord
+# TODO: replace with astropy equivalent when available
+import astroplan.moon
 from cadence import *
 from constants import *
 from utils import *
@@ -27,7 +30,7 @@ class QueueManager(object):
         else:
             self.fields = fields
 
-        self.Sky = FakeSkyBrightness()
+        self.Sky = SkyBrightness()
 
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
@@ -86,7 +89,22 @@ class GreedyQueueManager(QueueManager):
         # join with fields so we have the information we need
         df = self.rp.pool.join(self.fields.fields, on='field_id')
 
+        # compute readout/slew overhead times, plus current alt/az
+        # TODO: need to add overhead for filter changes
+        df_overhead, df_altaz = self.fields.overhead_time(current_state)
+
+        # nb: df has index request_id, not field_id
+        df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
+        df = pd.merge(df, df_altaz, left_on='field_id', right_index=True)
+        # TODO: standardize this naming
+        df.rename(columns={'alt': 'altitude', 'az': 'azimuth'}, inplace=True)
+
+        # start with conservative altitude cut;
+        # airmass weighting applied naturally below
+        df = df[df['altitude'] > 20]
+
         # use cadence functions to compute requests with active cadence windows
+        # this is slow, so do it after our altitude cut
         in_window = {}
         for idx, row in df.iterrows():
             # this is way, way slower
@@ -97,16 +115,6 @@ class GreedyQueueManager(QueueManager):
         cadence_cuts = pd.Series(in_window)
         df = df[cadence_cuts]
 
-        # compute readout/slew overhead times, plus current altitude
-        # TODO: need to add overhead for filter changes
-        df_overhead, df_alt = self.fields.overhead_time(current_state)
-        # TODO: can't pass cadence_cuts here trivially,
-        # since df has index request_id, not field_id
-        #        cuts=cadence_cuts)
-
-        df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
-        df['altitude'] = df_alt
-
         # compute airmasses by field_id
         # airmass = zenith_angle_to_airmass(90. - df_alt)
         # airmass.name = 'airmass'
@@ -115,8 +123,18 @@ class GreedyQueueManager(QueueManager):
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
-        # conservative altitude cut; airmass weighting applied naturally below
-        df = df[df['altitude'] > 20]
+        # compute inputs for sky brightness
+        sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
+        sun = coord.get_sun(current_state['current_time'])
+        sun_altaz = skycoord_to_altaz(sun, current_state['current_time'])
+        moon_altaz = astroplan.moon.get_moon(current_state['current_time'],
+                                             P48_loc)
+        moon = moon_altaz.icrs
+        df['moonillf'] = astroplan.moon.moon_illumination(
+            current_state['current_time'], P48_loc)
+        df['moon_dist'] = sc.separation(moon).to(u.deg).value
+        df['moonalt'] = moon_altaz.alt.to(u.deg).value
+        df['sunalt'] = sun_altaz.alt.to(u.deg).value
 
         # compute sky brightness
         df['sky_brightness'] = self.Sky.predict(df)
