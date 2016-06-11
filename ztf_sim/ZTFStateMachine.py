@@ -13,8 +13,8 @@ class ZTFStateMachine(Machine):
 
     def __init__(self, current_time=Time('2018-01-01', scale='utc',
                                          location=P48_loc),
-                 current_ha=0. * u.deg, current_dec=0. * u.deg,
-                 current_domeaz=0. * u.deg,
+                 current_ha=0. * u.deg, current_dec=33.36 * u.deg,
+                 current_domeaz=180. * u.deg,
                  current_filter='r', filters=['r', 'g'],
                  current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,

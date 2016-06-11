@@ -130,26 +130,26 @@ class GreedyQueueManager(QueueManager):
         moon_altaz = astroplan.moon.get_moon(current_state['current_time'],
                                              P48_loc)
         moon = moon_altaz.icrs
-        df['moonillf'] = astroplan.moon.moon_illumination(
+        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
             current_state['current_time'], P48_loc)
-        df['moon_dist'] = sc.separation(moon).to(u.deg).value
-        df['moonalt'] = moon_altaz.alt.to(u.deg).value
-        df['sunalt'] = sun_altaz.alt.to(u.deg).value
+        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
+        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
+        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
 
         # compute sky brightness
-        df['sky_brightness'] = self.Sky.predict(df)
+        df.loc[:, 'sky_brightness'] = self.Sky.predict(df)
         #df = pd.merge(df, df_sky, left_on='field_id', right_index=True)
 
         # compute seeing at each pointing
-        df['seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
-                                          df['altitude'])
+        df.loc[:, 'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
+                                                 df['altitude'])
         #df_seeing.name = 'seeking'
         #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
 
-        df['limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
-                                          df['sky_brightness'],
-                                          filter_id=df['filter_id'],
-                                          altitude=df['altitude'], SNR=5.)
+        df.loc[:, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
+                                                 df['sky_brightness'],
+                                                 filter_id=df['filter_id'],
+                                                 altitude=df['altitude'], SNR=5.)
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
 
@@ -157,7 +157,7 @@ class GreedyQueueManager(QueueManager):
         # due to atmospheric refraction, plus sky brightness from
         # moon phase and distance, overhead time
         # == 1 for 21st mag, 15 sec overhead
-        df['value'] = 10.**(0.6 * (df['limiting_mag'] - 21)) / \
+        df.loc[:, 'value'] = 10.**(0.6 * (df['limiting_mag'] - 21)) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
              (EXPOSURE_TIME.value + 15.))
 

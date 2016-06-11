@@ -134,12 +134,12 @@ class Fields(object):
         df = fields.join(df_altaz)
 
         slews_by_axis = {'readout': READOUT_TIME}
-        for axis in ['ha', 'dec', 'dome']:
+        for axis in ['dome', 'dec', 'ha']:
             if axis == 'dome':
                 current_coord = current_state['current_domeaz'].value
             if axis == 'ha':
                 # convert to RA for ease of subtraction
-                current_coord = RA_to_HA(current_state['current_ha'],
+                current_coord = HA_to_RA(current_state['current_ha'],
                                          current_state['current_time']).degree
             if axis == 'dec':
                 current_coord = current_state['current_dec'].value
