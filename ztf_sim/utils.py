@@ -25,7 +25,8 @@ def df_read_from_sqlite(dbname, **kwargs):
 def HA_to_RA(ha, time):
     """convert hour angle to ra. """
 
-    assert(time.location is not None)
+    if time.location is None:
+        time.location = P48_loc
 
     # TODO: astropy currently breaks on future dates due to IERS problems
     # issue 3275
@@ -44,7 +45,8 @@ def HA_to_RA(ha, time):
 def RA_to_HA(ra, time):
     """convert ra to hour angle. """
 
-    assert(time.location is not None)
+    if time.location is None:
+        time.location = P48_loc
 
     # TODO: astropy currently breaks on future dates due to IERS problems
     # issue 3275

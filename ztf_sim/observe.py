@@ -20,11 +20,11 @@ if profile:
 # sims with various inputs.  tag with commit hash!
 # or sub-tables of the db output...
 
-run_name = 'test_run'
+run_name = 'jason'
 
 
-def observe(run_name=run_name, start_time='2018-01-01 04:00:00',
-            weather_year=None, survey_duration=1 * u.hour):
+def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
+            weather_year=None, survey_duration=12. * u.hour):
 
     if profile:
         profiler = Profiler()
@@ -40,12 +40,14 @@ def observe(run_name=run_name, start_time='2018-01-01 04:00:00',
     Q = GreedyQueueManager()
 
     # set up Observing Programs
-    #CollabOP = CollaborationObservingProgram()
-    # Q.add_observing_program(CollabOP)
-    MSIPOP = MSIPObservingProgram(
-        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
-    MSIPOP.observing_time_fraction = 1.0
-    Q.add_observing_program(MSIPOP)
+    CollabOP = CollaborationObservingProgram(
+        Q.fields.select_field_ids(dec_range=[5, 70], ra_range=[160, 200]))
+    CollabOP.observing_time_fraction = 1.0
+    Q.add_observing_program(CollabOP)
+    # MSIPOP = MSIPObservingProgram(
+    #    Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
+    #MSIPOP.observing_time_fraction = 1.0
+    # Q.add_observing_program(MSIPOP)
     #CaltechOP = CaltechObservingProgram()
     # Q.add_observing_program(CaltechOP)
 
