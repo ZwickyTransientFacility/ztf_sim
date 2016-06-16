@@ -113,6 +113,11 @@ class GreedyQueueManager(QueueManager):
                 '{}(row, current_state)'.format(row['cadence_func']))
 
         cadence_cuts = pd.Series(in_window)
+        # TODO: handle if cadence cuts returns no fields
+        if np.sum(cadence_cuts) == 0:
+            raise ValueError("No fields with observable cadence windows")
+            # make this a user-defined QueueEmptyError and have upstream catch
+            # it
         df = df[cadence_cuts]
 
         # compute airmasses by field_id

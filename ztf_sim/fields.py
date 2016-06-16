@@ -228,11 +228,13 @@ class Fields(object):
         filter_id = request['target_filter_id']
         time_obs = current_state['current_time'] - EXPOSURE_TIME
 
-        self.fields.ix[field_id]['last_observed_{}_{}'.format(program_id, filter_id)] = \
-            time_obs
+        # need this syntax to avoid setting on a copy
+        self.fields.loc[field_id,
+                        'last_observed_{}_{}'.format(program_id, filter_id)] = \
+            time_obs.mjd
 
-        self.fields.ix[field_id][
-            'n_obs_{}_{}'.format(program_id, filter_id)] += 1
+        self.fields.loc[field_id,
+                        'n_obs_{}_{}'.format(program_id, filter_id)] += 1
 
 
 def generate_test_field_grid(filename='../data/ZTF_fields.txt',
