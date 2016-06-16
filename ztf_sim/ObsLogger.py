@@ -152,7 +152,9 @@ class ObsLogger:
             sc_prev = coord.SkyCoord(self.prev_obs['fieldRA'] * u.radian,
                                      self.prev_obs['fieldDec'] * u.radian)
             record['slewDist'] = sc.separation(sc_prev).to(u.radian).value
-            record['slewTime'] = record['expDate'] - self.prev_obs['expDate']
+            record['slewTime'] = (record['expDate'] -
+                                  (self.prev_obs['expDate'] +
+                                      self.prev_obs['visitTime']))
         # record['fiveSigmaDepth']
         record['ditheredRA'] = 0.
         record['ditheredDec'] = 0.
@@ -161,7 +163,7 @@ class ObsLogger:
         columns = ', '.join(record.keys())
         placeholders = '{' + '}, {'.join(record.keys()) + '}'
         query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
-                columns, placeholders)
+            columns, placeholders)
         query_filled = query.format(**record)
         self.conn.execute(query_filled)
 
