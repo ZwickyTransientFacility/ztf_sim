@@ -307,3 +307,18 @@ def _ptf_to_sqlite():
 
     df_write_to_sqlite(df, 'ptf')
     return df
+
+
+def export_pointings_to_surace(dbname, **kwargs):
+    """put pointing data in format Jason Surace wants for his image simulator"""
+
+    engine = create_engine('sqlite:///../sims/{}.db'.format(dbname))
+    df = pd.read_sql('Summary', engine, **kwargs)
+
+    df['ra'] = np.degrees(df['fieldRA'])
+    df['dec'] = np.degrees(df['fieldDec'])
+    df['imagetype'] = 0
+
+    df[['ra', 'dec', 'fieldID',
+        'filter', 'imagetype', 'expMJD']].to_csv('../sims/{}.txt'.format(
+            dbname), sep=' ', header=False, index=False)
