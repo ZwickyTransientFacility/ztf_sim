@@ -36,6 +36,11 @@ class QueueManager(object):
         self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state):
+        # clear previous request pool
+        self.rp.clear_all_requests()
+        # reset the first observation of the night counters
+        self.fields.clear_first_obs()
+
         for program in self.observing_programs:
 
             request_sets = program.assign_nightly_requests(current_state['current_time'],

@@ -39,6 +39,8 @@ class Fields(object):
             for filter_id in FILTER_IDS:
                 df['last_observed_{}_{}'.format(program_id, filter_id)] = \
                     Time('2001-01-01').mjd
+                df['first_obs_tonight_{}_{}'.format(program_id, filter_id)] = \
+                    np.nan
 
         # TODO: load total observations per filter & program
 
@@ -233,8 +235,23 @@ class Fields(object):
                         'last_observed_{}_{}'.format(program_id, filter_id)] = \
             time_obs.mjd
 
+        if np.isnan(self.fields.loc[field_id,
+                                    'first_obs_tonight_{}_{}'.format(
+                                        program_id, filter_id)]):
+            self.fields.loc[field_id,
+                            'first_obs_tonight_{}_{}'.format(
+                                program_id, filter_id)] = time_obs.mjd
+
         self.fields.loc[field_id,
                         'n_obs_{}_{}'.format(program_id, filter_id)] += 1
+
+    def clear_first_obs(self):
+        """Reset the time of the nightly first observations."""
+
+        for program_id in PROGRAM_IDS:
+            for filter_id in FILTER_IDS:
+                self.fields.loc[:, 'first_obs_tonight_{}_{}'.format(
+                    program_id, filter_id)] = np.nan
 
 
 def generate_test_field_grid(filename='../data/ZTF_fields.txt',

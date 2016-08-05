@@ -5,7 +5,7 @@ from utils import approx_hours_of_darkness
 class ObservingProgram(object):
 
     def __init__(self, program_id, observing_time_fraction, field_ids,
-                 internight_gap, n_visits_per_night, intranight_gap_range):
+                 internight_gap, n_visits_per_night, intranight_gap, intranight_half_width):
 
         self.program_id = program_id
         self.observing_time_fraction = observing_time_fraction
@@ -13,7 +13,8 @@ class ObservingProgram(object):
 
         self.internight_gap = internight_gap
         self.n_visits_per_night = n_visits_per_night
-        self.intranight_gap_range = intranight_gap_range
+        self.intranight_gap = intranight_gap
+        self.intranight_half_width = intranight_half_width
 
     def assign_nightly_requests(self, time, fields):
 
@@ -44,7 +45,7 @@ class ObservingProgram(object):
         fields.compute_blocks(time)
         fields.compute_observability()
 
-        obs_field_ids = fields.select_field_ids(last_observed_range=# subtract an extra day since
+        obs_field_ids = fields.select_field_ids(last_observed_range=  # subtract an extra day since
                                                 # we are at the start of the
                                                 # night
                                                 [Time('2001-01-01').mjd,
@@ -79,21 +80,25 @@ class ObservingProgram(object):
             {'program_id': self.program_id,
              'field_ids': request_fields.index,
              'filter_id': FILTER_NAME_TO_ID['r'],
-             'cadence_func': 'time_since_last_obs',
-             'cadence_pars': {'window_start': self.internight_gap.to(u.day).value,
-                              # inf causes problems
+             'cadence_func': 'time_since_obs',
+             'cadence_pars': {'ref_obs': 'last_observed',
+                              'window_start': self.internight_gap.to(u.day).value,
+                              # use a very large value here: gets added to
+                              # last_obs.  remember that we reset each night
+                              # anyway
                               'window_stop': (100 * u.year).to(u.day).value,
                               'prev_filter': 'any'},
              'priority': 1})
-        # second visit
+        # additional visits
         for i in range(self.n_visits_per_night - 1):
             request_set.append(
                 {'program_id': self.program_id,
                  'field_ids': request_fields.index,
                  'filter_id': FILTER_NAME_TO_ID['r'],
-                 'cadence_func': 'time_since_last_obs',
-                 'cadence_pars': {'window_start': (self.intranight_gap_range[0]).to(u.day).value,
-                                  'window_stop': (self.intranight_gap_range[1]).to(u.day).value,
+                 'cadence_func': 'time_since_obs',
+                 'cadence_pars': {'ref_obs': 'first_obs_tonight',
+                                  'window_start': (i + 1) * (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
+                                  'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
                                   'prev_filter': 'any'},
                  'priority': 1})
 
@@ -116,11 +121,11 @@ class CollaborationObservingProgram(ObservingProgram):
     def __init__(self, field_ids,
                  internight_gap=1. * u.day,
                  n_visits_per_night=10,
-                 intranight_gap_range=[
-                     40 * u.min, 100 * u.min]):
+                 intranight_gap=60 * u.min,
+                 intranight_half_width=20 * u.min):
         super(CollaborationObservingProgram, self).__init__(
             PROGRAM_NAME_TO_ID['collaboration'], 0.4, field_ids,
-            internight_gap, n_visits_per_night, intranight_gap_range)
+            internight_gap, n_visits_per_night, intranight_gap, intranight_half_width)
 
 
 class MSIPObservingProgram(ObservingProgram):
@@ -128,11 +133,11 @@ class MSIPObservingProgram(ObservingProgram):
     def __init__(self, field_ids,
                  internight_gap=3. * u.day,
                  n_visits_per_night=2,
-                 intranight_gap_range=[
-                     40 * u.min, 100 * u.min]):
+                 intranight_gap=60 * u.min,
+                 intranight_half_width=20 * u.min):
         super(MSIPObservingProgram, self).__init__(
             PROGRAM_NAME_TO_ID['MSIP'], 0.4, field_ids,
-            internight_gap, n_visits_per_night, intranight_gap_range)
+            internight_gap, n_visits_per_night, intranight_gap, intranight_half_width)
 
 
 class CaltechObservingProgram(ObservingProgram):
@@ -140,8 +145,8 @@ class CaltechObservingProgram(ObservingProgram):
     def __init__(self, field_ids,
                  internight_gap=3. * u.day,
                  n_visits_per_night=2,
-                 intranight_gap_range=[
-                     40 * u.min, 100 * u.min]):
+                 intranight_gap=60 * u.min,
+                 intranight_half_width=20 * u.min):
         super(CaltechObservingProgram, self).__init__(
             PROGRAM_NAME_TO_ID['Caltech'], 0.2, field_ids)
 

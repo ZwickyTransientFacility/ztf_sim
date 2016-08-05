@@ -64,9 +64,14 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
     log = ObsLogger(run_name, tel.current_time)
     log.create_pointing_log(clobber=True)
 
+    current_night_mjd = np.floor(tel.current_time.mjd)
+
     while tel.current_time < (survey_start_time + survey_duration):
 
-        # TODO: reload queue with new requests on update interval (nightly
+        # check if it is a new night and reload queue with new requests
+        if np.floor(tel.current_time.mjd) > current_night_mjd:
+            Q.assign_nightly_requests(tel.current_state_dict())
+            current_night_mjd = np.floor(tel.current_time.mjd)
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
