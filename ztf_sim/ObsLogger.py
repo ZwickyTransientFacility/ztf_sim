@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 import sqlite3
 import astropy.coordinates as coord
 import astropy.units as u
-# TODO: replace with astropy equivalent when available
 import astroplan.moon
 from utils import *
 from constants import *
@@ -132,8 +131,8 @@ class ObsLogger:
 
         sun = coord.get_sun(exposure_start)
         sun_altaz = skycoord_to_altaz(sun, exposure_start)
-        moon_altaz = astroplan.moon.get_moon(exposure_start, P48_loc)
-        moon = moon_altaz.icrs
+        moon = coord.get_moon(exposure_start, P48_loc)
+        moon_altaz = skycoord_to_altaz(moon, exposure_start)
         record['dist2Moon'] = sc.separation(moon).to(u.radian).value
         record['solarElong'] = sc.separation(sun).to(u.deg).value
         record['moonRA'] = moon.ra.to(u.radian).value

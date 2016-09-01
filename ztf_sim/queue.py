@@ -6,7 +6,6 @@ from sky_brightness import SkyBrightness, FakeSkyBrightness
 from magnitudes import limiting_mag
 import astropy.coordinates as coord
 # TODO: replace with astropy equivalent when available
-import astroplan.moon
 from cadence import *
 from constants import *
 from utils import *
@@ -137,9 +136,9 @@ class GreedyQueueManager(QueueManager):
         sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
         sun = coord.get_sun(current_state['current_time'])
         sun_altaz = skycoord_to_altaz(sun, current_state['current_time'])
-        moon_altaz = astroplan.moon.get_moon(current_state['current_time'],
-                                             P48_loc)
-        moon = moon_altaz.icrs
+        moon = coord.get_moon(current_state['current_time'],
+                              location=P48_loc)
+        moon_altaz = skycoord_to_altaz(moon, current_state['current_time'])
         df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
             current_state['current_time'], P48_loc)
         df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
