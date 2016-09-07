@@ -236,6 +236,12 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
     return blocks, times
 
 
+def scalar_len(x):
+    """Convenience function to sanitize potential scalars or arrays
+    so they can return a len"""
+    return len(np.atleast_1d(x))
+
+
 def _ptf_to_sqlite():
     """Convert observation history SQL dump from IPAC db to OpSim db format.
 

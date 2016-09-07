@@ -161,17 +161,23 @@ class Fields(object):
     def select_fields(self,
                       ra_range=None, dec_range=None,
                       l_range=None, b_range=None,
+                      abs_b_range=None,
                       ecliptic_lon_range=None, ecliptic_lat_range=None,
                       grid_id=None,
                       program_id=None, filter_id=None,
                       n_obs_range=None, last_observed_range=None,
-                      observable_hours_range=None):
+                      observable_hours_range=None,
+                      reducefunc=None):
         """Select a subset of fields based on their sky positions.
 
         Each _range keyword takes a list[min, max].
         grid_id is a scalar
-        (for now), n_obs_range and last_observed_range require specifying
-        program_id and filter_id.
+        n_obs_range and last_observed_range require specifying
+        program_id and filter_id.  if these are not scalar,
+        reducefunc (e.g., [np.min, np.max]) is used to collapse the range
+        selection over multiple programs or filters
+        reducefunc should have two elements to describe the reduction for the
+        min comparison and the max.
 
         Returns a boolean array indexed by field_id."""
 
@@ -188,12 +194,19 @@ class Fields(object):
         range_keys = ['ra', 'dec', 'l', 'b', 'ecliptic_lon', 'ecliptic_lat',
                       'observable_hours']
 
+        assert((b_range is None) or (abs_b_range is None))
+
         for i, arg in enumerate([ra_range, dec_range, l_range, b_range,
                                  ecliptic_lon_range, ecliptic_lat_range,
                                  observable_hours_range]):
             if arg is not None:
                 cuts = cuts & (fields[range_keys[i]] >= arg[0]) & \
                     (fields[range_keys[i]] <= arg[1])
+
+        # easier cuts for Galactic/Extragalactic
+        if abs_b_range is not None:
+            cuts = cuts & (np.abs(fields['b']) >= abs_b_range[0]) & \
+                (np.abs(fields['b']) <= abs_b_range[1])
 
         scalar_keys = ['grid_id']
 
@@ -209,11 +222,23 @@ class Fields(object):
         for i, arg in enumerate([n_obs_range, last_observed_range]):
             if arg is not None:
                 assert ((program_id is not None) and (filter_id is not None))
-                # TODO: allow combined selections across several filters
-                # and/or programs
-                key = '{}_{}_{}'.format(pf_keys[i], program_id, filter_id)
-                cuts = cuts & (fields[key] >= arg[0]) & \
-                    (fields[key] <= arg[1])
+                if (scalar_len(program_id) == 1) and (scalar_len(filter_id) == 1):
+                    key = '{}_{}_{}'.format(pf_keys[i], program_id, filter_id)
+                    cuts = cuts & (fields[key] >= arg[0]) & \
+                        (fields[key] <= arg[1])
+                else:
+                    # combined selections across several filters
+                    # and/or programs
+                    assert len(reducefunc) == 2
+                    # build the keys
+                    keys = []
+                    for pi in np.atleast_1d(program_id):
+                        for fi in np.atleast_1d(filter_id):
+                            keys.append('{}_{}_{}'.format(pf_keys[i], pi, fi))
+                    mincomp = fields[keys].apply(reducefunc[0], axis=1)
+                    maxcomp = fields[keys].apply(reducefunc[1], axis=1)
+                    cuts = cuts & (mincomp >= arg[0]) & \
+                        (maxcomp <= arg[1])
 
         return cuts
 
@@ -232,8 +257,7 @@ class Fields(object):
 
         # need this syntax to avoid setting on a copy
         self.fields.loc[field_id,
-                        'last_observed_{}_{}'.format(program_id, filter_id)] = \
-            time_obs.mjd
+                        'last_observed_{}_{}'.format(program_id, filter_id)] = time_obs.mjd
 
         if np.isnan(self.fields.loc[field_id,
                                     'first_obs_tonight_{}_{}'.format(

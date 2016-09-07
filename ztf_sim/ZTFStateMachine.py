@@ -15,7 +15,7 @@ class ZTFStateMachine(Machine):
                                          location=P48_loc),
                  current_ha=0. * u.deg, current_dec=33.36 * u.deg,
                  current_domeaz=180. * u.deg,
-                 current_filter='r', filters=['r', 'g'],
+                 current_filter_id=2, filters=FILTER_IDS,
                  current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,
                  logfile='../sims/log_ztf_sim',
@@ -59,7 +59,7 @@ class ZTFStateMachine(Machine):
         self.current_ha = current_ha
         self.current_dec = current_dec
         self.current_domeaz = current_domeaz
-        self.current_filter = current_filter
+        self.current_filter_id = current_filter_id
         self.filters = filters
         self.current_zenith_seeing = current_zenith_seeing
         self.target_skycoord = target_skycoord
@@ -81,7 +81,7 @@ class ZTFStateMachine(Machine):
                 'current_ha': self.current_ha,
                 'current_dec': self.current_dec,
                 'current_domeaz': self.current_domeaz,
-                'current_filter': self.current_filter,
+                'current_filter_id': self.current_filter_id,
                 'current_zenith_seeing': self.current_zenith_seeing,
                 'filters': self.filters,
                 'target_skycoord': self.target_skycoord}
@@ -161,6 +161,14 @@ class ZTFStateMachine(Machine):
         self.current_ha = target_ha
         self.current_dec = self.target_skycoord.dec
         self.current_domeaz = target_domeaz
+
+    def process_filter_change(self, target_filter_id,
+                              filter_change_time=FILTER_CHANGE_TIME):
+        if self.current_filter_id != target_filter_id:
+            self.current_filter_id = target_filter_id
+            self.current_time += filter_change_time
+        # TODO: put in actual treatment of filter change (e.g., slew to stow
+        # position)
 
     def process_exposure(self, exposure_time=EXPOSURE_TIME):
         # annoyingly, transitions doesn't let me modify object

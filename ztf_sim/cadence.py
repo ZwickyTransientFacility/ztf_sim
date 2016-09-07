@@ -21,7 +21,8 @@ def time_since_obs(request_row, current_state):
         'prev_filter': ['same','other', 'any']
             which filter the previous observation should be in
         'window_start', 'window_stop'
-            time bounds for the window relative to the ref_obs time
+            relative time bounds for the window after the ref_obs time
+            e.g, window_start = 1.0*u.hour starts at ref_obs + 1 hour
         'filter_id'
             which filter to observe in
         'program_id'

@@ -94,7 +94,6 @@ class GreedyQueueManager(QueueManager):
         df = self.rp.pool.join(self.fields.fields, on='field_id')
 
         # compute readout/slew overhead times, plus current alt/az
-        # TODO: need to add overhead for filter changes
         df_overhead, df_altaz = self.fields.overhead_time(current_state)
 
         # nb: df has index request_id, not field_id
@@ -102,6 +101,11 @@ class GreedyQueueManager(QueueManager):
         df = pd.merge(df, df_altaz, left_on='field_id', right_index=True)
         # TODO: standardize this naming
         df.rename(columns={'alt': 'altitude', 'az': 'azimuth'}, inplace=True)
+
+        # add overhead for filter changes
+        w = df['filter_id'] != current_state['current_filter_id']
+        if np.sum(w):
+            df.loc[w, 'overhead_time'] += FILTER_CHANGE_TIME.to(u.second).value
 
         # start with conservative altitude cut;
         # airmass weighting applied naturally below
@@ -152,7 +156,7 @@ class GreedyQueueManager(QueueManager):
         # compute seeing at each pointing
         df.loc[:, 'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
                                                  df['altitude'])
-        #df_seeing.name = 'seeking'
+        #df_seeing.name = 'seeing'
         #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
 
         df.loc[:, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
@@ -186,9 +190,6 @@ class RequestPool(object):
                      cadence_func, cadence_pars, priority=1):
         """all scalars except field_ids"""
         # TODO: Compound Requests
-
-        def scalar_len(x):
-            return len(np.atleast_1d(x))
 
         assert ((scalar_len(program_id) == 1) and
                 (scalar_len(filter_id) == 1) and

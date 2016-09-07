@@ -24,13 +24,19 @@ class SkyBrightness(object):
         sunalt: degrees
         filterkey: 1, 2"""
 
-        # for now, only can run on one filterkey
-        assert(len(set(df['filter_id'])) == 1)
-        if df['filter_id'].iloc[0] == 1:
-            y = self.clf_g.predict(df)
-        if df['filter_id'].iloc[0] == 2:
-            y = self.clf_r.predict(df)
-        return pd.Series(y, index=df.index, name='sky_brightness')
+        filter_ids = df['filter_id'].unique()
+        # don't have an i-band model in place yet
+        assert(np.sum(filter_ids > 2) == 0)
+
+        sky = pd.Series(np.nan, index=df.index, name='sky_brightness')
+        wg = (df['filter_id'] == 1)
+        if np.sum(wg):
+            sky[wg] = self.clf_g.predict(df[wg])
+        wr = (df['filter_id'] == 2)
+        if np.sum(wr):
+            sky[wr] = self.clf_r.predict(df[wr])
+
+        return sky
 
 
 class FakeSkyBrightness(object):

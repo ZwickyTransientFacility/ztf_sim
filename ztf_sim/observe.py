@@ -20,7 +20,7 @@ if profile:
 # sims with various inputs.  tag with commit hash!
 # or sub-tables of the db output...
 
-run_name = 'jason'
+run_name = 'test'
 
 
 def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
@@ -41,16 +41,16 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     # set up Observing Programs
     CollabOP = CollaborationObservingProgram(
-        Q.fields.select_field_ids(dec_range=[5, 70], ra_range=[160, 200]))
-    CollabOP.observing_time_fraction = 1.0
+        Q.fields.select_field_ids(dec_range=[-30, 90], abs_b_range=[20, 90],
+                                  grid_id=0))
     Q.add_observing_program(CollabOP)
-    # MSIPOP = MSIPObservingProgram(
-    #    Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
+    MSIPOP = MSIPObservingProgram(
+        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
     #MSIPOP.observing_time_fraction = 1.0
-    # Q.add_observing_program(MSIPOP)
-    #CaltechOP = CaltechObservingProgram()
-    # Q.add_observing_program(CaltechOP)
-
+    Q.add_observing_program(MSIPOP)
+    CaltechOP = CaltechObservingProgram(
+        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
+    Q.add_observing_program(CaltechOP)
     # initialize nightly field requests (Tom Barlow function)
     Q.assign_nightly_requests(tel.current_state_dict())
 
@@ -78,8 +78,15 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             # get coords
             next_obs = Q.next_obs(current_state)
 
-            # TODO: filter change, if needed
+            # try to change filters, if needed
+            if next_obs['target_filter_id'] != current_state['current_filter_id']:
+                if not tel.start_filter_change(next_obs['target_filter_id']):
+                    # TODO: log the failure
+                    log.prev_obs = None
+                    tel.wait()
+                    continue
 
+            # try to slew to the next target
             if not tel.start_slew(coord.SkyCoord(next_obs['target_ra'] * u.deg,
                                                  next_obs['target_dec'] * u.deg)):
                 tel.set_cant_observe()
@@ -88,6 +95,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 log.prev_obs = None
                 tel.wait()
                 continue
+
+            # try to expose
             if not tel.start_exposing():
                 tel.set_cant_observe()
                 # TODO: log the failure
