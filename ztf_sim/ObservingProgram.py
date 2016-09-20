@@ -163,11 +163,17 @@ class ObservingProgram(object):
 
         # TODO: implement balancing of program observing time
 
+        # "fudge factor" to provide ~15% extra requests for all programs
+        # to minimize QueueEmptyErrors...
+        # TODO: test how much we need this...
+        FUDGE_FACTOR = 1.15
+
         obs_time = approx_hours_of_darkness(
             time) * self.observing_time_fraction
 
         n_requests = (obs_time.to(u.min) /
-                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value
+                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value  \
+            * FUDGE_FACTOR
         return np.round(n_requests).astype(np.int)
 
 

@@ -11,6 +11,11 @@ from constants import *
 from utils import *
 
 
+class QueueEmptyError(Exception):
+    """Error class for when the nightly queue has no more fields"""
+    pass
+
+
 class QueueManager(object):
 
     def __init__(self, observing_programs=[], rp=None, fields=None):
@@ -123,9 +128,7 @@ class GreedyQueueManager(QueueManager):
         cadence_cuts = pd.Series(in_window)
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
-            raise ValueError("No fields with observable cadence windows")
-            # make this a user-defined QueueEmptyError and have upstream catch
-            # it
+            raise QueueEmptyError("No fields with observable cadence windows")
         df = df[cadence_cuts]
 
         # compute airmasses by field_id

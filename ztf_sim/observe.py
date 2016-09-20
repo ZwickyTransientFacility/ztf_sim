@@ -20,7 +20,7 @@ if profile:
 # sims with various inputs.  tag with commit hash!
 # or sub-tables of the db output...
 
-run_name = 'test'
+run_name = 'tmp'
 
 
 def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
