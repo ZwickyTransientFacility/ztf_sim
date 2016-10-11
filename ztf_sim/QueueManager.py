@@ -9,7 +9,6 @@ from cadence import *
 from constants import *
 from utils import *
 
-
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
     pass
