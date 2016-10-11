@@ -5,7 +5,6 @@ from fields import Fields
 from sky_brightness import SkyBrightness, FakeSkyBrightness
 from magnitudes import limiting_mag
 import astropy.coordinates as coord
-# TODO: replace with astropy equivalent when available
 from cadence import *
 from constants import *
 from utils import *
