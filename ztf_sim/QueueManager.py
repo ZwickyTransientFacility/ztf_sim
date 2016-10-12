@@ -9,6 +9,7 @@ from cadence import *
 from constants import *
 from utils import *
 
+
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
     pass
@@ -145,7 +146,10 @@ class GreedyQueueManager(QueueManager):
                               location=P48_loc)
         moon_altaz = skycoord_to_altaz(moon, current_state['current_time'])
         df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
-            current_state['current_time'], P48_loc)
+            # Don't use P48_loc to avoid astropy bug:
+            # https://github.com/astropy/astroplan/pull/213
+            current_state['current_time'])
+        # current_state['current_time'], P48_loc)
         df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
         df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
         df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value

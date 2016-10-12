@@ -140,7 +140,10 @@ class ObsLogger:
         record['moonAlt'] = moon_altaz.alt.to(u.radian).value
         record['moonAZ'] = moon_altaz.az.to(u.radian).value
         record['moonPhase'] = astroplan.moon.moon_illumination(
-            exposure_start, P48_loc) * 100.
+            # Don't use P48_loc to avoid astropy bug:
+            # https://github.com/astropy/astroplan/pull/213
+            exposure_start) * 100.
+        # exposure_start, P48_loc) * 100.
         record['sunAlt'] = sun_altaz.alt.to(u.radian).value
         record['sunAz'] = sun_altaz.az.to(u.radian).value
         # phaseAngle, rScatter, mieScatter, moonBright, darkBright
