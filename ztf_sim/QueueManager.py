@@ -87,7 +87,8 @@ class GreedyQueueManager(QueueManager):
 
         # since this is a greedy queue, we update the queue after each obs
         # for speed, only do the whole recalculation if we're in a new block
-        if block_index(current_state['current_time']) != self.queue_block:
+        if ((block_index(current_state['current_time']) != self.queue_block)
+                or (len(self.queue) == 0)):
             self._update_queue(current_state)
         else:
             # otherwise just recalculate the overhead times
