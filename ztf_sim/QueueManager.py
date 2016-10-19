@@ -22,6 +22,9 @@ class QueueManager(object):
         # list of ObservingPrograms
         self.observing_programs = observing_programs
 
+        # block on which the queue parameters were calculated
+        self.queue_block = None
+
         if rp is None:
             # initialize an empty RequestPool
             self.rp = RequestPool()
@@ -67,6 +70,12 @@ class QueueManager(object):
         # define functions that actually do the work in subclasses
         return self._update_queue()
 
+    def remove_requests(self, request_id):
+        """Remove a request from both the queue and the request pool"""
+
+        self.queue.drop(request_id, inplace=True)
+        self.rp.remove_requests(request_id)
+
 
 class GreedyQueueManager(QueueManager):
 
@@ -77,7 +86,12 @@ class GreedyQueueManager(QueueManager):
         """Select the highest value request."""
 
         # since this is a greedy queue, we update the queue after each obs
-        self._update_queue(current_state)
+        # for speed, only do the whole recalculation if we're in a new block
+        if block_index(current_state['current_time']) != self.queue_block:
+            self._update_queue(current_state)
+        else:
+            # otherwise just recalculate the overhead times
+            _ = self._update_overhead(current_state)
 
         # request_id of the highest value request
         max_idx = self.queue.value.argmax()
@@ -90,12 +104,28 @@ class GreedyQueueManager(QueueManager):
                 'target_exposure_time': EXPOSURE_TIME,
                 'request_id': max_idx}
 
-    def _update_queue(self, current_state):
-        """Calculate greedy weighting of requests in the Pool using current
-        telescope state only"""
+    def _metric(self, df):
+        """Calculate metric for prioritizing fields.
 
-        # join with fields so we have the information we need
-        df = self.rp.pool.join(self.fields.fields, on='field_id')
+        penalizes volume for both extinction (airmass) and fwhm penalty
+        due to atmospheric refraction, plus sky brightness from
+        moon phase and distance, overhead time
+        == 1 for 21st mag, 15 sec overhead."""
+        # df.loc[:, 'value'] =
+        return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
+            ((EXPOSURE_TIME.value + df['overhead_time']) /
+             (EXPOSURE_TIME.value + 15.))
+
+    def _update_overhead(self, current_state, df=None):
+        """recalculate overhead values without regenerating whole queue"""
+
+        inplace = df is None
+
+        if inplace:
+            # no dataframe supplied, so replace existing self.queue on exit
+            df = self.queue
+            df.drop(['overhead_time', 'altitude', 'azimuth'], axis=1,
+                    inplace=True)
 
         # compute readout/slew overhead times, plus current alt/az
         df_overhead, df_altaz = self.fields.overhead_time(current_state)
@@ -110,6 +140,24 @@ class GreedyQueueManager(QueueManager):
         w = df['filter_id'] != current_state['current_filter_id']
         if np.sum(w):
             df.loc[w, 'overhead_time'] += FILTER_CHANGE_TIME.to(u.second).value
+
+        if inplace:
+            df.loc[:, 'value'] = self._metric(df)
+            self.queue = df
+
+        return df
+
+    def _update_queue(self, current_state):
+        """Calculate greedy weighting of requests in the Pool using current
+        telescope state only"""
+
+        # store block index for which these values were calculated
+        self.queue_block = block_index(current_state['current_time'])
+
+        # join with fields so we have the information we need
+        df = self.rp.pool.join(self.fields.fields, on='field_id')
+
+        df = self._update_overhead(current_state, df=df)
 
         # start with conservative altitude cut;
         # airmass weighting applied naturally below
@@ -171,13 +219,7 @@ class GreedyQueueManager(QueueManager):
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
 
-        # penalizes volume for both extinction (airmass) and fwhm penalty
-        # due to atmospheric refraction, plus sky brightness from
-        # moon phase and distance, overhead time
-        # == 1 for 21st mag, 15 sec overhead
-        df.loc[:, 'value'] = 10.**(0.6 * (df['limiting_mag'] - 21)) / \
-            ((EXPOSURE_TIME.value + df['overhead_time']) /
-             (EXPOSURE_TIME.value + 15.))
+        df.loc[:, 'value'] = self._metric(df)
 
         self.queue = df
 

@@ -34,7 +34,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     tel = ZTFStateMachine(
         current_time=survey_start_time,
-        historical_observability_year=weather_year)
+        historical_observability_year=weather_year,
+        logfile='../sims/log_{}'.format(run_name))
 
     # set up QueueManager
     Q = GreedyQueueManager()
@@ -117,8 +118,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 log.log_pointing(current_state, next_obs)
                 # b) update Fields
                 Q.fields.mark_field_observed(next_obs, current_state)
-                # c) remove completed request_id
-                Q.rp.remove_requests(next_obs['request_id'])
+                # c) remove completed request_id from the pool and the queue
+                Q.remove_requests(next_obs['request_id'])
         else:
             tel.set_cant_observe()
             tel.wait()
