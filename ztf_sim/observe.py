@@ -27,6 +27,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             weather_year=None, survey_duration=12. * u.hour):
 
     if profile:
+        if survey_duration > 1. * u.day:
+            raise ValueError("Don't profile long runs: 25% overhead")
         profiler = Profiler()
         profiler.start()
 
@@ -127,3 +129,5 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
     if profile:
         profiler.stop()
         print profiler.output_text(unicode=True, color=True)
+        with open('../sims/profile_{}'.format(run_name), 'w') as f:
+            f.write(profiler.output_text())

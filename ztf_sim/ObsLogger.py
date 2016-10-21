@@ -15,6 +15,8 @@ class ObsLogger:
         self.run_name = run_name
         self.survey_start_time = survey_start_time
         self.prev_obs = None
+        self.mjd_tonight = None
+        self.moon_illumination_tonight = None
         self.engine = create_engine('sqlite:///../sims/{}.db'.format(
             self.run_name))
         self.conn = self.engine.connect()
@@ -100,6 +102,7 @@ class ObsLogger:
 
         record['expDate'] = (exposure_start - self.survey_start_time).sec
         record['expMJD'] = exposure_start.mjd
+
         record['night'] = np.floor((exposure_start - self.survey_start_time).jd
                                    ).astype(np.int)
         record['visitTime'] = request[
@@ -139,11 +142,19 @@ class ObsLogger:
         record['moonDec'] = moon.dec.to(u.radian).value
         record['moonAlt'] = moon_altaz.alt.to(u.radian).value
         record['moonAZ'] = moon_altaz.az.to(u.radian).value
-        record['moonPhase'] = astroplan.moon.moon_illumination(
-            # Don't use P48_loc to avoid astropy bug:
-            # https://github.com/astropy/astroplan/pull/213
-            exposure_start) * 100.
-        # exposure_start, P48_loc) * 100.
+
+        # store tonight's mjd so that we can avoid recomputing moon
+        # illumination, which profiling shows is weirdly expensive
+        if np.floor(exposure_start.mjd) != self.mjd_tonight:
+            self.moon_illumination_tonight = astroplan.moon.moon_illumination(
+                # Don't use P48_loc to avoid astropy bug:
+                # https://github.com/astropy/astroplan/pull/213
+                # exposure_start, P48_loc) * 100.
+                exposure_start) * 100.
+            self.mjd_tonight = np.floor(exposure_start.mjd)
+
+        record['moonPhase'] = self.moon_illumination_tonight
+
         record['sunAlt'] = sun_altaz.alt.to(u.radian).value
         record['sunAz'] = sun_altaz.az.to(u.radian).value
         # phaseAngle, rScatter, mieScatter, moonBright, darkBright

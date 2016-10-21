@@ -150,11 +150,13 @@ class ObservingProgram(object):
                  'field_ids': request_fields.index,
                  'filter_id': filter_sequence[i + 1],
                  'cadence_func': 'time_since_obs',
-                 'cadence_pars': {'ref_obs': 'first_obs_tonight',
-                                  'window_start': (i + 1) * (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
+                 #'cadence_pars': {'ref_obs': 'first_obs_tonight',
+                 'cadence_pars': {'ref_obs': 'last_observed',
+                                  'window_start': (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
+                                  #'window_start': (i + 1) * (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
                                   # run the window the rest of the night
-                                  #'window_stop': 0.6,
-                                  'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
+                                  'window_stop': 0.6,
+                                  #'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
                                   'prev_filter': 'any'},
                  'priority': 1})
 
