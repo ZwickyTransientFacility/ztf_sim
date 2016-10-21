@@ -63,8 +63,9 @@ class ObservingProgram(object):
 
         n_filters = len(set(self.filter_ids))
         if self.filter_choice == 'rotate':
-            night_index = np.floor(time.mjd % n_filters).astype(np.int)
-            filter_ids_tonight = self.filter_ids[night_index]
+            night_index_filters = np.floor(time.mjd % n_filters).astype(np.int)
+            filter_ids_tonight = self.filter_ids[night_index_filters]
+            filter_ids_last_night = self.filter_ids[night_index_filters - 1]
         else:
             filter_ids_tonight = list(set(self.filter_ids))
 
@@ -76,7 +77,8 @@ class ObservingProgram(object):
                                  (time - self.internight_gap - 1 * u.day).mjd],
             program_id=self.program_id, filter_id=filter_ids_tonight,
             reducefunc=[np.min, np.min],  # we want oldest possible fields
-            observable_hours_range=[1, 100.])
+            observable_hours_range=[self.n_visits_per_night * \
+                                    self.intranight_gap.to(u.hour).value, 24.])
 
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
@@ -90,20 +92,34 @@ class ObservingProgram(object):
 
         # sort request sets by chosen priority metric
 
+        # first calculate oldest observations
+        last_obs_keys = ['last_observed_{}_{}'.format(self.program_id, k)
+                         for k in np.atleast_1d(filter_ids_tonight)]
+        # make a new joint column
+        oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
+        oldest_obs.name = 'oldest_obs'
+        request_fields = request_fields.join(oldest_obs)
+
         if self.nightly_priority == 'oldest':
             # now grab the top n_fields sorted by last observed date
-            last_obs_keys = ['last_observed_{}_{}'.format(self.program_id, k)
-                             for k in np.atleast_1d(filter_ids_tonight)]
-            # make a new joint column
-            oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
-            oldest_obs.name = 'oldest_obs'
-            request_fields = request_fields.join(oldest_obs)
             request_fields = request_fields.sort_values(
                 by='oldest_obs').iloc[:n_fields]
-            # last_obs_key = 'last_observed_{}_{}'.format(self.program_id,
-            #                                            FILTER_NAME_TO_ID['r'])
-            # request_fields = request_fields.sort_values(
-            #    by=last_obs_key).iloc[:n_fields]
+
+        elif self.nightly_priority == 'rotate':
+            # nightly rotation by ra strips
+            night_index_fields = np.floor(
+                time.mjd % field_rotation_nights).astype(np.int)
+            request_fields['ra_rotation_index'] = \
+                np.floor(request_fields['ra'] %
+                         field_rotation_nights).astype(np.int)
+            # drop "off" strips
+            wonstrip = request_fields[
+                'ra_rotation_index'] == night_index_fields
+            request_fields = request_fields[wonstrip]
+            # and take fields with last observed date
+            request_fields = request_fields.sort_values(
+                by='oldest_obs').iloc[:n_fields]
+
         elif self.nightly_priority == 'radist':
             assert ('ra0' in kwargs)
             # TODO: do I want spherical distance rather than ra distance?
@@ -157,7 +173,8 @@ class ObservingProgram(object):
                                   # run the window the rest of the night
                                   'window_stop': 0.6,
                                   #'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
-                                  'prev_filter': 'any'},
+                                  'prev_filter': filter_sequence[i]},
+                 #'prev_filter': 'any'},
                  'priority': 1})
 
         return request_set
@@ -185,12 +202,12 @@ class ObservingProgram(object):
 class CollaborationObservingProgram(ObservingProgram):
 
     def __init__(self, field_ids,
-                 filter_ids=[1, 1, 2, 2],
+                 filter_ids=[1, 2, 2, 1],
                  internight_gap=1. * u.day,
                  n_visits_per_night=4,
                  intranight_gap=60 * u.min,
                  intranight_half_width=20 * u.min,
-                 nightly_priority='oldest',
+                 nightly_priority='rotate',
                  filter_choice='sequence'):
         super(CollaborationObservingProgram, self).__init__(
             PROGRAM_NAME_TO_ID['collaboration'], 0.4, field_ids, filter_ids,

@@ -28,9 +28,11 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     if profile:
         if survey_duration > 1. * u.day:
-            raise ValueError("Don't profile long runs: 25% overhead")
-        profiler = Profiler()
-        profiler.start()
+            print("Don't profile long runs: 25% overhead")
+            profile = False
+        else:
+            profiler = Profiler()
+            profiler.start()
 
     survey_start_time = Time(start_time, scale='utc', location=P48_loc)
 
@@ -44,31 +46,18 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     # set up Observing Programs
     CollabOP = CollaborationObservingProgram(
-        Q.fields.select_field_ids(dec_range=[10, 60], ra_range=[60, 120]),
-        filter_ids=[1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
-        n_visits_per_night=12, intranight_gap=40 * u.min,
-        intranight_half_width=40 * u.min)
-    CollabOP.observing_time_fraction = 1.0
+        Q.fields.select_field_ids(dec_range=[-30, 90], abs_b_range=[20, 90],
+                                  grid_id=0))
     Q.add_observing_program(CollabOP)
-    # CollabOP = CollaborationObservingProgram(
-    #    Q.fields.select_field_ids(dec_range=[-30, 90], abs_b_range=[20, 90],
-    #                              grid_id=0))
-    # Q.add_observing_program(CollabOP)
-    # MSIPOP = MSIPObservingProgram(
-    #    Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
-    ##MSIPOP.observing_time_fraction = 1.0
-    # Q.add_observing_program(MSIPOP)
-    # CaltechOP = CaltechObservingProgram(
-    #    Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
-    # Q.add_observing_program(CaltechOP)
+    MSIPOP = MSIPObservingProgram(
+        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
+    #MSIPOP.observing_time_fraction = 1.0
+    Q.add_observing_program(MSIPOP)
+    CaltechOP = CaltechObservingProgram(
+        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
+    Q.add_observing_program(CaltechOP)
     # initialize nightly field requests (Tom Barlow function)
     Q.assign_nightly_requests(tel.current_state_dict())
-
-    # temporary loading to test things
-    # Q.rp.add_requests(1,
-    #        Q.fields.fields[
-    #            Q.fields.select_fields(dec_range=[-30,90])].index, 2,
-    #        'no_cadence',{})
 
     # initialize sqlite history
     log = ObsLogger(run_name, tel.current_time)
