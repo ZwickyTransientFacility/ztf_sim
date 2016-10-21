@@ -83,9 +83,9 @@ class ObsLogger:
     def log_pointing(self, state, request):
 
         record = {}
-        # TODO: might not want to use request_id here, but create a unique
-        # non-null key
-        record['obsHistID'] = request['request_id']
+        # don't use request_id here, but 
+        # let sqlite create a unique non-null key
+        #record['obsHistID'] = request['request_id']
         record['sessionID'] = 0
         record['propID'] = request['target_program_id']
         record['fieldID'] = request['target_field_id']
