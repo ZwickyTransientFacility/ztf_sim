@@ -7,7 +7,7 @@ from ObsLogger import ObsLogger
 from ObservingProgram import *
 from constants import *
 
-profile = True
+profile = False
 
 if profile:
     try:
@@ -24,7 +24,8 @@ run_name = 'tmp'
 
 
 def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
-            weather_year=None, survey_duration=12. * u.hour):
+            weather_year=None, survey_duration=12. * u.hour,
+            profile=profile):
 
     if profile:
         if survey_duration > 1. * u.day:

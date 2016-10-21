@@ -106,6 +106,7 @@ class ObservingProgram(object):
                 by='oldest_obs').iloc[:n_fields]
 
         elif self.nightly_priority == 'rotate':
+            field_rotation_nights = np.floor(len(request_fields)//n_fields)
             # nightly rotation by ra strips
             night_index_fields = np.floor(
                 time.mjd % field_rotation_nights).astype(np.int)
