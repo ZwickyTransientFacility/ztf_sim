@@ -106,7 +106,7 @@ class ObservingProgram(object):
                 by='oldest_obs').iloc[:n_fields]
 
         elif self.nightly_priority == 'rotate':
-            field_rotation_nights = np.floor(len(request_fields)//n_fields)
+            field_rotation_nights = np.floor(len(request_fields) // n_fields)
             # nightly rotation by ra strips
             night_index_fields = np.floor(
                 time.mjd % field_rotation_nights).astype(np.int)
@@ -159,6 +159,8 @@ class ObservingProgram(object):
                               'window_stop': (100 * u.year).to(u.day).value,
                               # TODO: do I want to specify this in some cases?
                               'prev_filter': 'any'},
+             'request_number_tonight': 1,
+             'total_requests_tonight': self.n_visits_per_night,
              'priority': 1})
         # additional visits
         for i in range(self.n_visits_per_night - 1):
@@ -176,6 +178,8 @@ class ObservingProgram(object):
                                   #'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
                                   'prev_filter': filter_sequence[i]},
                  #'prev_filter': 'any'},
+                 'request_number_tonight': i + 2,
+                 'total_requests_tonight': self.n_visits_per_night,
                  'priority': 1})
 
         return request_set

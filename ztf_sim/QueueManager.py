@@ -55,6 +55,8 @@ class QueueManager(object):
                 self.rp.add_requests(rs['program_id'], rs['field_ids'],
                                      rs['filter_id'], rs['cadence_func'],
                                      rs['cadence_pars'],
+                                     rs['request_number_tonight'],
+                                     rs['total_requests_tonight'],
                                      priority=rs['priority'])
 
     def next_obs(self, current_state):
@@ -103,6 +105,12 @@ class GreedyQueueManager(QueueManager):
                 'target_filter_id': self.queue.ix[max_idx].filter_id,
                 'target_program_id': self.queue.ix[max_idx].program_id,
                 'target_exposure_time': EXPOSURE_TIME,
+                'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
+                'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
+                'target_request_number_tonight':
+                self.queue.ix[max_idx].request_number_tonight,
+                'target_total_requests_tonight':
+                self.queue.ix[max_idx].total_requests_tonight,
                 'request_id': max_idx}
 
     def _metric(self, df):
@@ -235,7 +243,8 @@ class RequestPool(object):
         pass
 
     def add_requests(self, program_id, field_ids, filter_id,
-                     cadence_func, cadence_pars, priority=1):
+                     cadence_func, cadence_pars, request_number_tonight,
+                     total_requests_tonight, priority=1):
         """all scalars except field_ids"""
         # TODO: Compound Requests
 
@@ -256,6 +265,8 @@ class RequestPool(object):
                 'filter_id': filter_id,
                 'cadence_func': cadence_func,
                 'cadence_pars': cadence_pars,
+                'request_number_tonight': request_number_tonight,
+                'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
         self.pool = self.pool.append(pd.DataFrame(requests), ignore_index=True)

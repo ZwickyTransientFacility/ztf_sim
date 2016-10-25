@@ -77,13 +77,15 @@ class ObsLogger:
         slewTime           REAL,
         fiveSigmaDepth     REAL,
         ditheredRA         REAL,
-        ditheredDec        REAL
+        ditheredDec        REAL,
+        requestNumberTonight INTEGER,
+        totalRequestsTonight INTEGER
         )""")
 
     def log_pointing(self, state, request):
 
         record = {}
-        # don't use request_id here, but 
+        # don't use request_id here, but
         # let sqlite create a unique non-null key
         #record['obsHistID'] = request['request_id']
         record['sessionID'] = 0
@@ -92,8 +94,8 @@ class ObsLogger:
         record['fieldRA'] = np.radians(request['target_ra'])
         record['fieldDec'] = np.radians(request['target_dec'])
 
-        # TODO: double check if target_filter_id is letter or number
-        record['filter'] = request['target_filter_id']
+        record['filter'] = '\"' + \
+            FILTER_ID_TO_NAME[request['target_filter_id']] + '\"'
         # times are recorded at start of exposure
         exposure_start = state['current_time'] - \
             request['target_exposure_time']
@@ -124,7 +126,7 @@ class ObsLogger:
         # finRank
         record['airmass'] = altaz.secz.value
         # vSkyBright
-        # record['filtSkyBrightness'] TODO
+        record['filtSkyBright'] = request['target_sky_brightness']
         record['rotSkyPos'] = 0.  # TODO: confirm
         record['rotTelPos'] = 0.
         record['lst'] = exposure_start.sidereal_time('apparent').to(
@@ -168,9 +170,15 @@ class ObsLogger:
             record['slewTime'] = (record['expDate'] -
                                   (self.prev_obs['expDate'] +
                                       self.prev_obs['visitTime']))
-        # record['fiveSigmaDepth']
+        record['fiveSigmaDepth'] = request['target_limiting_mag']
         record['ditheredRA'] = 0.
         record['ditheredDec'] = 0.
+
+        # ztf_sim specific keywords!
+        record['requestNumberTonight'] = \
+            request['target_request_number_tonight']
+        record['totalRequestsTonight'] = \
+            request['target_total_requests_tonight']
 
         # use placeholders to create the INSERT query
         columns = ', '.join(record.keys())
