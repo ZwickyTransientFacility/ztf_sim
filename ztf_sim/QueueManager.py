@@ -107,6 +107,7 @@ class GreedyQueueManager(QueueManager):
                 'target_exposure_time': EXPOSURE_TIME,
                 'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
                 'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
+                'target_metric_value':  self.queue.ix[max_idx].value,
                 'target_request_number_tonight':
                 self.queue.ix[max_idx].request_number_tonight,
                 'target_total_requests_tonight':

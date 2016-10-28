@@ -10,14 +10,22 @@ from datetime import datetime
 from constants import *
 
 
-def df_write_to_sqlite(df, dbname, **kwargs):
-    engine = create_engine('sqlite:///../data/{}.db'.format(dbname))
-    df.to_sql(dbname, engine, if_exists='replace', **kwargs)
+def df_write_to_sqlite(df, dbname, tablename=None,
+                       directory='data', **kwargs):
+
+    if tablename is None:
+        tablename = dbname
+    engine = create_engine('sqlite:///../{}/{}.db'.format(directory, dbname))
+    df.to_sql(tablename, engine, if_exists='replace', **kwargs)
 
 
-def df_read_from_sqlite(dbname, **kwargs):
-    engine = create_engine('sqlite:///../data/{}.db'.format(dbname))
-    df = pd.read_sql(dbname, engine, **kwargs)
+def df_read_from_sqlite(dbname, tablename=None,
+                        directory='data', **kwargs):
+
+    if tablename is None:
+        tablename = dbname
+    engine = create_engine('sqlite:///../{}/{}.db'.format(directory, dbname))
+    df = pd.read_sql(tablename, engine, **kwargs)
 
     return df
 
@@ -126,17 +134,17 @@ def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
     doy = np.floor((diff % (1 * u.year)).to(u.day).value)
 
     # vectorize, if needed
-    # if len(np.atleast1d(doy)) == 1:
-    #    doy = np.array([doy])
+    if len(np.atleast_1d(doy)) == 1:
+        doy = np.array([doy])
 
     m = 1. - np.tan(latitude.radian) * np.tan(axis.radian *
                                               np.cos(doy * np.pi / 182.625))
     i = np.tan(twilight.radian) / np.cos(latitude.radian)
     n = m + i
-    n = np.max([0, np.min([n, 2])])
+    #n = np.max([0, np.min([n, 2])])
     # vectorize
-    # n[n > 2] = 2
-    # n[n < 0] = 0
+    n[n > 2] = 2
+    n[n < 0] = 0
     return 24. * u.hour * (1. - np.degrees(np.arccos(1 - n)) / 180.)
 
 

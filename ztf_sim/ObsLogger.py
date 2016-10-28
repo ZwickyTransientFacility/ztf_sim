@@ -79,7 +79,8 @@ class ObsLogger:
         ditheredRA         REAL,
         ditheredDec        REAL,
         requestNumberTonight INTEGER,
-        totalRequestsTonight INTEGER
+        totalRequestsTonight INTEGER,
+        metricValue        REAL
         )""")
 
     def log_pointing(self, state, request):
@@ -179,6 +180,8 @@ class ObsLogger:
             request['target_request_number_tonight']
         record['totalRequestsTonight'] = \
             request['target_total_requests_tonight']
+        record['metricValue'] = \
+            request['target_metric_value']
 
         # use placeholders to create the INSERT query
         columns = ', '.join(record.keys())
