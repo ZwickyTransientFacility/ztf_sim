@@ -198,7 +198,7 @@ class ObservingProgram(object):
             time) * self.observing_time_fraction
 
         n_requests = (obs_time.to(u.min) /
-                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value  \
+                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value[0]  \
             * FUDGE_FACTOR
         return np.round(n_requests).astype(np.int)
 
