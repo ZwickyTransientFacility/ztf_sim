@@ -114,6 +114,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 # c) remove completed request_id from the pool and the queue
                 Q.remove_requests(next_obs['request_id'])
         else:
+            log.prev_obs = None
             tel.set_cant_observe()
             tel.wait()
 
