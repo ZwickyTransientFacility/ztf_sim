@@ -24,7 +24,20 @@ def calc_stats(sim_name):
 
     stats['Simulation Name'] = sim_name
 
-    stats['Number of Nights'] = len(df.night.unique())
+    # use max - min because there may be no observations some nights
+    stats['Number of Nights'] = df.night.max() - df.night.min() + 1
+
+    # possible nights
+    possible_nights = np.linspace(df.night.min(), df.night.max(),
+                                  stats['Number of Nights'])
+
+    weathered_out_nights = 0
+    actual_nights = df.night.unique()
+    for night in possible_nights:
+        if night not in actual_nights:
+            weathered_out_nights += 1
+
+    stats['Nights completely weathered out'] = weathered_out_nights
 
     mjds = df.expMJD.apply(np.floor).unique()
     t_mjds = Time(mjds, format='mjd')
@@ -32,24 +45,25 @@ def calc_stats(sim_name):
 
     stats['Average Hours of Darkness'] = np.mean(hours_of_darkness)
 
-    stats['Average Nightly Number of Exposures'] = \
-        len(df) / stats['Number of Nights']
+    stats['Total Science Time (h)'] = \
+        (df.visitExpTime.sum() + df.slewTime.sum()) / 3600.
+
+    stats['Average Science Time per night (h)'] = \
+        stats['Total Science Time (h)'] / stats['Number of Nights']
 
     # time used for science: exposing or slewing/filter changing
-    stats['Fraction of time usable'] = \
-        (df.visitExpTime.sum() + df.slewTime.sum()) / 3600. / \
-        np.sum(hours_of_darkness)
+    stats['Fraction of time usable'] = stats['Total Science Time (h)'] / \
+        (stats['Average Hours of Darkness'] * stats['Number of Nights'])
 
-    stats['Average Open Shutter Time (h)'] = \
-        df.visitExpTime.sum() / 3600. / stats['Number of Nights']
+    stats['Average Number of Exposures per hour'] = \
+        len(df) / stats['Total Science Time (h)']
 
-    # NaNs and the occasional "bad" data point skew slew analysis: filter
-    # TODO: shouldn't have long slew times after fixing inter-night transition
-    w = np.isfinite(df.slewTime) & (df.slewTime < 3600.)
+    # leave out NaNs from weather/nightly breaks
+    w = np.isfinite(df.slewTime)
 
     # fraction of usable science time
-    stats['Open Shutter Fraction'] = \
-        df[w].visitExpTime.sum() / (df[w].visitExpTime.sum() + df[w].slewTime.sum())
+    stats['Open Shutter Fraction'] = df[w].visitExpTime.sum() / \
+        (df[w].visitExpTime.sum() + df[w].slewTime.sum())
 
     stats['Mean Time Between Exposures (s)'] = df[w].slewTime.mean()
     stats['Mean Slew Distance (deg)'] = np.degrees(df[w].slewDist.mean())
@@ -59,6 +73,7 @@ def calc_stats(sim_name):
         np.degrees(df[w].slewDist), 90)
 
     stats['Median Airmass'] = df.airmass.median()
+    stats['90% Airmass'] = np.percentile(df.airmass, 90)
 
     # program breakdown
     pgrp = df.groupby('propID')
@@ -67,6 +82,14 @@ def calc_stats(sim_name):
     # filter breakdown
     fgrp = df.groupby('filter')
     stats['Filter Fraction'] = (fgrp['fieldID'].agg(len) / len(df)).to_dict()
+
+    # add filter ID column
+    df['filterID'] = df['filter'].apply(lambda x: FILTER_NAME_TO_ID[x])
+    ngrp = df.groupby('night')
+    nchanges = ngrp['filterID'].agg(lambda x: np.sum(np.abs(np.diff(x))))
+    stats['Average Nightly Filter Exchanges'] = np.mean(nchanges)
+    stats['Average Filter Exchanges per hour'] = np.sum(nchanges) / \
+        stats['Total Science Time (h)']
 
     # fraction of completed sequences: by program, by filter, ...
     pgrp = df.groupby(['night', 'propID', 'fieldID'])
@@ -79,12 +102,12 @@ def calc_stats(sim_name):
     ngrp['completion_fraction'].agg(np.mean)
 
     pgrp2 = completion.groupby('propID')
-    stats['Sequence Completion Fraction by Program'] = \
-        pgrp2['completion_fraction'].agg(np.mean).to_dict()
+    stats['Sequence Completion Fraction by Program'] = pgrp2[
+        'completion_fraction'].agg(np.mean).to_dict()
 
     # average nightly figure of merit
-    stats['Average Nightly Summed Figure of Merit'] = df.metricValue.sum() \
-        / stats['Number of Nights']
+    stats['Average Summed Figure of Merit per Science Hour'] = df.metricValue.sum() \
+        / stats['Total Science Time (h)']
 
     for k, v in stats.iteritems():
         print('{}\t{}'.format(k, v))
