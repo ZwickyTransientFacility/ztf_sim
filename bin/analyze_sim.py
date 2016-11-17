@@ -43,16 +43,20 @@ def calc_stats(sim_name):
     stats['Average Open Shutter Time (h)'] = \
         df.visitExpTime.sum() / 3600. / stats['Number of Nights']
 
+    # NaNs and the occasional "bad" data point skew slew analysis: filter
+    # TODO: shouldn't have long slew times after fixing inter-night transition
+    w = np.isfinite(df.slewTime) & (df.slewTime < 3600.)
+
     # fraction of usable science time
     stats['Open Shutter Fraction'] = \
-        df.visitExpTime.sum() / (df.visitExpTime.sum() + df.slewTime.sum())
+        df[w].visitExpTime.sum() / (df[w].visitExpTime.sum() + df[w].slewTime.sum())
 
-    stats['Mean Time Between Exposures (s)'] = df.slewTime.mean()
-    stats['Mean Slew Distance (deg)'] = np.degrees(df.slewDist.mean())
+    stats['Mean Time Between Exposures (s)'] = df[w].slewTime.mean()
+    stats['Mean Slew Distance (deg)'] = np.degrees(df[w].slewDist.mean())
 
-    stats['90% Time Between Exposures (s)'] = np.percentile(df.slewTime, 90)
+    stats['90% Time Between Exposures (s)'] = np.percentile(df[w].slewTime, 90)
     stats['90% Slew Distance (deg)'] = np.percentile(
-        np.degrees(df.slewDist), 90)
+        np.degrees(df[w].slewDist), 90)
 
     stats['Median Airmass'] = df.airmass.median()
 
@@ -81,9 +85,6 @@ def calc_stats(sim_name):
     # average nightly figure of merit
     stats['Average Nightly Summed Figure of Merit'] = df.metricValue.sum() \
         / stats['Number of Nights']
-
-    # TODO: make series of diagnostic plots and put them in a run_name
-    # directory
 
     for k, v in stats.iteritems():
         print('{}\t{}'.format(k, v))
