@@ -12,16 +12,29 @@ P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.35s'),
 # use UTC only
 P48_Observer = astroplan.Observer(location=P48_loc)
 
+# HA and Dec from http://www.oir.caltech.edu/twiki_oir/bin/view/Palomar/ZTF/TelescopeSpecifications v5
+# Dome estimate from Jeff Z email, 9/21/15
 P48_slew_pars = {
-    'ha': {'coord': 'ra', 'accel': 0.27 * u.deg * u.second**(-2.),
-           'decel': 0.27 * u.deg * u.second**(-2.),
-           'vmax': 1.6 * u.deg / u.second},
-    'dec': {'coord': 'dec', 'accel': 0.2 * u.deg * u.second**(-2.),
-            'decel': 0.15 * u.deg * u.second**(-2.),
-            'vmax': 1.2 * u.deg / u.second},
-    'dome': {'coord': 'az', 'accel': 0.17 * u.deg * u.second**(-2.),
-             'decel': 0.6 * u.deg * u.second**(-2.),
-             'vmax': 3. * u.deg / u.second}}
+    'ha': {'coord': 'ra', 'accel': 0.50 * u.deg * u.second**(-2.),
+           'decel': 0.50 * u.deg * u.second**(-2.),
+           'vmax': 2.96 * u.deg / u.second},
+    'dec': {'coord': 'dec', 'accel': 0.5 * u.deg * u.second**(-2.),
+            'decel': 0.5 * u.deg * u.second**(-2.),
+            'vmax': 3.33 * u.deg / u.second},
+    'dome': {'coord': 'az', 'accel': 0.5 * u.deg * u.second**(-2.),
+             'decel': 0.5 * u.deg * u.second**(-2.),
+             'vmax': 5. * u.deg / u.second}}
+# PTF configuration
+#P48_slew_pars = {
+#    'ha': {'coord': 'ra', 'accel': 0.27 * u.deg * u.second**(-2.),
+#           'decel': 0.27 * u.deg * u.second**(-2.),
+#           'vmax': 1.6 * u.deg / u.second},
+#    'dec': {'coord': 'dec', 'accel': 0.2 * u.deg * u.second**(-2.),
+#            'decel': 0.15 * u.deg * u.second**(-2.),
+#            'vmax': 1.2 * u.deg / u.second},
+#    'dome': {'coord': 'az', 'accel': 0.17 * u.deg * u.second**(-2.),
+#             'decel': 0.6 * u.deg * u.second**(-2.),
+#             'vmax': 3. * u.deg / u.second}}
 
 EXPOSURE_TIME = 30. * u.second
 READOUT_TIME = 10. * u.second
