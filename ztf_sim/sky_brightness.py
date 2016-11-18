@@ -1,5 +1,5 @@
 import sklearn
-from sklearn import cross_validation, ensemble, preprocessing, pipeline
+from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
 from sklearn_pandas import DataFrameMapper, cross_val_score
 from sklearn.externals import joblib
@@ -63,7 +63,7 @@ def train_sky_model(filter_name='r', df=None):
     df['moonillf'] = np.abs(df['moonillf'])
 
     # returns dataframes!
-    X_train, X_test, y_train, y_test = cross_validation.train_test_split(
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
         df, df['sky_brightness'], test_size=0.2)
 
     # don't really need to standardize for RF, but preprocessing is nice
