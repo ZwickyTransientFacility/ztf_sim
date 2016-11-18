@@ -1,7 +1,7 @@
 import sklearn
 from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
-from sklearn_pandas import DataFrameMapper, cross_val_score
+from sklearn_pandas import DataFrameMapper
 from sklearn.externals import joblib
 import xgboost as xgb
 import pandas as pd
@@ -70,12 +70,12 @@ def train_sky_model(filter_name='r', df=None):
     # preprocessing through sklearn_pandas raises a deprecation warning
     # from sklearn, so skip it.
     mapper = DataFrameMapper([
-        ('moonillf', preprocessing.StandardScaler()),
-        ('moonalt',   preprocessing.StandardScaler()),
-        ('moon_dist', preprocessing.StandardScaler()),
-        ('azimuth',  preprocessing.StandardScaler()),
-        ('altitude', preprocessing.StandardScaler()),
-        ('sunalt',   preprocessing.StandardScaler())])
+        (['moonillf'], preprocessing.StandardScaler()),
+        (['moonalt'],   preprocessing.StandardScaler()),
+        (['moon_dist'], preprocessing.StandardScaler()),
+        (['azimuth'],  preprocessing.StandardScaler()),
+        (['altitude'], preprocessing.StandardScaler()),
+        (['sunalt'],   preprocessing.StandardScaler())])
     #('filterkey',  None)])
 
     clf = pipeline.Pipeline([
@@ -86,8 +86,8 @@ def train_sky_model(filter_name='r', df=None):
     #('lm', linear_model.BayesianRidge())])
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
-    clf.fit(X_train, y_train.reshape(-1, 1))
-    print clf.score(X_test, y_test.reshape(-1, 1))
+    clf.fit(X_train, y_train.values.reshape(-1, 1))
+    print clf.score(X_test, y_test.values.reshape(-1, 1))
 
     joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 
