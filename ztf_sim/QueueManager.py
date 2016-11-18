@@ -17,13 +17,18 @@ class QueueEmptyError(Exception):
 
 class QueueManager(object):
 
-    def __init__(self, observing_programs=[], rp=None, fields=None):
+    def __init__(self, observing_programs=[], rp=None, fields=None,
+                 block_programs=True):
 
         # list of ObservingPrograms
         self.observing_programs = observing_programs
 
         # block on which the queue parameters were calculated
         self.queue_block = None
+
+        # should we only consider fields from one program in a given
+        # observing block?
+        self.block_programs = block_programs
 
         if rp is None:
             # initialize an empty RequestPool
@@ -172,6 +177,12 @@ class GreedyQueueManager(QueueManager):
         # start with conservative altitude cut;
         # airmass weighting applied naturally below
         df = df[df['altitude'] > 20]
+
+        # if restricting to one program per block, drop other programs
+        if self.block_programs:
+            current_block_program = PROGRAM_BLOCK_SEQUENCE[
+                self.queue_block % LEN_BLOCK_SEQUENCE]
+            df = df[df['program_id'] == current_block_program]
 
         # use cadence functions to compute requests with active cadence windows
         # this is slow, so do it after our altitude cut

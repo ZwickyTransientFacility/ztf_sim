@@ -43,7 +43,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
         logfile='../sims/log_{}'.format(run_name))
 
     # set up QueueManager
-    Q = GreedyQueueManager()
+    Q = GreedyQueueManager(block_programs=True)
 
     # set up Observing Programs
     CollabOP = CollaborationObservingProgram(
