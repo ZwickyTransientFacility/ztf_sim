@@ -25,7 +25,7 @@ P48_slew_pars = {
              'decel': 0.5 * u.deg * u.second**(-2.),
              'vmax': 5. * u.deg / u.second}}
 # PTF configuration
-#P48_slew_pars = {
+# P48_slew_pars = {
 #    'ha': {'coord': 'ra', 'accel': 0.27 * u.deg * u.second**(-2.),
 #           'decel': 0.27 * u.deg * u.second**(-2.),
 #           'vmax': 1.6 * u.deg / u.second},

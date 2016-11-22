@@ -27,7 +27,7 @@ class ObservingProgram(object):
         # need a way to make this flexible without coding a new class for
         # every single way we could pick which fields to observe
         # some kind of config files?
-        # or just instantiate with nightly_piority="", with
+        # or just instantiate with nightly_priority="", with
         # analagous functions to cadence.py?
         # selection functions:
         # nightly_priority='oldest":
@@ -69,6 +69,24 @@ class ObservingProgram(object):
         else:
             filter_ids_tonight = list(set(self.filter_ids))
 
+        # how many fields can we observe tonight?
+        n_requests = self.number_of_allowed_requests(time)
+
+        n_fields = np.round(n_requests / self.n_visits_per_night)
+
+        # maintain balance between programs
+        if not self.block_programs:
+            obs_count_by_program = fields.count_total_obs_by_program()
+            total_obs = np.sum(obs_count_by_program.values())
+            # difference in expected obs from allowed fraction
+            delta = np.round(obs_count_by_program[self.program_id] -
+                             self.observing_time_fraction * total_obs)
+
+            # TODO: tweak as needed
+            # how quickly do we want to take to reach equalization?
+            CATCHUP_FACTOR = 0.20
+            n_fields -= np.round(delta * CATCHUP_FACTOR)
+
         # Choose which fields will be observed
 
         obs_field_ids = fields.select_field_ids(
@@ -82,11 +100,6 @@ class ObservingProgram(object):
 
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
-
-        # how many fields can we observe tonight?
-        n_requests = self.number_of_allowed_requests(time)
-
-        n_fields = np.round(n_requests / self.n_visits_per_night)
 
         request_fields = fields.fields.loc[pool_ids]
 

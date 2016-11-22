@@ -54,8 +54,9 @@ class QueueManager(object):
 
         for program in self.observing_programs:
 
-            request_sets = program.assign_nightly_requests(current_state['current_time'],
-                                                           self.fields)
+            request_sets = program.assign_nightly_requests(
+                current_state['current_time'], self.fields,
+                block_programs=self.block_programs)
             for rs in request_sets:
                 self.rp.add_requests(rs['program_id'], rs['field_ids'],
                                      rs['filter_id'], rs['cadence_func'],

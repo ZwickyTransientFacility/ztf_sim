@@ -269,6 +269,18 @@ class Fields(object):
         self.fields.loc[field_id,
                         'n_obs_{}_{}'.format(program_id, filter_id)] += 1
 
+    def count_total_obs_by_program(self):
+        """Sum total number of exposures by program id"""
+
+        count = defaultdict(int)
+        for program_id in PROGRAM_IDS:
+            cols = ['n_obs_{}_{}'.format(program_id, filter_id)
+                    for filter_id in FILTER_IDS]
+            for col in cols:
+                count[program_id] += self.fields[col].sum()
+
+        return count
+
     def clear_first_obs(self):
         """Reset the time of the nightly first observations."""
 
