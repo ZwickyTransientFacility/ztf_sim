@@ -22,7 +22,8 @@ class ObservingProgram(object):
         self.nightly_priority = nightly_priority
         self.filter_choice = filter_choice
 
-    def assign_nightly_requests(self, time, fields, **kwargs):
+    def assign_nightly_requests(self, time, fields, block_programs=True,
+        **kwargs):
 
         # need a way to make this flexible without coding a new class for
         # every single way we could pick which fields to observe
@@ -75,7 +76,7 @@ class ObservingProgram(object):
         n_fields = np.round(n_requests / self.n_visits_per_night)
 
         # maintain balance between programs
-        if not self.block_programs:
+        if not block_programs:
             obs_count_by_program = fields.count_total_obs_by_program()
             total_obs = np.sum(obs_count_by_program.values())
             # difference in expected obs from allowed fraction
@@ -85,7 +86,12 @@ class ObservingProgram(object):
             # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
             CATCHUP_FACTOR = 0.20
-            n_fields -= np.round(delta * CATCHUP_FACTOR)
+            n_fields -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
+
+            if n_fields <= 0:
+                # TODO: logging
+                print('No fields requested for program {}'.format(program_id))
+                return {}
 
         # Choose which fields will be observed
 
@@ -102,6 +108,10 @@ class ObservingProgram(object):
         pool_ids = obs_field_ids.intersection(self.field_ids)
 
         request_fields = fields.fields.loc[pool_ids]
+
+        if n_fields > len(request_fields):
+            # TODO: logging
+            print('Not enough requests to fill available time!')
 
         # sort request sets by chosen priority metric
 
