@@ -5,6 +5,7 @@ import sqlite3
 import astropy.coordinates as coord
 import astropy.units as u
 import astroplan.moon
+from fields import Fields
 from utils import *
 from constants import *
 
@@ -20,6 +21,53 @@ class ObsLogger:
         self.engine = create_engine('sqlite:///../sims/{}.db'.format(
             self.run_name))
         self.conn = self.engine.connect()
+        self.create_fields_table(clobber=True)
+        self.create_pointing_log(clobber=True)
+
+    def create_fields_table(self, clobber=True):
+
+        if clobber:
+            try:
+                self.conn.execute("""DROP TABLE Field""")
+            except:
+                pass
+
+        self.conn.execute("""
+        CREATE TABLE Field(
+        fieldID   INTEGER PRIMARY KEY,
+        fieldFov  REAL,
+        fieldRA   REAL,
+        fieldDec  REAL,
+        fieldGL   REAL,
+        fieldGB   REAL,
+        fieldEL   REAL,
+        fieldEB   REAL
+        )""")
+
+        f = Fields()
+        df = f.fields.reset_index()
+        df.rename(columns={'field_id': 'fieldID',
+                           'ra': 'fieldRA',
+                           'dec': 'fieldDec',
+                           'l': 'fieldGL',
+                           'b': 'fieldGB',
+                           'ecliptic_lon': 'fieldEL',
+                           'ecliptic_lat': 'fieldEB'}, inplace=True)
+        df.set_index(['fieldID'], inplace=True)
+        df.drop([u'grid_id', u'last_observed_1_1',
+                 u'first_obs_tonight_1_1',     u'last_observed_1_2',
+                 u'first_obs_tonight_1_2',     u'last_observed_2_1',
+                 u'first_obs_tonight_2_1',     u'last_observed_2_2',
+                 u'first_obs_tonight_2_2',     u'last_observed_3_1',
+                 u'first_obs_tonight_3_1',     u'last_observed_3_2',
+                 u'first_obs_tonight_3_2',             u'n_obs_1_1',
+                 u'n_obs_1_2',             u'n_obs_2_1',
+                 u'n_obs_2_2',             u'n_obs_3_1',
+                 u'n_obs_3_2'], axis=1, inplace=True)
+
+        # (circumscribed) field diameter in degrees
+        df['fieldFov'] = 10.428
+        df.to_sql('Field', self.engine, if_exists='replace')
 
     def create_pointing_log(self, clobber=True):
 

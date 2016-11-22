@@ -62,7 +62,6 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     # initialize sqlite history
     log = ObsLogger(run_name, tel.current_time)
-    log.create_pointing_log(clobber=True)
 
     current_night_mjd = np.floor(tel.current_time.mjd)
 
