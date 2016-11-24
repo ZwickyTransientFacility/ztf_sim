@@ -2,7 +2,7 @@ from ZTFStateMachine import ZTFStateMachine
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from QueueManager import GreedyQueueManager
+from QueueManager import GreedyQueueManager, QueueEmptyError
 from ObsLogger import ObsLogger
 from ObservingProgram import *
 from constants import *
@@ -25,7 +25,7 @@ run_name = 'tmp'
 
 def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             weather_year=None, survey_duration=12. * u.hour,
-            profile=profile):
+            profile=profile, raise_queue_empty=True):
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -76,7 +76,15 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
             # get coords
-            next_obs = Q.next_obs(current_state)
+            try:
+                next_obs = Q.next_obs(current_state)
+            except QueueEmptyError:
+                if not raise_queue_empty:
+                    # TODO: log the failure
+                    print("Queue empty!  Waiting...")
+                    log.prev_obs = None
+                    tel.wait()
+                    continue
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:

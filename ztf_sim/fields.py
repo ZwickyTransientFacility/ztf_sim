@@ -10,7 +10,6 @@ from astropy.time import Time
 from collections import defaultdict
 import itertools
 
-
 class Fields(object):
     """Class for accessing field grid."""
     # TODO: consider using some of PTFFields.py code
@@ -86,6 +85,13 @@ class Fields(object):
         # DataFrames indexed by field_id, columns are block numbers
         self.block_alt = pd.DataFrame(alt_blocks)
         self.block_az = pd.DataFrame(az_blocks)
+
+        block_airmass = altitude_to_airmass(self.block_alt)
+        w = (block_airmass <= MAX_AIRMASS) & (block_airmass >= 1.0)
+        # average airmass over the time we're above MAX_AIRMASS
+        mean_observable_airmass = block_airmass[w].mean(axis=1)
+        mean_observable_airmass.name = 'mean_observable_airmass'
+        self.mean_observable_airmass = mean_observable_airmass
 
     def compute_observability(self, max_airmass=MAX_AIRMASS,
                               time_block_size=TIME_BLOCK_SIZE):

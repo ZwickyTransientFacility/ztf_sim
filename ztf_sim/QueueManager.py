@@ -179,6 +179,9 @@ class GreedyQueueManager(QueueManager):
         # airmass weighting applied naturally below
         df = df[df['altitude'] > 20]
 
+        if len(df) == 0:
+            raise QueueEmptyError("No fields in queue")
+
         # if restricting to one program per block, drop other programs
         if self.block_programs:
             current_block_program = PROGRAM_BLOCK_SEQUENCE[

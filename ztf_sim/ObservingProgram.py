@@ -128,6 +128,17 @@ class ObservingProgram(object):
             request_fields = request_fields.sort_values(
                 by='oldest_obs').iloc[:n_fields]
 
+        elif self.nightly_priority == 'mean_observable_airmass':
+            # now grab the top n_fields sorted by average airmass
+            # above MAX_AIRMASS tonight.  (We already cut to only fields up
+            # long enough to get n_visits_per_night)
+            # TODO: make this a smarter, SNR-based calculation
+            
+            request_fields = request_fields.join(fields.mean_observable_airmass)
+            
+            request_fields = request_fields.sort_values(
+                by='mean_observable_airmass').iloc[:n_fields]
+
         elif self.nightly_priority == 'rotate':
             field_rotation_nights = np.floor(len(request_fields) // n_fields)
             # nightly rotation by ra strips
@@ -235,7 +246,7 @@ class CollaborationObservingProgram(ObservingProgram):
                  n_visits_per_night=4,
                  intranight_gap=60 * u.min,
                  intranight_half_width=20 * u.min,
-                 nightly_priority='rotate',
+                 nightly_priority='mean_observable_airmass',
                  filter_choice='sequence'):
         super(CollaborationObservingProgram, self).__init__(
             PROGRAM_NAME_TO_ID['collaboration'], 0.4, field_ids, filter_ids,
