@@ -99,16 +99,24 @@ class ZTFStateMachine(Machine):
                 # don't use weather, just use 12 degree twilight
                 return True
             else:
-                return self.observability.check_historical_observability(
+                is_observable = self.observability.check_historical_observability(
                     self.current_time, year=self.historical_observability_year)
+                if not is_observable:
+                    # optimization: fast-forward to start of next block
+                    block_now = block_index(self.current_time)
+                    block_end_time = block_index_to_time(block_now,
+                        self.current_time, where='end')[0]
+                    self.logger.info('Weathered out.  Fast forwarding to end of this block: {}'.format(
+                        block_end_time.iso))
+                    self.current_time = block_end_time
+
+                return is_observable
         else:
             # daytime
             # optimization: fast-forward to sunset
             next_twilight = next_12deg_evening_twilight(self.current_time)
             self.logger.info('Fast forwarding to 12 deg twilight: {}'.format(
-                next_twilight))
-            # TODO: check if this works--may not be possible to change state
-            # here
+                next_twilight.iso))
             self.current_time = next_twilight
             return False
 
