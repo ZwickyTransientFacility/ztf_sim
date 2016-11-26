@@ -26,6 +26,9 @@ class QueueManager(object):
         # block on which the queue parameters were calculated
         self.queue_block = None
 
+        # initialize the queue with an empty DataFrame
+        self.queue = pd.DataFrame([])
+
         # should we only consider fields from one program in a given
         # observing block?
         self.block_programs = block_programs
@@ -170,6 +173,10 @@ class GreedyQueueManager(QueueManager):
         # store block index for which these values were calculated
         self.queue_block = block_index(current_state['current_time'])
 
+        # check that the pool has fields in it
+        if len(self.rp.pool):
+            raise QueueEmptyError("No fields in pool")
+
         # join with fields so we have the information we need
         df = self.rp.pool.join(self.fields.fields, on='field_id')
 
@@ -180,7 +187,7 @@ class GreedyQueueManager(QueueManager):
         df = df[df['altitude'] > 20]
 
         if len(df) == 0:
-            raise QueueEmptyError("No fields in queue")
+            raise QueueEmptyError("No fields in queue above altitude cut")
 
         # if restricting to one program per block, drop other programs
         if self.block_programs:

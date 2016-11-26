@@ -80,8 +80,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 next_obs = Q.next_obs(current_state)
             except QueueEmptyError:
                 if not raise_queue_empty:
-                    # TODO: log the failure
-                    print("Queue empty!  Waiting...")
+                    tel.logger.info("Queue empty!  Waiting...")
                     log.prev_obs = None
                     tel.wait()
                     continue
@@ -89,7 +88,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
                 if not tel.start_filter_change(next_obs['target_filter_id']):
-                    # TODO: log the failure
+                    tel.logger.info("Filter change failure!  Waiting...")
                     log.prev_obs = None
                     tel.wait()
                     continue
@@ -100,6 +99,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 tel.set_cant_observe()
                 # TODO: log the failure
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
+                tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
+                (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
                 log.prev_obs = None
                 tel.wait()
                 continue
@@ -107,7 +108,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             # try to expose
             if not tel.start_exposing():
                 tel.set_cant_observe()
-                # TODO: log the failure
+                tel.logger.info("Exposure failure!  Waiting...")
                 log.prev_obs = None
                 tel.wait()
                 continue
