@@ -26,8 +26,8 @@ class QueueManager(object):
         # block on which the queue parameters were calculated
         self.queue_block = None
 
-        # initialize the queue with an empty DataFrame
-        self.queue = pd.DataFrame([])
+        # the queue itself
+        self.queue = None
 
         # should we only consider fields from one program in a given
         # observing block?
@@ -99,7 +99,7 @@ class GreedyQueueManager(QueueManager):
         # since this is a greedy queue, we update the queue after each obs
         # for speed, only do the whole recalculation if we're in a new block
         if ((block_index(current_state['current_time'])[0] != self.queue_block)
-                or (len(self.queue) == 0)):
+                or (self.queue is None) or (len(self.queue) == 0)):
             self._update_queue(current_state)
         else:
             # otherwise just recalculate the overhead times
@@ -174,7 +174,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_block = block_index(current_state['current_time'])
 
         # check that the pool has fields in it
-        if len(self.rp.pool):
+        if len(self.rp.pool) == 0:
             raise QueueEmptyError("No fields in pool")
 
         # join with fields so we have the information we need
