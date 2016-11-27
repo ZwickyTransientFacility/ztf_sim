@@ -178,8 +178,9 @@ class ObsLogger:
         record['filtSkyBright'] = request['target_sky_brightness']
         record['rotSkyPos'] = 0.  # TODO: confirm
         record['rotTelPos'] = 0.
-        record['lst'] = exposure_start.sidereal_time('apparent').to(
-            u.hourangle).value
+        # despite the docs, it seems lst is stored as radians
+        record['lst'] = np.radians(exposure_start.sidereal_time('apparent').to(
+            u.hourangle).value/24.*360.)
         record['altitude'] = altaz.alt.to(u.radian).value
         record['azimuth'] = altaz.az.to(u.radian).value
 
