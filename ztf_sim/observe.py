@@ -47,7 +47,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
 
     # set up Observing Programs
     CollabOP = CollaborationObservingProgram(
-        Q.fields.select_field_ids(dec_range=[-30, 90], abs_b_range=[20, 90],
+        Q.fields.select_field_ids(dec_range=[-30, 90], #abs_b_range=[20, 90],
                                   grid_id=0))
     Q.add_observing_program(CollabOP)
     MSIPOP = MSIPObservingProgram(
