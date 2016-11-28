@@ -303,6 +303,9 @@ class RequestPool(object):
         request_ids : scalar or list
             requests to drop (index of self.pool)"""
         self.pool = self.pool.drop(request_ids)
+        # also remove them from the queue, which may only be recomputed
+        # at the next block
+        self.queue = self.queue.drop(request_ids)
 
     def clear_all_requests(self):
         self.pool = pd.DataFrame()
