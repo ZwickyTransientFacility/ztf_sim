@@ -123,10 +123,10 @@ class ZTFStateMachine(Machine):
     def slew_allowed(self, target_skycoord):
         """Check that slew is within allowed limits"""
 
-        target_ha = RA_to_HA(target_skycoord.ra, self.current_time)
-
-        if (target_ha > 90. * u.deg) and (target_ha < 270. * u.deg):
+        if (skycoord_to_altaz(target_skycoord, self.current_time).alt
+            < (10. * u.deg)):
             return False
+
         if ((target_skycoord.dec < -35. * u.deg) or
                 (target_skycoord.dec > 90. * u.deg)):
             return False
