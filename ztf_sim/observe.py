@@ -7,6 +7,10 @@ from ObsLogger import ObsLogger
 from ObservingProgram import *
 from constants import *
 
+# check aggressively for setting with copy 
+import pandas as pd
+pd.options.mode.chained_assignment = 'raise' # default='warn'
+
 profile = False
 
 if profile:
@@ -78,12 +82,16 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             # get coords
             try:
                 next_obs = Q.next_obs(current_state)
+                # TODO: debugging check...
+                assert(next_obs['request_id'] in Q.queue.index)
             except QueueEmptyError:
                 if not raise_queue_empty:
                     tel.logger.info("Queue empty!  Waiting...")
                     log.prev_obs = None
                     tel.wait()
                     continue
+                else:
+                    raise QueueEmptyError("Queue is empty")
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
@@ -120,6 +128,8 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 # b) update Fields
                 Q.fields.mark_field_observed(next_obs, current_state)
                 # c) remove completed request_id from the pool and the queue
+                # TODO: debugging check
+                assert(next_obs['request_id'] in Q.queue.index)
                 Q.remove_requests(next_obs['request_id'])
         else:
             log.prev_obs = None

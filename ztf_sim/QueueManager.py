@@ -27,7 +27,7 @@ class QueueManager(object):
         self.queue_block = None
 
         # the queue itself
-        self.queue = None
+        self.queue = pd.DataFrame()
 
         # should we only consider fields from one program in a given
         # observing block?
@@ -68,6 +68,8 @@ class QueueManager(object):
                                      rs['total_requests_tonight'],
                                      priority=rs['priority'])
 
+        assert(len(self.rp.pool) > 0)
+
     def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
         # don't store the telescope state locally!
@@ -84,7 +86,7 @@ class QueueManager(object):
     def remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
 
-        self.queue.drop(request_id, inplace=True)
+        self.queue = self.queue.drop(request_id)
         self.rp.remove_requests(request_id)
 
 
@@ -99,7 +101,7 @@ class GreedyQueueManager(QueueManager):
         # since this is a greedy queue, we update the queue after each obs
         # for speed, only do the whole recalculation if we're in a new block
         if ((block_index(current_state['current_time'])[0] != self.queue_block)
-                or (self.queue is None) or (len(self.queue) == 0)):
+                or (len(self.queue) == 0)):
             self._update_queue(current_state)
         else:
             # otherwise just recalculate the overhead times
@@ -178,13 +180,16 @@ class GreedyQueueManager(QueueManager):
             raise QueueEmptyError("No fields in pool")
 
         # join with fields so we have the information we need
-        df = self.rp.pool.join(self.fields.fields, on='field_id')
+        # make a copy so rp.pool and self.queue are not linked
+        df = self.rp.pool.join(self.fields.fields, on='field_id').copy()
 
         df = self._update_overhead(current_state, df=df)
 
         # start with conservative altitude cut;
         # airmass weighting applied naturally below
-        df = df[df['altitude'] > 20]
+        # also make a copy because otherwise it retains knowledge of
+        # (discarded) previous reference and raises SettingWithCopyWarnings
+        df = df.loc[df['altitude'] > 20,:].copy()
 
         if len(df) == 0:
             raise QueueEmptyError("No fields in queue above altitude cut")
@@ -193,7 +198,7 @@ class GreedyQueueManager(QueueManager):
         if self.block_programs:
             current_block_program = PROGRAM_BLOCK_SEQUENCE[
                 self.queue_block % LEN_BLOCK_SEQUENCE]
-            df = df[df['program_id'] == current_block_program]
+            df = df.loc[df['program_id'] == current_block_program,:]
 
         # use cadence functions to compute requests with active cadence windows
         # this is slow, so do it after our altitude cut
@@ -208,7 +213,9 @@ class GreedyQueueManager(QueueManager):
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
             raise QueueEmptyError("No fields with observable cadence windows")
-        df = df[cadence_cuts]
+        # also make a copy because otherwise it retains knowledge of
+        # (discarded) previous reference and raises SettingWithCopyWarnings
+        df = df.loc[cadence_cuts,:].copy()
 
         # compute airmasses by field_id
         # airmass = zenith_angle_to_airmass(90. - df_alt)
@@ -217,7 +224,7 @@ class GreedyQueueManager(QueueManager):
         #              left_on='field_id', right_index=True)
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
-
+        
         # compute inputs for sky brightness
         sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
         sun = coord.get_sun(current_state['current_time'])
@@ -225,33 +232,33 @@ class GreedyQueueManager(QueueManager):
         moon = coord.get_moon(current_state['current_time'],
                               location=P48_loc)
         moon_altaz = skycoord_to_altaz(moon, current_state['current_time'])
-        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
+        df.loc[:,'moonillf'] = astroplan.moon.moon_illumination(
             # Don't use P48_loc to avoid astropy bug:
             # https://github.com/astropy/astroplan/pull/213
             current_state['current_time'])
         # current_state['current_time'], P48_loc)
-        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
-        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
-        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
+        df.loc[:,'moon_dist'] = sc.separation(moon).to(u.deg).value
+        df.loc[:,'moonalt'] = moon_altaz.alt.to(u.deg).value
+        df.loc[:,'sunalt'] = sun_altaz.alt.to(u.deg).value
 
         # compute sky brightness
-        df.loc[:, 'sky_brightness'] = self.Sky.predict(df)
+        df.loc[:,'sky_brightness'] = self.Sky.predict(df)
         #df = pd.merge(df, df_sky, left_on='field_id', right_index=True)
 
         # compute seeing at each pointing
-        df.loc[:, 'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
+        df.loc[:,'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
                                                  df['altitude'])
         #df_seeing.name = 'seeing'
         #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
 
-        df.loc[:, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
+        df.loc[:,'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
                                                  df['sky_brightness'],
                                                  filter_id=df['filter_id'],
                                                  altitude=df['altitude'], SNR=5.)
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
 
-        df.loc[:, 'value'] = self._metric(df)
+        df.loc[:,'value'] = self._metric(df)
 
         self.queue = df
 
