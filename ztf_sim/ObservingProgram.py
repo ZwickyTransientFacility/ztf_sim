@@ -4,12 +4,14 @@ from utils import approx_hours_of_darkness
 
 class ObservingProgram(object):
 
-    def __init__(self, program_id, observing_time_fraction, field_ids,
+    def __init__(self, program_id, subprogram_name,
+                 observing_time_fraction, field_ids,
                  filter_ids, internight_gap, n_visits_per_night,
                  intranight_gap, intranight_half_width,
                  nightly_priority='oldest', filter_choice='rotate'):
 
         self.program_id = program_id
+        self.subprogram_name = subprogram_name
         self.observing_time_fraction = observing_time_fraction
         self.field_ids = field_ids
         self.filter_ids = filter_ids
@@ -23,7 +25,7 @@ class ObservingProgram(object):
         self.filter_choice = filter_choice
 
     def assign_nightly_requests(self, time, fields, block_programs=True,
-        **kwargs):
+                                **kwargs):
 
         # need a way to make this flexible without coding a new class for
         # every single way we could pick which fields to observe
@@ -133,9 +135,10 @@ class ObservingProgram(object):
             # above MAX_AIRMASS tonight.  (We already cut to only fields up
             # long enough to get n_visits_per_night)
             # TODO: make this a smarter, SNR-based calculation
-            
-            request_fields = request_fields.join(fields.mean_observable_airmass)
-            
+
+            request_fields = request_fields.join(
+                fields.mean_observable_airmass)
+
             request_fields = request_fields.sort_values(
                 by='mean_observable_airmass').iloc[:n_fields]
 
@@ -182,6 +185,7 @@ class ObservingProgram(object):
         # first visit
         request_set.append(
             {'program_id': self.program_id,
+             'subprogram_name': self.subprogram_name,
              'field_ids': request_fields.index,
              'filter_id': filter_sequence[0],
              'cadence_func': 'time_since_obs',
@@ -200,6 +204,7 @@ class ObservingProgram(object):
         for i in range(self.n_visits_per_night - 1):
             request_set.append(
                 {'program_id': self.program_id,
+                 'subprogram_name': self.subprogram_name,
                  'field_ids': request_fields.index,
                  'filter_id': filter_sequence[i + 1],
                  'cadence_func': 'time_since_obs',
