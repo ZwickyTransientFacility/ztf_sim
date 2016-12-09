@@ -4,32 +4,24 @@ from astropy.time import Time
 import astropy.units as u
 from QueueManager import GreedyQueueManager, QueueEmptyError
 from ObsLogger import ObsLogger
-from ObservingProgram import *
+from config import ZTFConfiguration
 from constants import *
 
-# check aggressively for setting with copy 
+# check aggressively for setting with copy
 import pandas as pd
-pd.options.mode.chained_assignment = 'raise' # default='warn'
+pd.options.mode.chained_assignment = 'raise'  # default='warn'
 
-profile = False
-
-if profile:
-    try:
-        from pyinstrument import Profiler
-    except ImportError:
-        print 'Error importing pyinstrument'
-        profile = False
-
-# TODO: set up configuration system so we can easily run (and distinguish)
-# sims with various inputs.  tag with commit hash!
-# or sub-tables of the db output...
-
-run_name = 'tmp'
+# TODO: tag database with commit hash
 
 
-def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
-            weather_year=None, survey_duration=12. * u.hour,
-            profile=profile, raise_queue_empty=True):
+def observe(config_file, profile=False, raise_queue_empty=True):
+
+    if profile:
+        try:
+            from pyinstrument import Profiler
+        except ImportError:
+            print 'Error importing pyinstrument'
+            profile = False
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -39,28 +31,31 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
             profiler = Profiler()
             profiler.start()
 
+    ztf_config = ZTFConfiguration('../sims/{}'.format(config_file))
+
+    # load config parameters into local variables
+    run_name = ztf_config.config['run_name']
+    start_time = ztf_config.config['start_time']
+    weather_year = ztf_config.config['weather_year']
+    if weather_year == "None":
+        weather_year = None
+    survey_duration = ztf_config.config['survey_duration_days'] * u.day
+    block_programs = ztf_config.config['block_programs']
+    observing_programs = ztf_config.build_observing_programs()
+
     survey_start_time = Time(start_time, scale='utc', location=P48_loc)
 
     tel = ZTFStateMachine(
         current_time=survey_start_time,
         historical_observability_year=weather_year,
-        logfile='../sims/log_{}'.format(run_name))
+        logfile='../sims/{}_log.txt'.format(run_name))
 
     # set up QueueManager
-    Q = GreedyQueueManager(block_programs=False)
+    Q = GreedyQueueManager(block_programs=block_programs)
 
-    # set up Observing Programs
-    CollabOP = CollaborationObservingProgram(
-        Q.fields.select_field_ids(dec_range=[-30, 90], #abs_b_range=[20, 90],
-                                  grid_id=0))
-    Q.add_observing_program(CollabOP)
-    MSIPOP = MSIPObservingProgram(
-        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
-    #MSIPOP.observing_time_fraction = 1.0
-    Q.add_observing_program(MSIPOP)
-    CaltechOP = CaltechObservingProgram(
-        Q.fields.select_field_ids(dec_range=[-30, 90], grid_id=0))
-    Q.add_observing_program(CaltechOP)
+    for op in observing_programs:
+        Q.add_observing_program(op)
+
     # initialize nightly field requests (Tom Barlow function)
     Q.assign_nightly_requests(tel.current_state_dict())
 
@@ -108,7 +103,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
                 # TODO: log the failure
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
-                (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
+                                (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
                 log.prev_obs = None
                 tel.wait()
                 continue
@@ -139,5 +134,7 @@ def observe(run_name=run_name, start_time='2016-03-20 02:30:00',
     if profile:
         profiler.stop()
         print profiler.output_text(unicode=True, color=True)
-        with open('../sims/profile_{}'.format(run_name), 'w') as f:
+        with open('../sims/{}_profile.txt'.format(run_name), 'w') as f:
             f.write(profiler.output_text())
+
+    # TODO: gzip logfile

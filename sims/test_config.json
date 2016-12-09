@@ -1,0 +1,49 @@
+{
+	"run_name": "test",
+	"start_time": "2016-03-20 02:30:00",
+	"weather_year": "None",
+	"survey_duration_days": 0.5,
+	"block_programs": false,
+	"observing_programs": [
+		{"program_name": "MSIP",
+		 "subprogram_name": "all_sky",
+		 "observing_fraction": 0.4,
+		 "field_selections":{"dec_range":[-30,90],
+				     "grid_id":0},
+		 "filter_choice": "rotate",
+		 "filter_ids": [1, 2],
+		 "internight_gap_days": 3,
+		 "n_visits_per_night": 2,
+		 "intranight_gap_min": 60,
+		 "intranight_half_width_min": 20,
+		 "nightly_priority": "oldest"},
+		{"program_name": "collaboration",
+		 "subprogram_name": "all_sky",
+		 "observing_fraction": 0.4,
+		 "field_selections":{"dec_range":[-30,90],
+				     "grid_id":0},
+		 "filter_choice": "sequence",
+		 "filter_ids": [1, 2, 2, 1],
+		 "internight_gap_days": 1,
+		 "n_visits_per_night": 4,
+		 "intranight_gap_min": 60,
+		 "intranight_half_width_min": 20,
+		 "nightly_priority": "mean_observable_airmass"},
+		{"program_name": "Caltech",
+		 "subprogram_name": "all_sky",
+		 "observing_fraction": 0.2,
+		 "field_selections":{"dec_range":[-30,90],
+				     "grid_id":0},
+		 "filter_choice": "rotate",
+		 "filter_ids": [1, 2],
+		 "internight_gap_days": 3,
+		 "n_visits_per_night": 3,
+		 "intranight_gap_min": 90,
+		 "intranight_half_width_min": 20,
+		 "nightly_priority": "random"}
+	]
+}
+
+
+
+
