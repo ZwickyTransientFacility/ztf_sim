@@ -14,13 +14,24 @@ P48_Observer = astroplan.Observer(location=P48_loc)
 
 # HA and Dec from http://www.oir.caltech.edu/twiki_oir/bin/view/Palomar/ZTF/TelescopeSpecifications v5
 # Dome estimate from Jeff Z email, 9/21/15
+# Requirements/goals info from Jeff Z email, 12/12/16
 P48_slew_pars = {
+    'ha': {'coord': 'ra', 'accel': 0.27 * u.deg * u.second**(-2.),
+           'decel': 0.27 * u.deg * u.second**(-2.),
+           'vmax': 1.18 * u.deg / u.second},
+    'dec': {'coord': 'dec', 'accel': 0.41 * u.deg * u.second**(-2.),
+            'decel': 0.41 * u.deg * u.second**(-2.),
+            'vmax': 1.50 * u.deg / u.second},
+    'dome': {'coord': 'az', 'accel': 0.5 * u.deg * u.second**(-2.),
+             'decel': 0.5 * u.deg * u.second**(-2.),
+             'vmax': 5. * u.deg / u.second}}
+P48_slew_pars_goal = {
     'ha': {'coord': 'ra', 'accel': 0.50 * u.deg * u.second**(-2.),
            'decel': 0.50 * u.deg * u.second**(-2.),
-           'vmax': 2.96 * u.deg / u.second},
+           'vmax': 3.00 * u.deg / u.second},
     'dec': {'coord': 'dec', 'accel': 0.5 * u.deg * u.second**(-2.),
             'decel': 0.5 * u.deg * u.second**(-2.),
-            'vmax': 3.33 * u.deg / u.second},
+            'vmax': 3.00 * u.deg / u.second},
     'dome': {'coord': 'az', 'accel': 0.5 * u.deg * u.second**(-2.),
              'decel': 0.5 * u.deg * u.second**(-2.),
              'vmax': 5. * u.deg / u.second}}
