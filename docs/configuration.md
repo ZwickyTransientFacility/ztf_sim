@@ -1,2 +1,0 @@
-
-## Configuring ztf_sim
