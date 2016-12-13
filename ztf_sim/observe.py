@@ -23,14 +23,6 @@ def observe(config_file, profile=False, raise_queue_empty=True):
             print 'Error importing pyinstrument'
             profile = False
 
-    if profile:
-        if survey_duration > 1. * u.day:
-            print("Don't profile long runs: 25% overhead")
-            profile = False
-        else:
-            profiler = Profiler()
-            profiler.start()
-
     ztf_config = ZTFConfiguration('../sims/{}'.format(config_file))
 
     # load config parameters into local variables
@@ -42,6 +34,14 @@ def observe(config_file, profile=False, raise_queue_empty=True):
     survey_duration = ztf_config.config['survey_duration_days'] * u.day
     block_programs = ztf_config.config['block_programs']
     observing_programs = ztf_config.build_observing_programs()
+
+    if profile:
+        if survey_duration > 1. * u.day:
+            print("Don't profile long runs: 25% overhead")
+            profile = False
+        else:
+            profiler = Profiler()
+            profiler.start()
 
     survey_start_time = Time(start_time, scale='utc', location=P48_loc)
 
