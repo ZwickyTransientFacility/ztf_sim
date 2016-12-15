@@ -10,6 +10,7 @@ from astropy.time import Time
 from collections import defaultdict
 import itertools
 
+
 class Fields(object):
     """Class for accessing field grid."""
     # TODO: consider using some of PTFFields.py code
@@ -101,7 +102,7 @@ class Fields(object):
 
         min_alt = airmass_to_altitude(max_airmass)
 
-        observable_hours = (self.block_alt >= min_alt).sum(axis=1) * \
+        observable_hours = (self.block_alt >= min_alt.to(u.degree).value).sum(axis=1) * \
             (TIME_BLOCK_SIZE.to(u.hour))
         observable_hours.name = 'observable_hours'
         self.observable_hours = observable_hours

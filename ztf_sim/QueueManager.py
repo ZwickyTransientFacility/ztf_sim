@@ -77,11 +77,11 @@ class QueueManager(object):
         # define functions that actually do the work in subclasses
         return self._next_obs(current_state)
 
-    def update_queue(self, **kwargs):
+    def update_queue(self, current_state, **kwargs):
         """Recalculate queue"""
 
         # define functions that actually do the work in subclasses
-        return self._update_queue()
+        return self._update_queue(current_state)
 
     def remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
@@ -189,7 +189,7 @@ class GreedyQueueManager(QueueManager):
         # airmass weighting applied naturally below
         # also make a copy because otherwise it retains knowledge of
         # (discarded) previous reference and raises SettingWithCopyWarnings
-        df = df.loc[df['altitude'] > 20,:].copy()
+        df = df.loc[df['altitude'] > 20, :].copy()
 
         if len(df) == 0:
             raise QueueEmptyError("No fields in queue above altitude cut")
@@ -198,7 +198,7 @@ class GreedyQueueManager(QueueManager):
         if self.block_programs:
             current_block_program = PROGRAM_BLOCK_SEQUENCE[
                 self.queue_block % LEN_BLOCK_SEQUENCE]
-            df = df.loc[df['program_id'] == current_block_program,:]
+            df = df.loc[df['program_id'] == current_block_program, :]
 
         # use cadence functions to compute requests with active cadence windows
         # this is slow, so do it after our altitude cut
@@ -215,7 +215,7 @@ class GreedyQueueManager(QueueManager):
             raise QueueEmptyError("No fields with observable cadence windows")
         # also make a copy because otherwise it retains knowledge of
         # (discarded) previous reference and raises SettingWithCopyWarnings
-        df = df.loc[cadence_cuts,:].copy()
+        df = df.loc[cadence_cuts, :].copy()
 
         # compute airmasses by field_id
         # airmass = zenith_angle_to_airmass(90. - df_alt)
@@ -224,7 +224,7 @@ class GreedyQueueManager(QueueManager):
         #              left_on='field_id', right_index=True)
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
-        
+
         # compute inputs for sky brightness
         sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
         sun = coord.get_sun(current_state['current_time'])
@@ -232,33 +232,33 @@ class GreedyQueueManager(QueueManager):
         moon = coord.get_moon(current_state['current_time'],
                               location=P48_loc)
         moon_altaz = skycoord_to_altaz(moon, current_state['current_time'])
-        df.loc[:,'moonillf'] = astroplan.moon.moon_illumination(
+        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
             # Don't use P48_loc to avoid astropy bug:
             # https://github.com/astropy/astroplan/pull/213
             current_state['current_time'])
         # current_state['current_time'], P48_loc)
-        df.loc[:,'moon_dist'] = sc.separation(moon).to(u.deg).value
-        df.loc[:,'moonalt'] = moon_altaz.alt.to(u.deg).value
-        df.loc[:,'sunalt'] = sun_altaz.alt.to(u.deg).value
+        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
+        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
+        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
 
         # compute sky brightness
-        df.loc[:,'sky_brightness'] = self.Sky.predict(df)
+        df.loc[:, 'sky_brightness'] = self.Sky.predict(df)
         #df = pd.merge(df, df_sky, left_on='field_id', right_index=True)
 
         # compute seeing at each pointing
-        df.loc[:,'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
+        df.loc[:, 'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
                                                  df['altitude'])
         #df_seeing.name = 'seeing'
         #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
 
-        df.loc[:,'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
+        df.loc[:, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
                                                  df['sky_brightness'],
                                                  filter_id=df['filter_id'],
                                                  altitude=df['altitude'], SNR=5.)
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
 
-        df.loc[:,'value'] = self._metric(df)
+        df.loc[:, 'value'] = self._metric(df)
 
         self.queue = df
 

@@ -2,7 +2,7 @@
 	"run_name": "test",
 	"start_time": "2016-03-20 02:30:00",
 	"weather_year": "None",
-	"survey_duration_days": 0.5,
+	"survey_duration_days": 1.0,
 	"block_programs": false,
 	"observing_programs": [
 		{"program_name": "MSIP",
