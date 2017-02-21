@@ -70,7 +70,7 @@ def time_since_obs(request_row, current_state):
 
         ref_obs = request_row['{}_{}_{}'.format(
             pars['ref_obs'],
-            request_row['program_id'], request_row['filter_id'])]
+            request_row['program_id'], ref_obs_filter)]
 
     if np.isnan(ref_obs):
         # for first_obs_tonight scheduling, have to wait until first obs is
