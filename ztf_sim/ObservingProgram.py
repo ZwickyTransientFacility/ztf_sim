@@ -92,7 +92,7 @@ class ObservingProgram(object):
 
             if n_fields <= 0:
                 # TODO: logging
-                print('No fields requested for program {}'.format(program_id))
+                print('No fields requested for program {}'.format(self.program_id))
                 return {}
 
         # Choose which fields will be observed
