@@ -21,34 +21,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-#def check_dependencies():
-#    install_requires = []
-#
-#    # Just make sure dependencies exist, I haven't rigorously
-#    # tested what the minimal versions that will work are
-#    # (help on that would be awesome)
-#    try:
-#        import numpy
-#    except ImportError:
-#        install_requires.append('numpy')
-#    try:
-#        import scipy
-#    except ImportError:
-#        install_requires.append('scipy')
-#    try:
-#        import matplotlib
-#    except ImportError:
-#        install_requires.append('matplotlib')
-#    try:
-#        import pandas
-#    except ImportError:
-#        install_requires.append('pandas')
-#
-#    return install_requires
-
 if __name__ == "__main__":
-
-#    install_requires = check_dependencies()
 
     setup(name=DISTNAME,
         author=MAINTAINER,
@@ -61,7 +34,7 @@ if __name__ == "__main__":
         url=URL,
         version=VERSION,
         download_url=DOWNLOAD_URL,
-        install_requires=install_requires,
+        install_requires=['numpy', 'scipy', 'matplotlib', 'pandas'],
         packages=['ztf_sim'],
         classifiers=[
                      'Intended Audience :: Science/Research',
