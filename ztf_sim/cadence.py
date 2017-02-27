@@ -95,6 +95,8 @@ def get_ref_obs_time(request_row, current_state):
             pars['ref_obs'],
             request_row['program_id'], ref_obs_filter)]
 
+    return ref_obs
+
 def absolute_time_window(request_row, current_state):
     """stub for assigning fields specific UTC slots"""
     raise NotImplementedError
