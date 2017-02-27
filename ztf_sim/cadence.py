@@ -45,8 +45,31 @@ def time_since_obs(request_row, current_state):
     now = current_state['current_time'].mjd
     pars = request_row['cadence_pars']
 
+    ref_obs = get_ref_obs_time(request_row, current_state)
+
+    if np.isnan(ref_obs):
+        # for first_obs_tonight scheduling, have to wait until first obs is
+        # taken
+        return False
+
+    if pars.has_key('window_start') and pars.has_key('window_stop'):
+        window_start_ut = ref_obs + pars['window_start']
+        window_stop_ut = ref_obs + pars['window_stop']
+    elif pars.has_key('window_center') and pars.has_key('window_half_width'):
+        window_start_ut = ref_obs + \
+            pars['window_center'] - pars['window_half_width']
+        window_stop_ut = ref_obs + \
+            pars['window_center'] + pars['window_half_width']
+
+    return window_start_ut <= now <= window_stop_ut
+
+def get_ref_obs_time(request_row, current_state):
+    """Determine which past observation should be used to make the cadence window reference time."""
+
     # which filter are we using to determine the time of last observation?
     # TODO: for now, require last observation to be from the same program
+    pars = request_row['cadence_pars']
+
     if pars['prev_filter'] == 'any':
         ref_obses = []
         for filter_id in FILTER_IDS:
@@ -71,23 +94,6 @@ def time_since_obs(request_row, current_state):
         ref_obs = request_row['{}_{}_{}'.format(
             pars['ref_obs'],
             request_row['program_id'], ref_obs_filter)]
-
-    if np.isnan(ref_obs):
-        # for first_obs_tonight scheduling, have to wait until first obs is
-        # taken
-        return False
-
-    if pars.has_key('window_start') and pars.has_key('window_stop'):
-        window_start_ut = ref_obs + pars['window_start']
-        window_stop_ut = ref_obs + pars['window_stop']
-    elif pars.has_key('window_center') and pars.has_key('window_half_width'):
-        window_start_ut = ref_obs + \
-            pars['window_center'] - pars['window_half_width']
-        window_stop_ut = ref_obs + \
-            pars['window_center'] + pars['window_half_width']
-
-    return window_start_ut <= now <= window_stop_ut
-
 
 def absolute_time_window(request_row, current_state):
     """stub for assigning fields specific UTC slots"""
