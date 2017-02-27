@@ -186,7 +186,7 @@ class ObservingProgram(object):
         request_set.append(
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
-             'field_ids': request_fields.index,
+             'field_ids': request_fields.index.values,
              'filter_id': filter_sequence[0],
              'cadence_func': 'time_since_obs',
              'cadence_pars': {'ref_obs': 'last_observed',
