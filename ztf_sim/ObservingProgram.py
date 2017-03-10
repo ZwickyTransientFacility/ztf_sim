@@ -190,7 +190,12 @@ class ObservingProgram(object):
              'filter_id': filter_sequence[0],
              'cadence_func': 'time_since_obs',
              'cadence_pars': {'ref_obs': 'last_observed',
-                              'window_start': self.internight_gap.to(u.day).value,
+                              # subtract off the length of the longest night
+                              # (>12.3 hours), so "one night
+                              # cadence" allows an object observed at the 
+                              # end of last night to be observed at the start
+                              # of this one
+                              'window_start': self.internight_gap.to(u.day).value - 0.6,
                               # use a very large value here: gets added to
                               # last_obs.  remember that we reset each night
                               # anyway
