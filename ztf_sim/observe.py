@@ -3,6 +3,7 @@ import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
 from QueueManager import GreedyQueueManager, QueueEmptyError
+from QueueManager import calc_pool_stats, calc_queue_stats
 from ObsLogger import ObsLogger
 from config import ZTFConfiguration
 from constants import *
@@ -58,6 +59,9 @@ def observe(config_file, profile=False, raise_queue_empty=True):
 
     # initialize nightly field requests (Tom Barlow function)
     Q.assign_nightly_requests(tel.current_state_dict())
+    # log pool stats
+    tel.logger.info(calc_pool_stats(
+        Q.rp.pool, intro="Nightly requests initialized"))
 
     # initialize sqlite history
     log = ObsLogger(run_name, tel.current_time)
@@ -71,6 +75,9 @@ def observe(config_file, profile=False, raise_queue_empty=True):
             log.prev_obs = None
             Q.assign_nightly_requests(tel.current_state_dict())
             current_night_mjd = np.floor(tel.current_time.mjd)
+            # log pool stats
+            tel.logger.info(calc_pool_stats(
+                Q.rp.pool, intro="Nightly requests initialized"))
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
@@ -86,7 +93,14 @@ def observe(config_file, profile=False, raise_queue_empty=True):
                     tel.wait()
                     continue
                 else:
-                    raise QueueEmptyError("Queue is empty")
+                    tel.logger.info(calc_queue_stats(
+                        Q.queue, current_state,
+                        intro="Queue returned no next_obs. Current queue status:"))
+                    tel.logger.info(calc_pool_stats(
+                        Q.rp.pool, intro="Current pool status:"))
+
+                    # TODO: in py3, chained exceptions come for free
+                    raise QueueEmptyError, sys.exc_info()[2]
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:

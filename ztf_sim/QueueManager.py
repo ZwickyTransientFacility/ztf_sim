@@ -202,6 +202,8 @@ class GreedyQueueManager(QueueManager):
 
         # use cadence functions to compute requests with active cadence windows
         # this is slow, so do it after our altitude cut
+        # TODO: consider instead
+        # df.apply(time_since_obs,args=(current_state,),axis=1)
         in_window = {}
         for idx, row in df.iterrows():
             # this is way, way slower
@@ -313,3 +315,62 @@ class RequestPool(object):
 
     def clear_all_requests(self):
         self.pool = pd.DataFrame()
+
+
+# utils for examining inputs
+
+def calc_pool_stats(df, intro=""):
+    """
+
+    df = Q.rp.pool"""
+
+    stats_str = intro + "\n"
+    stats_str += "\t{} requests\n".format(len(df))
+    stats_str += "\t{} unique fields\n".format(len(set(df.field_id)))
+    for prog_id in PROGRAM_IDS:
+        w = df.program_id == prog_id
+        stats_str += "\tProgram {}:\n".format(prog_id)
+        stats_str += "\t\t{} requests\n".format(np.sum(w))
+        stats_str += "\t\t{} unique fields\n".format(
+            len(set(df.loc[w, 'field_id'])))
+        stats_str += "\t\t{} filters\n".format(
+            len(set(df.loc[w, 'filter_id'])))
+        stats_str += "\t\t{} median requests tonight per field\n".format(
+            np.median(df.loc[w, 'total_requests_tonight']))
+
+    return stats_str
+
+
+def calc_queue_stats(df, current_state, intro=""):
+    """
+
+    df = Q.queue"""
+
+    stats_str = intro + "\n"
+    stats_str += "\t{} queued requests\n".format(len(df))
+    stats_str += "\t{} unique fields\n".format(len(set(df.field_id)))
+    for prog_id in PROGRAM_IDS:
+        w = df.program_id == prog_id
+        stats_str += "\tProgram {}:\n".format(prog_id)
+
+        if np.sum(w) == 0:
+            stats_str += "\t\tNo queued requests!\n"
+            continue
+
+        stats_str += "\t\t{} requests\n".format(np.sum(w))
+        stats_str += "\t\t{} unique fields\n".format(
+            len(set(df.loc[w, 'field_id'])))
+        walt = w & (df.loc[w, 'altitude'] > 20)
+        stats_str += "\t\t{} fields above altitude cut\n".format(
+            np.sum(walt))
+        wfirst = walt & (df.loc[walt, 'request_number_tonight'] == 1)
+        stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
+            np.sum(wfirst))
+        ref_obs = df.apply(get_ref_obs_time, args=(current_state,), axis=1)
+        dt = current_state['current_time'] - ref_obs
+        stats_str += "\t\tMin time to ref_obs for first obs\n".format(
+            dt[wfirst].min())
+        stats_str += "\t\tMin time to ref_obs for all obs\n".format(
+            dt[walt].min())
+
+    return stats_str
