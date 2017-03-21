@@ -98,9 +98,11 @@ class ObservingProgram(object):
         # Choose which fields will be observed
 
         obs_field_ids = fields.select_field_ids(
-            # subtract an extra day since we are at the start of the night
+            # we want an object observed at the end of the night N days ago
+            # to be observed at the start of the night now.
+            # Max night length is 12.2 hours
             last_observed_range=[Time('2001-01-01').mjd,
-                                 (time - self.internight_gap - 1 * u.day).mjd],
+                                 (time - (self.internight_gap - 0.6 * u.day)).mjd],
             program_id=self.program_id, filter_id=filter_ids_tonight,
             reducefunc=[np.min, np.min],  # we want oldest possible fields
             observable_hours_range=[self.n_visits_per_night * \
