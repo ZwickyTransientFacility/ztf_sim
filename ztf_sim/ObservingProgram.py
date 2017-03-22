@@ -104,7 +104,9 @@ class ObservingProgram(object):
             last_observed_range=[Time('2001-01-01').mjd,
                                  (time - (self.internight_gap - 0.6 * u.day)).mjd],
             program_id=self.program_id, filter_id=filter_ids_tonight,
-            reducefunc=[np.min, np.min],  # we want oldest possible fields
+            reducefunc=[np.max, np.max],  
+            # we want all filters to be in the observing window, hence
+            # reducefunc should be np.max
             observable_hours_range=[self.n_visits_per_night * \
                                     self.intranight_gap.to(u.hour).value, 24.])
 
