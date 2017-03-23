@@ -21,8 +21,9 @@ class ZTFConfiguration(object):
 
     def check_configuration(self):
 
-        if (np.sum([prog['observing_fraction'] for prog in
-                    self.config['observing_programs']]) != 1.0):
+        if (np.sum(
+            [prog['program_observing_fraction']*prog['subprogram_fraction'] 
+            for prog in self.config['observing_programs']]) != 1.0):
             raise ValueError('Observing fractions must sum to 1')
 
         # could do this via schema validation
@@ -39,14 +40,15 @@ class ZTFConfiguration(object):
             field_ids = f.select_field_ids(**prog['field_selections'])
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
                                   prog['subprogram_name'], prog[
-                                      'observing_fraction'],
+                                      'program_observing_fraction'],
+                                  prog['subprogram_fraction'],
                                   field_ids, prog['filter_ids'],
                                   prog['internight_gap_days'] * u.day,
                                   prog['n_visits_per_night'],
                                   prog['intranight_gap_min'] * u.min,
                                   prog['intranight_half_width_min'] * u.min,
                                   nightly_priority=prog['nightly_priority'],
-                                  filter_choice=prog['filter_choice'])
+                                  filter_choice=prog['filter_choice'],)
             OPs.append(OP)
 
         return OPs

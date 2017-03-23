@@ -5,14 +5,16 @@ from utils import approx_hours_of_darkness
 class ObservingProgram(object):
 
     def __init__(self, program_id, subprogram_name,
-                 observing_time_fraction, field_ids,
+                 program_observing_time_fraction, field_ids,
                  filter_ids, internight_gap, n_visits_per_night,
                  intranight_gap, intranight_half_width,
-                 nightly_priority='oldest', filter_choice='rotate'):
+                 nightly_priority='oldest', filter_choice='rotate',
+                 subprogram_fraction=1.):
 
         self.program_id = program_id
         self.subprogram_name = subprogram_name
-        self.observing_time_fraction = observing_time_fraction
+        self.program_observing_time_fraction = program_observing_time_fraction
+        self.subprogram_fraction = subprogram_fraction
         self.field_ids = field_ids
         self.filter_ids = filter_ids
 
@@ -83,7 +85,7 @@ class ObservingProgram(object):
             total_obs = np.sum(obs_count_by_program.values())
             # difference in expected obs from allowed fraction
             delta = np.round(obs_count_by_program[self.program_id] -
-                             self.observing_time_fraction * total_obs)
+                             self.program_observing_time_fraction * total_obs)
 
             # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
@@ -92,7 +94,8 @@ class ObservingProgram(object):
 
             if n_fields <= 0:
                 # TODO: logging
-                print('No fields requested for program {}'.format(self.program_id))
+                print('No fields requested for program {} ({})'.format(self.program_id, self.subprogram_name))
+                1/0
                 return {}
 
         # Choose which fields will be observed
@@ -243,7 +246,7 @@ class ObservingProgram(object):
         FUDGE_FACTOR = 1.15
 
         obs_time = approx_hours_of_darkness(
-            time) * self.observing_time_fraction
+            time) * self.program_observing_time_fraction * self.subprogram_fraction
 
         n_requests = (obs_time.to(u.min) /
                       (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value[0]  \
