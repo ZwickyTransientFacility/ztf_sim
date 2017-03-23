@@ -106,11 +106,12 @@ class ObservingProgram(object):
             last_observed_range=[Time('2001-01-01').mjd,
                                  (time - (self.internight_gap - 0.6 * u.day)).mjd],
             program_id=self.program_id, filter_id=filter_ids_tonight,
-            reducefunc=[np.max, np.max],  
             # we want all filters to be in the observing window, hence
             # reducefunc should be np.max
-            observable_hours_range=[self.n_visits_per_night * \
-                                    self.intranight_gap.to(u.hour).value, 24.])
+            reducefunc=[np.max, np.max],  
+            # minimum time spacing for the observations
+            observable_hours_range=[(self.n_visits_per_night - 1) * \
+                                    (self.intranight_gap - self.intranight_half_width).to(u.hour).value, 24.])
 
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
@@ -119,7 +120,8 @@ class ObservingProgram(object):
 
         if n_fields > len(request_fields):
             # TODO: logging
-            print('Not enough requests to fill available time!')
+            print('Not enough requests in program {} ({}) to fill available time!'.format(self.program_id, self.subprogram_name))
+            1/0
 
         # sort request sets by chosen priority metric
 
