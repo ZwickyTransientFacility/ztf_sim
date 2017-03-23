@@ -82,9 +82,12 @@ class ObservingProgram(object):
         if not block_programs:
             obs_count_by_program = fields.count_total_obs_by_program()
             total_obs = np.sum(obs_count_by_program.values())
-            # difference in expected obs from allowed fraction
-            delta = np.round(obs_count_by_program[self.program_id] -
-                             self.program_observing_time_fraction * total_obs)
+            # difference in expected obs from allowed program fraction,
+            # scaled to this subprogram
+            delta = np.round(
+                (obs_count_by_program[self.program_id] -
+                 self.program_observing_time_fraction * total_obs) 
+                 * self.subprogram_fraction)
 
             # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
