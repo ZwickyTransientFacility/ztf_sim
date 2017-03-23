@@ -5,11 +5,10 @@ from utils import approx_hours_of_darkness
 class ObservingProgram(object):
 
     def __init__(self, program_id, subprogram_name,
-                 program_observing_time_fraction, field_ids,
-                 filter_ids, internight_gap, n_visits_per_night,
+                 program_observing_time_fraction, subprogram_fraction,
+                 field_ids, filter_ids, internight_gap, n_visits_per_night,
                  intranight_gap, intranight_half_width,
-                 nightly_priority='oldest', filter_choice='rotate',
-                 subprogram_fraction=1.):
+                 nightly_priority='oldest', filter_choice='rotate'):
 
         self.program_id = program_id
         self.subprogram_name = subprogram_name

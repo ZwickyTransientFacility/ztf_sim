@@ -39,8 +39,8 @@ class ZTFConfiguration(object):
         for prog in self.config['observing_programs']:
             field_ids = f.select_field_ids(**prog['field_selections'])
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
-                                  prog['subprogram_name'], prog[
-                                      'program_observing_fraction'],
+                                  prog['subprogram_name'], 
+                                  prog['program_observing_fraction'],
                                   prog['subprogram_fraction'],
                                   field_ids, prog['filter_ids'],
                                   prog['internight_gap_days'] * u.day,
@@ -48,7 +48,7 @@ class ZTFConfiguration(object):
                                   prog['intranight_gap_min'] * u.min,
                                   prog['intranight_half_width_min'] * u.min,
                                   nightly_priority=prog['nightly_priority'],
-                                  filter_choice=prog['filter_choice'],)
+                                  filter_choice=prog['filter_choice'])
             OPs.append(OP)
 
         return OPs
