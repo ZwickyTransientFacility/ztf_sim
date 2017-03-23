@@ -8,12 +8,13 @@ Here is an example configuration file, which is in JSON format:
 	"run_name": "test",
 	"start_time": "2016-03-20 02:30:00",
 	"weather_year": "None",
-	"survey_duration_days": 0.5,
+	"survey_duration_days": 1.0,
 	"block_programs": false,
 	"observing_programs": [
 		{"program_name": "MSIP",
 		 "subprogram_name": "all_sky",
-		 "observing_fraction": 0.4,
+		 "program_observing_fraction": 0.4,
+		 "subprogram_fraction": 1.0,
 		 "field_selections":{"dec_range":[-30,90],
 				     "grid_id":0},
 		 "filter_choice": "rotate",
@@ -25,7 +26,8 @@ Here is an example configuration file, which is in JSON format:
 		 "nightly_priority": "oldest"},
 		{"program_name": "collaboration",
 		 "subprogram_name": "all_sky",
-		 "observing_fraction": 0.4,
+		 "program_observing_fraction": 0.4,
+		 "subprogram_fraction": 1.0,
 		 "field_selections":{"dec_range":[-30,90],
 				     "grid_id":0},
 		 "filter_choice": "sequence",
@@ -37,7 +39,8 @@ Here is an example configuration file, which is in JSON format:
 		 "nightly_priority": "mean_observable_airmass"},
 		{"program_name": "Caltech",
 		 "subprogram_name": "all_sky",
-		 "observing_fraction": 0.2,
+		 "program_observing_fraction": 0.2,
+		 "subprogram_fraction": 1.0,
 		 "field_selections":{"dec_range":[-30,90],
 				     "grid_id":0},
 		 "filter_choice": "rotate",
@@ -50,6 +53,9 @@ Here is an example configuration file, which is in JSON format:
 	]
 }
 ```
+
+
+
 
 ## Run configuration
 
@@ -73,7 +79,9 @@ Basic parameters are set at the top level.
 
 `subprogram_name`: A string identifying the sub-survey, such as `"Collaboration Galactic Plane"`.
 
-`observing_fraction`: A float < 1.0 that specifies how much of the total time to be allocated to this sub-survey.  The sum of the MSIP sub-surveys should be 0.4, the sum of the collaboration sub-surveys should be 0.4, and the sum of the Caltech sub-survey should be 0.2.
+`program_observing_fraction`: A float < 1.0 that specifies how much of the total time to be allocated to this program.  All MSIP and collaboration sub-programs should have this set to 0.4, and Caltech sub-programs should have it set to 0.2.
+
+`subprogram_fraction`: A float < 1.0 that specifies how much of the _program_ time to be allocated to this sub-survey.  The sum of all `subprogram_fractions` for a given program (e.g., MSIP) should equal one.
 
 `field_selections`: A nested set of criteria for assigning fields in the pre-defined field grid to the survey footprint.  All selections are optional. These arguments are passed to `Fields.select_fields`.  Options include:
 
