@@ -29,8 +29,9 @@ class Fields(object):
         Expects field_id, ra (deg), dec (deg) columns"""
         df = df_read_from_sqlite(dbname, index_col='field_id')
 
-        # drop fields below dec of -30 degrees for speed
-        df = df[df['dec'] >= -30]
+        # drop fields below dec of -31 degrees for speed
+        # (grid_id = 0 has a row at -30.5)
+        df = df[df['dec'] >= -31]
 
         # initialize the last observed time
         # TODO: load last observed time per filter & program
