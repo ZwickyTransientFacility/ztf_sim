@@ -237,6 +237,7 @@ class Fields(object):
                 else:
                     # combined selections across several filters
                     # and/or programs
+                    assert (reducefunc is not None)
                     assert len(reducefunc) == 2
                     # build the keys
                     keys = []
