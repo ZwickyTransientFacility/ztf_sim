@@ -100,7 +100,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
                         Q.rp.pool, intro="Current pool status:"))
 
                     # TODO: in py3, chained exceptions come for free
-                    raise QueueEmptyError, sys.exc_info()[2]
+                    raise QueueEmptyError
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
