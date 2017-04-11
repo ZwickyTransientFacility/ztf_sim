@@ -27,8 +27,7 @@ class SkyBrightness(object):
         filterkey: 1, 2, 4"""
 
         filter_ids = df['filter_id'].unique()
-        # don't have an i-band model in place yet
-        assert(np.sum(filter_ids > 2) == 0)
+        assert(np.sum(filter_ids > 3) == 0)
 
         sky = pd.Series(np.nan, index=df.index, name='sky_brightness')
         wg = (df['filter_id'] == FILTER_NAME_TO_ID['g'])
