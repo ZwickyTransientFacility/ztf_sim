@@ -25,6 +25,7 @@ def calc_stats(sim_name):
     stats['Simulation Name'] = sim_name
 
     # use max - min because there may be no observations some nights
+    # TODO: fails if initial nights are weathered out
     stats['Number of Nights'] = df.night.max() - df.night.min() + 1
 
     # possible nights
@@ -45,6 +46,7 @@ def calc_stats(sim_name):
 
     stats['Average Hours of Darkness'] = np.mean(hours_of_darkness)
 
+    # TODO: use missed visits so we can catch time lost
     stats['Total Science Time (h)'] = \
         (df.visitExpTime.sum() + df.slewTime.sum()) / 3600.
 
