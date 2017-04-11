@@ -6,6 +6,7 @@ from sklearn.externals import joblib
 import xgboost as xgb
 import pandas as pd
 import numpy as np
+from constants import FILTER_NAME_TO_ID
 
 
 class SkyBrightness(object):
