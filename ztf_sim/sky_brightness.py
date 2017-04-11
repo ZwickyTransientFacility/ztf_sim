@@ -55,6 +55,7 @@ class FakeSkyBrightness(object):
 
 def train_sky_model(filter_name='r', df=None):
 
+    # PTF used 4 for i-band
     filterid_map = {'r': 2, 'g': 1, 'i': 4}
 
     if df is None:
