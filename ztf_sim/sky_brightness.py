@@ -13,6 +13,7 @@ class SkyBrightness(object):
     def __init__(self):
         self.clf_r = joblib.load('../data/sky_model/sky_model_r.pkl')
         self.clf_g = joblib.load('../data/sky_model/sky_model_g.pkl')
+        self.clf_i = joblib.load('../data/sky_model/sky_model_i.pkl')
 
     def predict(self, df):
         """df is a dataframe with columns:
@@ -22,19 +23,22 @@ class SkyBrightness(object):
         azimuth: degrees
         altitude: degrees
         sunalt: degrees
-        filterkey: 1, 2"""
+        filterkey: 1, 2, 4"""
 
         filter_ids = df['filter_id'].unique()
         # don't have an i-band model in place yet
         assert(np.sum(filter_ids > 2) == 0)
 
         sky = pd.Series(np.nan, index=df.index, name='sky_brightness')
-        wg = (df['filter_id'] == 1)
+        wg = (df['filter_id'] == FILTER_NAME_TO_ID['g'])
         if np.sum(wg):
             sky[wg] = self.clf_g.predict(df[wg])
-        wr = (df['filter_id'] == 2)
+        wr = (df['filter_id'] == FILTER_NAME_TO_ID['r'])
         if np.sum(wr):
             sky[wr] = self.clf_r.predict(df[wr])
+        wi = (df['filter_id'] == FILTER_NAME_TO_ID['i'])
+        if np.sum(wi):
+            sky[wi] = self.clf_i.predict(df[wi])
 
         return sky
 
@@ -51,7 +55,7 @@ class FakeSkyBrightness(object):
 
 def train_sky_model(filter_name='r', df=None):
 
-    filterid_map = {'r': 2, 'g': 1}
+    filterid_map = {'r': 2, 'g': 1, 'i': 4}
 
     if df is None:
         df = pd.read_csv('../data/ptf-iptf_diq.csv.gz')
