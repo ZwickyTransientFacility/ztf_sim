@@ -26,6 +26,12 @@ class QueueManager(object):
         # block on which the queue parameters were calculated
         self.queue_block = None
 
+        # number allowed requests by program tonight (dict)
+        self.requests_allowed = {}
+
+        # count of executed requests by program tonight (dict)
+        self.requests_completed = {id:0 for id in PROGRAM_IDS}
+
         # the queue itself
         self.queue = pd.DataFrame()
 
@@ -54,6 +60,10 @@ class QueueManager(object):
         self.rp.clear_all_requests()
         # reset the first observation of the night counters
         self.fields.clear_first_obs()
+        # clear count of executed requests 
+        self.requests_completed = {id:0 for id in PROGRAM_IDS}
+        # set number of allowed requests by program.
+        self.determine_allowed_requests()
 
         for program in self.observing_programs:
 
@@ -69,6 +79,30 @@ class QueueManager(object):
                                      priority=rs['priority'])
 
         assert(len(self.rp.pool) > 0)
+
+    def determine_allowed_requests(self, time):
+        """Use count of past observations and expected observing time fractions
+        to determine number of allowed requests tonight."""
+
+        self.requests_allowed = {id:0 for id in PROGRAM_IDS}
+        
+        obs_count_by_program = self.fields.count_total_obs_by_program()
+        total_obs = np.sum(obs_count_by_program.values())
+        for program in self.observing_programs:
+            n_requests = program.number_of_allowed_requests(time)
+            delta = np.round(
+                (obs_count_by_program[program.program_id] -
+                 program.program_observing_time_fraction * total_obs)
+                 * program.subprogram_fraction)
+
+            # TODO: tweak as needed
+            # how quickly do we want to take to reach equalization?
+            CATCHUP_FACTOR = 0.20
+            n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
+            self.requests_allowed[program.program_id] += n_requests
+
+        for n_requests in self.requests_allowed.itervalues():
+            assert (n_requests > 0)
 
     def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
@@ -110,7 +144,20 @@ class GreedyQueueManager(QueueManager):
         # request_id of the highest value request
         max_idx = self.queue.value.argmax()
 
-        return {'target_field_id': self.queue.ix[max_idx].field_id,
+        # enforce program balance
+        progid = self.queue.ix[max_idx].program_id
+        if (self.requests_completed[progid] + 1) >= 
+                self.requests_allowed[progid]):
+            # this program has used up all its obs for tonight.
+            # remove all requests for this program from the pool 
+            w = self.rp.program_id == progid
+            self.rp.remove_requests(self.rp.loc[w,'request_id'])
+            # reset the queue
+            self._update_queue(current_state)
+            # and request a new next_obs
+            next_obs = self._next_obs(current_state)
+        else:
+            next_obs = {'target_field_id': self.queue.ix[max_idx].field_id,
                 'target_ra': self.queue.ix[max_idx].ra,
                 'target_dec': self.queue.ix[max_idx].dec,
                 'target_filter_id': self.queue.ix[max_idx].filter_id,
@@ -124,6 +171,8 @@ class GreedyQueueManager(QueueManager):
                 'target_total_requests_tonight':
                 self.queue.ix[max_idx].total_requests_tonight,
                 'request_id': max_idx}
+
+        return next_obs
 
     def _metric(self, df):
         """Calculate metric for prioritizing fields.
