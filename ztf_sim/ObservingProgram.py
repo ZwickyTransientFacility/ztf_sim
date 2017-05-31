@@ -1,5 +1,6 @@
 from constants import *
 from utils import approx_hours_of_darkness
+import pdb
 
 
 class ObservingProgram(object):
@@ -97,7 +98,6 @@ class ObservingProgram(object):
             if n_fields <= 0:
                 # TODO: logging
                 print('No fields requested for program {} ({})'.format(self.program_id, self.subprogram_name))
-                1/0
                 return {}
 
         # Choose which fields will be observed
@@ -124,7 +124,6 @@ class ObservingProgram(object):
         if n_fields > len(request_fields):
             # TODO: logging
             print('Not enough requests in program {} ({}) to fill available time!'.format(self.program_id, self.subprogram_name))
-            1/0
 
         # sort request sets by chosen priority metric
 
@@ -135,6 +134,8 @@ class ObservingProgram(object):
         oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
         oldest_obs.name = 'oldest_obs'
         request_fields = request_fields.join(oldest_obs)
+
+        #pdb.set_trace()
 
         if self.nightly_priority == 'oldest':
             # now grab the top n_fields sorted by last observed date

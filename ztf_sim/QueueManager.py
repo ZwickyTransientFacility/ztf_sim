@@ -214,6 +214,8 @@ class GreedyQueueManager(QueueManager):
         cadence_cuts = pd.Series(in_window)
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
+            print(calc_queue_stats(df, current_state,
+                intro="No fields with observable cadence windows.  Queue in progress:"))
             raise QueueEmptyError("No fields with observable cadence windows")
         # also make a copy because otherwise it retains knowledge of
         # (discarded) previous reference and raises SettingWithCopyWarnings
@@ -367,10 +369,10 @@ def calc_queue_stats(df, current_state, intro=""):
         stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
             np.sum(wfirst))
         ref_obs = df.apply(get_ref_obs_time, args=(current_state,), axis=1)
-        dt = current_state['current_time'] - ref_obs
-        stats_str += "\t\tMin time to ref_obs for first obs\n".format(
-            dt[wfirst].min())
-        stats_str += "\t\tMin time to ref_obs for all obs\n".format(
-            dt[walt].min())
+        dt = current_state['current_time'].mjd - ref_obs
+        stats_str += "\t\tMax time to ref_obs for first obs: {}\n".format(
+            dt[wfirst].max())
+        stats_str += "\t\tMax time to ref_obs for all obs: {}\n".format(
+            dt[walt].max())
 
     return stats_str

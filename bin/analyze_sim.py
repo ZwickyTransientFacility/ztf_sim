@@ -115,6 +115,13 @@ def calc_stats(sim_name):
         print('{}\t{}'.format(k, v))
     return stats
 
+
+def scratch_program_balance(df):
+    grp = df.groupby(['night','propID'])
+    nobs = grp['expMJD'].agg(len)
+    nobs.name = 'nobs'
+    nobs.cumsum()
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage: ./analyze_sim.py sim_name')
