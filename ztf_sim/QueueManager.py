@@ -63,7 +63,7 @@ class QueueManager(object):
         # clear count of executed requests 
         self.requests_completed = {id:0 for id in PROGRAM_IDS}
         # set number of allowed requests by program.
-        self.determine_allowed_requests()
+        self.determine_allowed_requests(current_state['current_time'])
 
         for program in self.observing_programs:
 
@@ -101,8 +101,9 @@ class QueueManager(object):
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[program.program_id] += n_requests
 
-        for n_requests in self.requests_allowed.itervalues():
-            assert (n_requests > 0)
+        for id, n_requests in self.requests_allowed.items():
+            if n_requests < 0:
+                self.requests_allowed[id] = 0
 
     def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
@@ -146,12 +147,12 @@ class GreedyQueueManager(QueueManager):
 
         # enforce program balance
         progid = self.queue.ix[max_idx].program_id
-        if (self.requests_completed[progid] + 1) >= 
+        if ((self.requests_completed[progid] + 1) >= 
                 self.requests_allowed[progid]):
             # this program has used up all its obs for tonight.
             # remove all requests for this program from the pool 
-            w = self.rp.program_id == progid
-            self.rp.remove_requests(self.rp.loc[w,'request_id'])
+            w = self.rp.pool.program_id == progid
+            self.rp.remove_requests(self.rp.pool[w].index.tolist())
             # reset the queue
             self._update_queue(current_state)
             # and request a new next_obs
