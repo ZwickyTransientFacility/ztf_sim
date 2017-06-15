@@ -2,7 +2,7 @@ from ZTFStateMachine import ZTFStateMachine
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from QueueManager import GreedyQueueManager, QueueEmptyError
+from QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from QueueManager import calc_pool_stats, calc_queue_stats
 from ObsLogger import ObsLogger
 from config import ZTFConfiguration

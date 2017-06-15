@@ -196,44 +196,9 @@ class ObservingProgram(object):
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
              'field_ids': request_fields.index.values,
+             # TODO: figure out how to handle filters
              'filter_id': filter_sequence[0],
-             'cadence_func': 'time_since_obs',
-             'cadence_pars': {'ref_obs': 'last_observed',
-                              # subtract off the length of the longest night
-                              # (>12.3 hours), so "one night
-                              # cadence" allows an object observed at the 
-                              # end of last night to be observed at the start
-                              # of this one
-                              'window_start': self.internight_gap.to(u.day).value - 0.6,
-                              # use a very large value here: gets added to
-                              # last_obs.  remember that we reset each night
-                              # anyway
-                              'window_stop': (100 * u.year).to(u.day).value,
-                              # TODO: do I want to specify this in some cases?
-                              'prev_filter': 'any'},
-             'request_number_tonight': 1,
-             'total_requests_tonight': self.n_visits_per_night,
-             'priority': 1})
-        # additional visits
-        for i in range(self.n_visits_per_night - 1):
-            request_set.append(
-                {'program_id': self.program_id,
-                 'subprogram_name': self.subprogram_name,
-                 'field_ids': request_fields.index,
-                 'filter_id': filter_sequence[i + 1],
-                 'cadence_func': 'time_since_obs',
-                 #'cadence_pars': {'ref_obs': 'first_obs_tonight',
-                 'cadence_pars': {'ref_obs': 'last_observed',
-                                  'window_start': (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
-                                  #'window_start': (i + 1) * (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
-                                  # run the window the rest of the night
-                                  'window_stop': 0.6,
-                                  #'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
-                                  'prev_filter': filter_sequence[i]},
-                 #'prev_filter': 'any'},
-                 'request_number_tonight': i + 2,
-                 'total_requests_tonight': self.n_visits_per_night,
-                 'priority': 1})
+             'total_requests_tonight': self.n_visits_per_night})
 
         return request_set
 

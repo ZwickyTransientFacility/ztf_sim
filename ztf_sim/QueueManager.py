@@ -8,7 +8,7 @@ import astropy.coordinates as coord
 from cadence import *
 from constants import *
 from utils import *
-
+import pdb
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -72,11 +72,12 @@ class QueueManager(object):
                 block_programs=self.block_programs)
             for rs in request_sets:
                 self.rp.add_requests(rs['program_id'], rs['field_ids'],
-                                     rs['filter_id'], rs['cadence_func'],
-                                     rs['cadence_pars'],
-                                     rs['request_number_tonight'],
-                                     rs['total_requests_tonight'],
-                                     priority=rs['priority'])
+                                     rs['filter_id'], 
+                                     #rs['cadence_func'],
+                                     #rs['cadence_pars'],
+                                     #rs['request_number_tonight'],
+                                     rs['total_requests_tonight'])
+                                     #priority=rs['priority'])
 
         assert(len(self.rp.pool) > 0)
 
@@ -124,6 +125,171 @@ class QueueManager(object):
         self.queue = self.queue.drop(request_id)
         self.rp.remove_requests(request_id)
 
+    def compute_limiting_mag(self, df, time, filter_id=None):
+        """compute limiting magnitude based on sky brightness and seeing"""
+
+        # copy df so we can edit the filter id if desired
+        if filter_id is not None:
+            df = df.copy()
+            df['filter_id'] = filter_id
+
+        # compute inputs for sky brightness
+        sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
+        sun = coord.get_sun(time)
+        sun_altaz = skycoord_to_altaz(sun, time)
+        moon = coord.get_moon(time, location=P48_loc)
+        moon_altaz = skycoord_to_altaz(moon, time)
+        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
+            # Don't use P48_loc to avoid astropy bug:
+            # https://github.com/astropy/astroplan/pull/213
+            time)
+        # time, P48_loc)
+        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
+        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
+        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
+
+        # compute sky brightness
+        # only have values for reasonable altitudes (set by R20_absorbed...)
+        wup = df['altitude'] > 10
+        df.loc[wup, 'sky_brightness'] = self.Sky.predict(df[wup])
+
+        # compute seeing at each pointing
+        # TODO: allow variable zenith seeing?  or by band?
+        df.loc[wup, 'seeing'] = seeing_at_pointing(2.0*u.arcsec, 
+            df.loc[wup,'altitude'])
+
+        df.loc[wup, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, 
+            df.loc[wup, 'seeing'],
+            df.loc[wup, 'sky_brightness'],
+            filter_id = df.loc[wup,'filter_id'],
+            altitude = df.loc[wup,'altitude'], SNR=5.)
+        # assign a very bright limiting mag to the fields that are down 
+        # so the metric goes to zero
+        df.loc[~wup, 'limiting_mag'] = -99
+
+        return df['limiting_mag']
+
+
+
+class GurobiQueueManager(QueueManager):
+
+    def __init__(self, **kwargs):
+        super(GurobiQueueManager, self).__init__(**kwargs)
+        self.block_obs_number = 0
+
+    def _next_obs(self, current_state):
+        """Select the highest value request."""
+
+        # do the slot assignment at the beginning of the night 
+        # (or if the queue is empty, which should be unusual)
+        # TODO: consider how to detect and handle weather losses--recompute?
+        if (len(self.queue) == 0):
+            self._assign_slots(current_state)
+
+        # if we've entered a new block, solve the TSP to sequence the requests
+        if (block_index(current_state['current_time'])[0] != self.queue_block):
+            _ = self._sequence_requests_in_block(current_state)
+
+
+        # TODO: should now be able to simply pick up the next observation
+
+        next_obs = {'target_field_id': self.queue.ix[max_idx].field_id,
+            'target_ra': self.queue.ix[max_idx].ra,
+            'target_dec': self.queue.ix[max_idx].dec,
+            'target_filter_id': self.queue.ix[max_idx].filter_id,
+            'target_program_id': self.queue.ix[max_idx].program_id,
+            'target_exposure_time': EXPOSURE_TIME,
+            'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
+            'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
+            'target_metric_value':  self.queue.ix[max_idx].value,
+            'target_request_number_tonight':
+            self.queue.ix[max_idx].request_number_tonight,
+            'target_total_requests_tonight':
+            self.queue.ix[max_idx].total_requests_tonight,
+            'request_id': max_idx}
+
+        return next_obs
+
+    def _slot_metric(self, limiting_mag):
+        """Calculate metric for assigning fields to slots.
+
+        penalizes volume for both extinction (airmass) and fwhm penalty
+        due to atmospheric refraction, plus sky brightness from
+        moon phase and distance
+        == 1 for 21st mag."""
+        return 10.**(0.6 * (limiting_mag - 21)) 
+
+    def _assign_slots(self, current_state):
+        """Assign requests in the Pool to slots"""
+
+        # check that the pool has fields in it
+        if len(self.rp.pool) == 0:
+            raise QueueEmptyError("No fields in pool")
+
+        # join with fields so we have the information we need
+        # make a copy so rp.pool and self.queue are not linked
+        df = self.rp.pool.join(self.fields.fields, on='field_id').copy()
+
+        # calculate limiting mag by block 
+        # TODO: and by filter
+        blocks, times = nightly_blocks(current_state['current_time'], 
+            time_block_size=TIME_BLOCK_SIZE)
+
+        lim_mags = {}
+        for bi, ti in zip(blocks, times):
+            if 'altitude' in df.columns:
+                df.drop('altitude', axis=1, inplace=True)
+            if 'azimuth' in df.columns:
+                df.drop('azimuth', axis=1, inplace=True)
+            # use pre-computed blocks
+            df_alt = self.fields.block_alt[bi]
+            df_alt.name = 'altitude'
+            df = df.join(df_alt, on='field_id')
+            df_az = self.fields.block_az[bi]
+            df_az.name = 'azimuth'
+            df = df.join(df_az, on='field_id')
+            # TODO: only using r-band right now
+            lim_mags[bi] = self.compute_limiting_mag(df, ti, filter_id = 2)
+
+        df_block_lim_mags = pd.DataFrame(lim_mags)
+        df_block_metric = self._slot_metric(df_block_lim_mags)
+
+
+        pdb.set_trace()
+        # output Yrt?
+
+    def _sequence_requests_in_block(self, current_state, df=None):
+        """Solve the TSP for requests in this slot"""
+
+        inplace = df is None
+
+        self.queue_block = block_index(current_state['current_time'])
+
+        if inplace:
+            # no dataframe supplied, so replace existing self.queue on exit
+            df = self.queue
+            df.drop(['overhead_time', 'altitude', 'azimuth'], axis=1,
+                    inplace=True)
+
+        # compute readout/slew overhead times, plus current alt/az
+        df_overhead, df_altaz = self.fields.overhead_time(current_state)
+
+        # nb: df has index request_id, not field_id
+        df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
+        df = pd.merge(df, df_altaz, left_on='field_id', right_index=True)
+        # TODO: standardize this naming
+        df.rename(columns={'alt': 'altitude', 'az': 'azimuth'}, inplace=True)
+
+        # add overhead for filter changes
+        w = df['filter_id'] != current_state['current_filter_id']
+        if np.sum(w):
+            df.loc[w, 'overhead_time'] += FILTER_CHANGE_TIME.to(u.second).value
+
+        if inplace:
+            df.loc[:, 'value'] = self._metric(df)
+            self.queue = df
+
+        return df
 
 class GreedyQueueManager(QueueManager):
 
@@ -327,14 +493,15 @@ class RequestPool(object):
         pass
 
     def add_requests(self, program_id, field_ids, filter_id,
-                     cadence_func, cadence_pars, request_number_tonight,
-                     total_requests_tonight, priority=1):
+                     #cadence_func, cadence_pars, request_number_tonight,
+                     total_requests_tonight, 
+                     priority=1):
         """all scalars except field_ids"""
         # TODO: Compound Requests
 
         assert ((scalar_len(program_id) == 1) and
-                (scalar_len(filter_id) == 1) and
-                (scalar_len(cadence_func) == 1))
+                (scalar_len(filter_id) == 1) )
+#                and (scalar_len(cadence_func) == 1))
 
         n_fields = scalar_len(field_ids)
         if n_fields == 1:
@@ -347,9 +514,9 @@ class RequestPool(object):
                 'program_id': program_id,
                 'field_id': field_id,
                 'filter_id': filter_id,
-                'cadence_func': cadence_func,
-                'cadence_pars': cadence_pars,
-                'request_number_tonight': request_number_tonight,
+                #'cadence_func': cadence_func,
+                #'cadence_pars': cadence_pars,
+                #'request_number_tonight': request_number_tonight,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
