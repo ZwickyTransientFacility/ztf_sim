@@ -6,6 +6,7 @@ from sky_brightness import SkyBrightness, FakeSkyBrightness
 from magnitudes import limiting_mag
 import astropy.coordinates as coord
 from cadence import *
+from optimize import slot_optimize
 from constants import *
 from utils import *
 import pdb
@@ -251,11 +252,23 @@ class GurobiQueueManager(QueueManager):
             # TODO: only using r-band right now
             lim_mags[bi] = self.compute_limiting_mag(df, ti, filter_id = 2)
 
-        df_block_lim_mags = pd.DataFrame(lim_mags)
-        df_block_metric = self._slot_metric(df_block_lim_mags)
+        self.block_lim_mags = pd.DataFrame(lim_mags)
+        self.block_slot_metric = self._slot_metric(self.block_lim_mags)
+
+        # prepare the data for input to gurobi
+        Vrt = self.block_slot_metric.values
+        nreqs = df['total_requests_tonight'].values
+
+        import shelve
+        s = shelve.open('tmp_vars.shelf')
+        s['block_lim_mags'] = self.block_lim_mags
+        s['block_slot_metric'] = self.block_slot_metric
+        s['df'] = df
+        s.close()
 
 
-        pdb.set_trace()
+        1/0
+        Yrt = slot_optimize(Vrt, nreqs)
         # output Yrt?
 
     def _sequence_requests_in_block(self, current_state, df=None):

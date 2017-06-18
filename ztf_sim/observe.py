@@ -52,7 +52,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
         logfile='../sims/{}_log.txt'.format(run_name))
 
     # set up QueueManager
-    Q = GreedyQueueManager(block_programs=block_programs)
+    Q = GurobiQueueManager(block_programs=block_programs)
 
     for op in observing_programs:
         Q.add_observing_program(op)
