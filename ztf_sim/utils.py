@@ -319,7 +319,9 @@ def _ptf_to_sqlite():
     df['ditheredRA'] = 0.
     df['ditheredDec'] = 0.
 
-    df_write_to_sqlite(df, 'ptf')
+    df['filter'] = df['filter'].map({1:'g',2:'r',4:'i'})
+
+    df_write_to_sqlite(df, 'ptf', tablename='Summary')
     return df
 
 
