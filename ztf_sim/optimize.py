@@ -43,7 +43,7 @@ def slot_optimize():
     constr_nperslot = m.addConstrs(
         (Yrt.sum('*',t) <= max_exps_per_slot for t in slots), "constr_nperslot")
 
- .update()
+    m.update()
 
     m.optimize()
 
@@ -72,25 +72,29 @@ def pandas_optimize():
     # make a "tidy" dataframe with one row per (request, slot [, filter])
     dft = pd.melt(df_metric,id_vars='request_id',var_name='slot',value_name='metric')
 
+    dft = pd.merge(dft,df[['program_id','total_requests_tonight']],
+        left_on='request_id',right_index=True)
+
+
     # Create an empty model
     m = Model('slots')
-
-    # add a variable f
-    
-    # this is slow because of the iterrorws
-    #yrt_list = [m.addVar(name="Yrt[{},{}]".format(row.request_id,row.slot),
-    #            vtype=GRB.BINARY) for idxi, row in dft.iterrows()]
-    #dft['Yrt'] = yrt_list
-
-    # this doesn't work right
-    #dft.assign(var=lambda x: m.addVar(name="Yrt[{},{}]".format(x.request_id,x.slot)))
 
     yrt_dict = m.addVars(dft.index,name='Yrt',vtype=GRB.BINARY)
     yrt_series = pd.Series(yrt_dict,name='Yrt')
     dft = dft.join(yrt_series)
 
+    def f_n(dft):
+        grp = dft.groupby('request_id')
+        f = (grp['Yrt'].agg(np.sum)/nreqs)
+        f.name = 'f'
+        return dft.join(f,on='request_id')['f']
+
+    # this makes it quadratic, and slow
+    #m.setObjective(np.sum(dft['Yrt'] * dft['metric'] * f_n(dft)), 
+    #    GRB.MAXIMIZE)
     m.setObjective(np.sum(dft['Yrt'] * dft['metric']), 
         GRB.MAXIMIZE)
+
 
     # no more than nreqs slots  assigned per request set
     constr_nreqs = m.addConstrs(
@@ -103,7 +107,9 @@ def pandas_optimize():
     # drop too many...
     constr_nperslot = m.addConstrs(
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrt'])
-        <= max_exps_per_slot) for t in slots), "constr_nperslot")
+        == max_exps_per_slot) for t in slots), "constr_nperslot")
+
+    # TODO: program balance
 
     m.update()
 
@@ -116,3 +122,7 @@ def pandas_optimize():
     # now get the decision variables
     dft['Yrt_val'] = dft['Yrt'].apply(lambda x: x.getAttr('x'))
     dft['Yrt_val'] = dft['Yrt_val'].astype(bool)
+
+    wobs = dft['Yrt_val'] is True
+
+    1/0
