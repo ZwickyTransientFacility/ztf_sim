@@ -256,36 +256,35 @@ class GurobiQueueManager(QueueManager):
         self.block_slot_metric = self._slot_metric(self.block_lim_mags)
 
         # prepare the data for input to gurobi
-        Vrt = self.block_slot_metric.values
-        nreqs = df['total_requests_tonight'].values
-
-        import shelve
-        s = shelve.open('tmp_vars.shelf')
-        s['block_lim_mags'] = self.block_lim_mags
-        s['block_slot_metric'] = self.block_slot_metric
-        s['df'] = df
-        s.close()
+        #import shelve
+        #s = shelve.open('tmp_vars.shelf')
+        #s['block_lim_mags'] = self.block_lim_mags
+        #s['block_slot_metric'] = self.block_slot_metric
+        #s['df'] = df
+        #s.close()
 
 
-        1/0
-        Yrt = slot_optimize(Vrt, nreqs)
-        # output Yrt?
+        # optimize assignment into slots
+        df_slots = slot_optimize(self.block_slot_metric, df, self.requests_allowed)
 
-    def _sequence_requests_in_block(self, current_state, df=None):
+        grp = df_slots.groupby('slot')
+
+        self.queued_requests_by_slot = grp['request_id'].apply(list)
+
+
+
+    def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
-
-        inplace = df is None
 
         self.queue_block = block_index(current_state['current_time'])
 
-        if inplace:
-            # no dataframe supplied, so replace existing self.queue on exit
-            df = self.queue
-            df.drop(['overhead_time', 'altitude', 'azimuth'], axis=1,
-                    inplace=True)
+        # retrieve requests to be observed in this block
+        req_list = self.queued_requests_by_slot[self.queue_block]
+
+        ### NEED TO FIX ALL BELOW
 
         # compute readout/slew overhead times, plus current alt/az
-        df_overhead, df_altaz = self.fields.overhead_time(current_state)
+        # OLD # df_overhead, df_altaz = self.fields.overhead_time(current_state)
 
         # nb: df has index request_id, not field_id
         df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
@@ -297,10 +296,6 @@ class GurobiQueueManager(QueueManager):
         w = df['filter_id'] != current_state['current_filter_id']
         if np.sum(w):
             df.loc[w, 'overhead_time'] += FILTER_CHANGE_TIME.to(u.second).value
-
-        if inplace:
-            df.loc[:, 'value'] = self._metric(df)
-            self.queue = df
 
         return df
 
