@@ -17,7 +17,76 @@ max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE /
                 (EXPOSURE_TIME + READOUT_TIME)).to(
                 u.dimensionless_unscaled).value).astype(int)
 
+def request_set_optimize(df_metric, df, requests_allowed):
+    """Identify which request sets to observe tonight.
+
+    Decision variable is yes/no per request_id"""
+
+    request_sets = df_metric.index.values
+    slots = df_metric.columns.values
+
+    nreqs = df['total_requests_tonight']
+
+    # calculate n_usable slots
+    df_usable = df_metric > 0.05
+    n_usable = df_usable.sum(axis=1)
+    n_usable.name = 'n_usable' 
+
+    # sum df_metric down to one column
+    metric_sum = (df_metric * df_usable).sum(axis=1)
+    metric_sum.name = 'metric_sum'
+
+    # merge additional useful info
+    dfr = df[['program_id','total_requests_tonight']].join(n_usable).join(metric_sum)
+
+    dfr['occupancy'] = dfr['total_requests_tonight']/dfr['n_usable']
+
+    # Create an empty model
+    m = Model('requests')
+
+    # decision variable: yes or no for each request set
+    yr_dict = m.addVars(df_metric.index,name='Yr',vtype=GRB.BINARY)
+    yr_series = pd.Series(yr_dict,name='Yr')
+    dfr = dfr.join(yr_series)
+
+    m.setObjective(np.sum(dfr['Yr'] * dfr['metric_sum'] * dfr['occupancy']), 
+        GRB.MAXIMIZE)
+
+
+    # slot occupancy constraint: nreqs obs divided over nusable slots
+    constr_avg_slot_occupancy = m.addConstrs(
+        ((np.sum(df_usable[t]*dfr['occupancy'] * dfr['Yr'])
+        <= max_exps_per_slot) for t in slots), "constr_avg_slot_occupancy")
+
+    # program balance
+    constr_balance = m.addConstrs(
+        ((np.sum(dfr.loc[dfr['program_id'] == p, 'Yr'] * 
+                 dfr.loc[dfr['program_id'] == p, 'total_requests_tonight']  )
+        <= requests_allowed[p]) for p in requests_allowed.keys()), 
+        "constr_balance")
+
+    # Quick and dirty is okay!
+    m.Params.TimeLimit = 30.
+
+    m.update()
+
+    m.optimize()
+
+    if (m.Status != GRB.OPTIMAL) and (m.Status != GRB.TIME_LIMIT):
+        raise ValueError("Optimization failure")
+
+
+    # now get the decision variables
+    dfr['Yr_val'] = dfr['Yr'].apply(lambda x: x.getAttr('x'))
+    dfr['Yr_val'] = dfr['Yr_val'].astype(bool)
+
+    return dfr.loc[dfr['Yr_val'],'program_id'].index
+
+
 def slot_optimize(df_metric, df, requests_allowed):
+    """Determine which slots to place the requests in.
+
+    Decision variable is yes/no per request_id, slot"""
 
     request_sets = df_metric.index.values
     slots = df_metric.columns.values
@@ -65,7 +134,7 @@ def slot_optimize(df_metric, df, requests_allowed):
     # drop too many...
     constr_nperslot = m.addConstrs(
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrt'])
-        == max_exps_per_slot) for t in slots), "constr_nperslot")
+        <= max_exps_per_slot) for t in slots), "constr_nperslot")
 
     # program balance
     constr_balance = m.addConstrs(
