@@ -82,6 +82,9 @@ class QueueManager(object):
 
         assert(len(self.rp.pool) > 0)
 
+        # any specific tasks needed)
+        self._assign_nightly_requests(current_state)
+
     def determine_allowed_requests(self, time):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
@@ -180,14 +183,17 @@ class GurobiQueueManager(QueueManager):
         super(GurobiQueueManager, self).__init__(**kwargs)
         self.block_obs_number = 0
 
+    def _assign_nightly_requests(self, current_state):
+        self._assign_slots(current_state)
+
     def _next_obs(self, current_state):
         """Select the highest value request."""
 
         # do the slot assignment at the beginning of the night 
         # (or if the queue is empty, which should be unusual)
         # TODO: consider how to detect and handle weather losses--recompute?
-        if (len(self.queue) == 0):
-            self._assign_slots(current_state)
+        #if (len(self.queue) == 0):
+        #    self._assign_slots(current_state)
 
         # if we've entered a new block, solve the TSP to sequence the requests
         if (block_index(current_state['current_time'])[0] != self.queue_block):
@@ -355,6 +361,9 @@ class GreedyQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
         super(GreedyQueueManager, self).__init__(**kwargs)
+
+    def _assign_nightly_requests(self, current_state):
+        pass
 
     def _next_obs(self, current_state):
         """Select the highest value request."""
