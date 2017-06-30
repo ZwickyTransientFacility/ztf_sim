@@ -87,4 +87,7 @@ def slew_time(axis, angle):
     slew_time = 0.5 * (2. * angle / vmax + t_acc + t_dec)
     w = 0.5 * vmax * (t_acc + t_dec) >= angle
     slew_time[w] = np.sqrt(2 * angle[w] * (1. / acc + 1. / dec))
-    return slew_time + SETTLE_TIME
+
+    wnonzero = slew_time > 0
+    slew_time[wnonzero] += SETTLE_TIME
+    return slew_time 

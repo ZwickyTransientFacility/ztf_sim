@@ -6,7 +6,7 @@ from sky_brightness import SkyBrightness, FakeSkyBrightness
 from magnitudes import limiting_mag
 import astropy.coordinates as coord
 from cadence import *
-from optimize import slot_optimize
+from optimize import request_set_optimize, slot_optimize, tsp_optimize
 from constants import *
 from utils import *
 import pdb
@@ -123,6 +123,8 @@ class QueueManager(object):
     def remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
 
+        # define functions that actually do the work in subclasses
+        return self._remove_requests(request_id)
         self.queue = self.queue.drop(request_id)
         self.rp.remove_requests(request_id)
 
@@ -189,25 +191,39 @@ class GurobiQueueManager(QueueManager):
 
         # if we've entered a new block, solve the TSP to sequence the requests
         if (block_index(current_state['current_time'])[0] != self.queue_block):
-            _ = self._sequence_requests_in_block(current_state)
+            self._sequence_requests_in_block(current_state)
 
 
         # TODO: should now be able to simply pick up the next observation
+        
+        if len(self.queue_order) == 0:
+            raise QueueEmptyError
+        
+        idx = self.queue_order[0]
 
-        next_obs = {'target_field_id': self.queue.ix[max_idx].field_id,
-            'target_ra': self.queue.ix[max_idx].ra,
-            'target_dec': self.queue.ix[max_idx].dec,
-            'target_filter_id': self.queue.ix[max_idx].filter_id,
-            'target_program_id': self.queue.ix[max_idx].program_id,
+        # TODO: make the queue have the right datatypes
+        next_obs = {'target_field_id': int(self.queue.ix[idx].field_id),
+            'target_ra': self.queue.ix[idx].ra,
+            'target_dec': self.queue.ix[idx].dec,
+            'target_filter_id': int(self.queue.ix[idx].filter_id),
+            'target_program_id': int(self.queue.ix[idx].program_id),
             'target_exposure_time': EXPOSURE_TIME,
-            'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
-            'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
-            'target_metric_value':  self.queue.ix[max_idx].value,
-            'target_request_number_tonight':
-            self.queue.ix[max_idx].request_number_tonight,
+            'target_sky_brightness': 0.,
+            'target_limiting_mag': 0.,
+            'target_metric_value':  0.,
+            'target_request_number_tonight': -1,
             'target_total_requests_tonight':
-            self.queue.ix[max_idx].total_requests_tonight,
-            'request_id': max_idx}
+            int(self.queue.ix[idx].total_requests_tonight),
+            'request_id': idx}
+
+#            'target_sky_brightness': self.queue.ix[idx].sky_brightness,
+#            'target_limiting_mag': self.queue.ix[idx].limiting_mag,
+#            'target_metric_value':  self.queue.ix[idx].value,
+#            'target_request_number_tonight':
+#            self.queue.ix[idx].request_number_tonight,
+#            'target_total_requests_tonight':
+#            self.queue.ix[idx].total_requests_tonight,
+#            'request_id': idx}
 
         return next_obs
 
@@ -263,9 +279,14 @@ class GurobiQueueManager(QueueManager):
         #s['df'] = df
         #s.close()
 
+        # select request_sets for the night
+        self.request_sets_tonight = request_set_optimize(
+            self.block_slot_metric, df, self.requests_allowed)
 
         # optimize assignment into slots
-        df_slots = slot_optimize(self.block_slot_metric, df, self.requests_allowed)
+        df_slots = slot_optimize(
+            self.block_slot_metric.loc[self.request_sets_tonight], 
+            df.loc[self.request_sets_tonight], self.requests_allowed)
 
         grp = df_slots.groupby('slot')
 
@@ -281,23 +302,54 @@ class GurobiQueueManager(QueueManager):
         # retrieve requests to be observed in this block
         req_list = self.queued_requests_by_slot[self.queue_block]
 
-        ### NEED TO FIX ALL BELOW
+        idx = pd.Index(req_list.values[0])
 
-        # compute readout/slew overhead times, plus current alt/az
-        # OLD # df_overhead, df_altaz = self.fields.overhead_time(current_state)
+        # reconstruct
+        df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
+        az = self.fields.block_az[self.queue_block]
+        df = df.join(az, on='field_id')
 
-        # nb: df has index request_id, not field_id
-        df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
-        df = pd.merge(df, df_altaz, left_on='field_id', right_index=True)
-        # TODO: standardize this naming
-        df.rename(columns={'alt': 'altitude', 'az': 'azimuth'}, inplace=True)
+        # compute overhead time between all request pairs
+        
+        # compute pairwise slew times by axis for all pointings
+        slews_by_axis = {}
+        def coord_to_slewtime(coord, axis=None):
+            c1, c2 = np.meshgrid(coord, coord)
+            dangle = np.abs(c1 - c2)
+            angle = np.where(dangle < (360. - dangle), dangle, 360. - dangle)
+            return slew_time(axis, angle * u.deg)
 
-        # add overhead for filter changes
-        w = df['filter_id'] != current_state['current_filter_id']
-        if np.sum(w):
-            df.loc[w, 'overhead_time'] += FILTER_CHANGE_TIME.to(u.second).value
+        slews_by_axis['dome'] = coord_to_slewtime(
+            df[self.queue_block], axis='dome')
+        slews_by_axis['dec'] = coord_to_slewtime(
+            df['dec'], axis='dec')
+        slews_by_axis['ra'] = coord_to_slewtime(
+            df['ra'], axis='ha')
 
-        return df
+        maxradec = np.maximum(slews_by_axis['ra'], slews_by_axis['dec'])
+        maxslews = np.maximum(slews_by_axis['dome'], maxradec)
+        overhead_time = np.maximum(maxslews, READOUT_TIME)
+
+        tsp_order, tsp_overhead_time = tsp_optimize(overhead_time.value)
+
+        # tsp_order is 0-indexed from overhead time, so I need to
+        # reconstruct the request_id
+        self.queue_order = df.index.values[tsp_order]
+        self.queue = df
+
+        scheduled_time = len(tsp_order) * EXPOSURE_TIME + \
+            tsp_overhead_time*u.second
+
+        # TODO: some sort of monitoring of expected vs. block time vs. actual
+
+    def _remove_requests(self, request_id):
+        """Remove a request from both the queue"""
+
+        # should be the topmost item
+        assert (self.queue_order[0] == request_id)
+        self.queue_order = self.queue_order[1:]
+        self.queue = self.queue.drop(request_id)
+
 
 class GreedyQueueManager(QueueManager):
 
@@ -489,6 +541,12 @@ class GreedyQueueManager(QueueManager):
         df.loc[:, 'value'] = self._metric(df)
 
         self.queue = df
+
+    def _remove_requests(self, request_id):
+        """Remove a request from both the queue and the request pool"""
+
+        self.queue = self.queue.drop(request_id)
+        self.rp.remove_requests(request_id)
 
 
 class RequestPool(object):

@@ -5,6 +5,7 @@ import numpy as np
 import shelve
 import astropy.units as u
 import pandas as pd
+from collections import defaultdict
 from constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
 
 #s = shelve.open('tmp_vars.shelf',flag='r')
@@ -156,3 +157,114 @@ def slot_optimize(df_metric, df, requests_allowed):
 
     return dft.loc[dft['Yrt_val'],['slot','request_id']]
 
+def tsp_optimize(pairwise_distances):
+    # core algorithmic code from
+    # http://examples.gurobi.com/traveling-salesman-problem/
+
+    # Callback - use lazy constraints to eliminate sub-tours 
+    def subtourelim(model, where): 
+        if where == GRB.callback.MIPSOL: 
+            selected = [] 
+            # make a list of edges selected in the solution 
+            for i in range(n): 
+                sol = model.cbGetSolution([model._vars[i,j] for j in range(n)]) 
+                selected += [(i,j) for j in range(n) if sol[j] > 0.5] 
+            # find the shortest cycle in the selected edge list 
+            tour = subtour(selected) 
+            if len(tour) < n: 
+                # add a subtour elimination constraint 
+                expr = 0 
+                for i in range(len(tour)): 
+                    for j in range(i+1, len(tour)): 
+                        expr += model._vars[tour[i], tour[j]] 
+                model.cbLazy(expr <= len(tour)-1) 
+
+    # Given a list of edges, finds the shortest subtour 
+    def subtour(edges): 
+        visited = [False]*n 
+        cycles = [] 
+        lengths = [] 
+        selected = [[] for i in range(n)] 
+        for x,y in edges: 
+            selected[x].append(y) 
+        while True: 
+            current = visited.index(False) 
+            thiscycle = [current] 
+            while True: 
+                visited[current] = True 
+                neighbors = [x for x in selected[current] if not visited[x]] 
+                if len(neighbors) == 0: 
+                    break 
+                current = neighbors[0] 
+                thiscycle.append(current) 
+            cycles.append(thiscycle) 
+            lengths.append(len(thiscycle)) 
+            if sum(lengths) == n: 
+                break 
+        return cycles[lengths.index(min(lengths))] 
+    
+    m = Model() 
+
+    assert (pairwise_distances.shape[0] == pairwise_distances.shape[1])
+    n = pairwise_distances.shape[0]
+
+    # Create variables 
+    vars = {} 
+    for i in range(n): 
+        for j in range(i+1): 
+            vars[i,j] = m.addVar(obj=pairwise_distances[i,j], vtype=GRB.BINARY, name='e'+str(i)+'_'+str(j)) 
+            vars[j,i] = vars[i,j] 
+        m.update() 
+
+    # Add degree-2 constraint, and forbid loops 
+    for i in range(n): 
+        m.addConstr(quicksum(vars[i,j] for j in range(n)) == 2) 
+        vars[i,i].ub = 0 
+    m.update() 
+    # Optimize model 
+    m._vars = vars 
+    m.params.LazyConstraints = 1 
+    m.optimize(subtourelim) 
+
+    # TODO: I could cut this block if needed
+    solution = m.getAttr('x', vars) 
+    selected = [(i,j) for i in range(n) for j in range(n) if solution[i,j] > 0.5] 
+    distances = np.sum([pairwise_distances[s] for s in selected])
+    distance = m.objVal
+    assert len(subtour(selected)) == n
+
+    # dictionary of connected nodes
+    edges = defaultdict(list)
+    for i in range(n): 
+        for j in range(n): 
+            if vars[i,j].getAttr('x') > 0.5:
+                edges[i].append(j)
+
+    def unwrap_tour(edges, start_node=None):
+        if start_node is None:
+            start_node = 0
+        
+        current_node = start_node 
+        # arbitrary choice of direction
+        next_node = edges[start_node][0]
+        tour = [start_node]
+
+        while next_node != start_node:
+            tour.append(next_node)
+            edge_nodes = edges[next_node]
+            assert (current_node in edge_nodes)
+            assert(len(edge_nodes) == 2)
+            if edge_nodes[0] == current_node:
+                tmp = edge_nodes[1]
+            elif edge_nodes[1] == current_node:
+                tmp = edge_nodes[0]
+            current_node = next_node
+            next_node = tmp
+
+        return tour
+            
+
+    tour = unwrap_tour(edges)
+    assert (len(tour) == n)
+
+    return tour, distance
