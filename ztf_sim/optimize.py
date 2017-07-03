@@ -202,11 +202,18 @@ def tsp_optimize(pairwise_distances):
             if sum(lengths) == n: 
                 break 
         return cycles[lengths.index(min(lengths))] 
-    
-    m = Model() 
 
     assert (pairwise_distances.shape[0] == pairwise_distances.shape[1])
     n = pairwise_distances.shape[0]
+
+    # avoid optimization failures if we only feed in a couple of points
+    if n == 1:
+        return [0], [READOUT_TIME.to(u.second).value]
+    if n == 2:
+        return [0, 1], [pairwise_distances[0,1]]
+    
+    m = Model() 
+        
 
     # Create variables 
     vars = {} 
@@ -225,6 +232,9 @@ def tsp_optimize(pairwise_distances):
     m._vars = vars 
     m.params.LazyConstraints = 1 
     m.optimize(subtourelim) 
+
+    if m.Status != GRB.OPTIMAL:
+        raise ValueError("Optimization failure")
 
     # TODO: I could cut this block if needed
     solution = m.getAttr('x', vars) 
