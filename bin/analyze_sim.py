@@ -95,8 +95,8 @@ def calc_stats(sim_name):
 
     # fraction of completed sequences: by program, by filter, ...
     pgrp = df.groupby(['night', 'propID', 'fieldID'])
-    completion = pgrp['requestNumberTonight'].agg(
-        np.max) * 1. / pgrp['totalRequestsTonight'].agg(np.max)
+    completion = pgrp['totalRequestsTonight'].agg(
+        len) * 1. / pgrp['totalRequestsTonight'].agg(np.max)
     completion.name = 'completion_fraction'
     completion = completion.reset_index()
 

@@ -126,7 +126,6 @@ class ObsLogger:
         fiveSigmaDepth     REAL,
         ditheredRA         REAL,
         ditheredDec        REAL,
-        requestNumberTonight INTEGER,
         totalRequestsTonight INTEGER,
         metricValue        REAL
         )""")
@@ -225,8 +224,6 @@ class ObsLogger:
         record['ditheredDec'] = 0.
 
         # ztf_sim specific keywords!
-        record['requestNumberTonight'] = \
-            request['target_request_number_tonight']
         record['totalRequestsTonight'] = \
             request['target_total_requests_tonight']
         record['metricValue'] = \

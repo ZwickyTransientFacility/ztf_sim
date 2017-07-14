@@ -76,7 +76,6 @@ class QueueManager(object):
                                      rs['filter_id'], 
                                      #rs['cadence_func'],
                                      #rs['cadence_pars'],
-                                     #rs['request_number_tonight'],
                                      rs['total_requests_tonight'])
                                      #priority=rs['priority'])
 
@@ -203,7 +202,7 @@ class GurobiQueueManager(QueueManager):
         # TODO: should now be able to simply pick up the next observation
         
         if len(self.queue_order) == 0:
-            raise QueueEmptyError
+            raise QueueEmptyError("Ran out of observations this block.") 
         
         idx = self.queue_order[0]
 
@@ -217,7 +216,6 @@ class GurobiQueueManager(QueueManager):
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
-            'target_request_number_tonight': -1,
             'target_total_requests_tonight':
             int(self.queue.ix[idx].total_requests_tonight),
             'request_id': idx}
@@ -226,7 +224,6 @@ class GurobiQueueManager(QueueManager):
 #            'target_limiting_mag': self.queue.ix[idx].limiting_mag,
 #            'target_metric_value':  self.queue.ix[idx].value,
 #            'target_request_number_tonight':
-#            self.queue.ix[idx].request_number_tonight,
 #            'target_total_requests_tonight':
 #            self.queue.ix[idx].total_requests_tonight,
 #            'request_id': idx}
@@ -307,6 +304,9 @@ class GurobiQueueManager(QueueManager):
 
         # retrieve requests to be observed in this block
         req_list = self.queued_requests_by_slot[self.queue_block]
+
+        if np.all(np.isnan(req_list.values[0])):
+            raise QueueEmptyError("No requests assigned to this block")
 
         idx = pd.Index(req_list.values[0])
 
@@ -402,8 +402,6 @@ class GreedyQueueManager(QueueManager):
                 'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
                 'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
                 'target_metric_value':  self.queue.ix[max_idx].value,
-                'target_request_number_tonight':
-                self.queue.ix[max_idx].request_number_tonight,
                 'target_total_requests_tonight':
                 self.queue.ix[max_idx].total_requests_tonight,
                 'request_id': max_idx}
@@ -568,7 +566,7 @@ class RequestPool(object):
         pass
 
     def add_requests(self, program_id, field_ids, filter_id,
-                     #cadence_func, cadence_pars, request_number_tonight,
+                     #cadence_func, cadence_pars, 
                      total_requests_tonight, 
                      priority=1):
         """all scalars except field_ids"""
@@ -591,7 +589,6 @@ class RequestPool(object):
                 'filter_id': filter_id,
                 #'cadence_func': cadence_func,
                 #'cadence_pars': cadence_pars,
-                #'request_number_tonight': request_number_tonight,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
@@ -657,9 +654,9 @@ def calc_queue_stats(df, current_state, intro=""):
         walt = w & (df.loc[w, 'altitude'] > 20)
         stats_str += "\t\t{} fields above altitude cut\n".format(
             np.sum(walt))
-        wfirst = walt & (df.loc[walt, 'request_number_tonight'] == 1)
-        stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
-            np.sum(wfirst))
+#        wfirst = walt & (df.loc[walt, 'request_number_tonight'] == 1)
+#        stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
+#            np.sum(wfirst))
         ref_obs = df.apply(get_ref_obs_time, args=(current_state,), axis=1)
         dt = current_state['current_time'].mjd - ref_obs
         stats_str += "\t\tMax time to ref_obs for first obs: {}\n".format(
