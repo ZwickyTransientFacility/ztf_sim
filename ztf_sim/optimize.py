@@ -8,11 +8,11 @@ import pandas as pd
 from collections import defaultdict
 from constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
 
-s = shelve.open('tmp_vars.shelf',flag='r')
-df_metric = s['block_slot_metric']
-df = s['df']
-
-requests_allowed = {1: 548, 2: 548, 3: 274}
+#s = shelve.open('tmp_vars.shelf',flag='r')
+#df_metric = s['block_slot_metric']
+#df = s['df']
+#
+#requests_allowed = {1: 548, 2: 548, 3: 274}
 
 max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE / 
                 (EXPOSURE_TIME + READOUT_TIME)).to(
@@ -27,15 +27,16 @@ def request_set_optimize(df_metric, df, requests_allowed):
     slots = np.unique(df_metric.columns.get_level_values(0).values)
     filter_ids = np.unique(df_metric.columns.get_level_values(1).values)
 
-    nreqs = df['total_requests_tonight']
-
     # can try working with it in 2D/3D, but may be easier just tidy up
     #idx = pd.IndexSlice
     #df_metric.loc[idx[:],idx[:,2]]
     # df_metric.unstack()
     
-    df_metric['request_id'] = df_metric.index
-    dft = pd.melt(df_metric,id_vars='request_id',
+    # make a copy so I don't have downstream problems
+    df_metric_local = df_metric.copy()
+    
+    df_metric_local['request_id'] = df_metric_local.index
+    dft = pd.melt(df_metric_local,id_vars='request_id',
         var_name=['slot','metric_filter_id'],
         value_name='metric')
     # get n_reqs by fid
@@ -74,7 +75,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
     m = Model('requests')
 
     # decision variable: yes or no for each request set
-    yr_dict = m.addVars(df_metric.index,name='Yr',vtype=GRB.BINARY)
+    yr_dict = m.addVars(df_metric_local.index,name='Yr',vtype=GRB.BINARY)
     yr_series = pd.Series(yr_dict,name='Yr')
     dfr = dfr.join(yr_series)
 
@@ -95,6 +96,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
         "constr_balance")
 
     # Quick and dirty is okay!
+    # TODO: tune this value
     m.Params.TimeLimit = 30.
 
     m.update()
@@ -115,75 +117,94 @@ def request_set_optimize(df_metric, df, requests_allowed):
 def slot_optimize(df_metric, df, requests_allowed):
     """Determine which slots to place the requests in.
 
-    Decision variable is yes/no per request_id, slot"""
+    Decision variable is yes/no per request_id, slot, filter,
+    with an additional decision variable on which filter to use in which slot"""
 
     request_sets = df_metric.index.values
-    slots = df_metric.columns.values
-
-    nreqs = df['total_requests_tonight']
+    # these are fragile when columns get appended
+    slots = np.unique(df_metric.columns.get_level_values(0).values)
+    filter_ids = np.unique(df_metric.columns.get_level_values(1).values)
+    # extra columns floating around cause problems
+    filter_ids = [fid for fid in filter_ids if fid != '']
 
     # flatten the metric dataframe to make it easier to work with 
-    df_metric['request_id'] = df_metric.index
+    df_metric_local = df_metric.copy()
+    df_metric_local['request_id'] = df_metric_local.index
 
-    # make a "tidy" dataframe with one row per (request, slot [, filter])
-    dft = pd.melt(df_metric,id_vars='request_id',var_name='slot',value_name='metric')
-
-    dft = pd.merge(dft,df[['program_id','total_requests_tonight']],
-        left_on='request_id',right_index=True)
+    # make a "tidy" dataframe with one row per (request, slot, filter)
+    dft = pd.melt(df_metric_local,id_vars='request_id',
+        var_name=['slot','metric_filter_id'],
+        value_name='metric')
+    # get n_reqs by fid
+    n_reqs_cols = ['n_reqs_{}'.format(fid) for fid in filter_ids]
+    n_reqs_cols.extend(['program_id','total_requests_tonight'])
+    dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
 
 
     # Create an empty model
     m = Model('slots')
 
-    yrt_dict = m.addVars(dft.index,name='Yrt',vtype=GRB.BINARY)
-    yrt_series = pd.Series(yrt_dict,name='Yrt')
-    dft = dft.join(yrt_series)
+    yrtf_dict = m.addVars(dft.index,name='Yrtf',vtype=GRB.BINARY)
+    yrtf_series = pd.Series(yrtf_dict,name='Yrtf')
+    dft = dft.join(yrtf_series)
 
-    def f_n(dft):
-        grp = dft.groupby('request_id')
-        f = (grp['Yrt'].agg(np.sum)/nreqs)
-        f.name = 'f'
-        return dft.join(f,on='request_id')['f']
-
-    # this makes it quadratic, and slow
-    #m.setObjective(np.sum(dft['Yrt'] * dft['metric'] * f_n(dft)), 
-    #    GRB.MAXIMIZE)
-    m.setObjective(np.sum(dft['Yrt'] * dft['metric']), 
+    m.setObjective(np.sum(dft['Yrtf'] * dft['metric']), 
         GRB.MAXIMIZE)
 
 
-    # no more than nreqs slots  assigned per request set
+    # no more than nreqs_{fid} slots assigned per request set
+    # TODO: this constructor is pretty slow
     constr_nreqs = m.addConstrs(
-        ((np.sum(dft.loc[dft['request_id'] == r, 'Yrt'])
-        <= nreqs[r]) for r in request_sets), "constr_nreqs")
+        ((np.sum(dft.loc[(dft['request_id'] == r) & 
+                        (dft['metric_filter_id'] == f), 'Yrtf']) 
+                        <= df.loc[r,'n_reqs_{}'.format(f)])
+                        for f in filter_ids for r in request_sets), 
+                        "constr_nreqs")
 
+    # create resultant variables: Ytf = 1 if slot t has filter f used
+    ytf = m.addVars(slots, filter_ids, vtype=GRB.BINARY)
+    for t in slots:
+        for f in filter_ids:
+            m.addGenConstrOr(ytf[t,f], 
+                dft.loc[(dft['slot'] == t) &
+                        (dft['metric_filter_id'] == f), 'Yrtf'], 
+                        "orconstr_{}_{}".format(t,f))
+
+    # now constrain ourselves to one and only one filter per slot.  
+    constr_onefilter = m.addConstrs(
+        (ytf.sum(t,'*') == 1 for t in slots), 'constr_onefilter')
+    
 
     # no more than nobs per slot
     # TODO: tune this so it's closer to the average performance so we don't
     # drop too many...
     constr_nperslot = m.addConstrs(
-        ((np.sum(dft.loc[dft['slot'] == t, 'Yrt'])
+        ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'])
         <= max_exps_per_slot) for t in slots), "constr_nperslot")
 
     # program balance
     constr_balance = m.addConstrs(
-        ((np.sum(dft.loc[dft['program_id'] == p, 'Yrt'])
+        ((np.sum(dft.loc[dft['program_id'] == p, 'Yrtf'])
         <= requests_allowed[p]) for p in requests_allowed.keys()), 
         "constr_balance")
+
+    # Quick and dirty is okay!
+    # TODO: tune this value
+    m.Params.TimeLimit = 30.
 
     m.update()
 
     m.optimize()
 
-    if m.Status != GRB.OPTIMAL:
+    if (m.Status != GRB.OPTIMAL) and (m.Status != GRB.TIME_LIMIT):
         raise ValueError("Optimization failure")
 
 
     # now get the decision variables
-    dft['Yrt_val'] = dft['Yrt'].apply(lambda x: x.getAttr('x'))
-    dft['Yrt_val'] = dft['Yrt_val'].astype(bool)
+    dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x'))
+    dft['Yrtf_val'] = dft['Yrtf_val'].astype(bool)
 
-    return dft.loc[dft['Yrt_val'],['slot','request_id']]
+    return dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
 
 def tsp_optimize(pairwise_distances):
     # core algorithmic code from

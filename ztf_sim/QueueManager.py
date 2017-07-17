@@ -25,7 +25,7 @@ class QueueManager(object):
         self.observing_programs = observing_programs
 
         # block on which the queue parameters were calculated
-        self.queue_block = None
+        self.queue_slot = None
 
         # number allowed requests by program tonight (dict)
         self.requests_allowed = {}
@@ -195,7 +195,7 @@ class GurobiQueueManager(QueueManager):
         #    self._assign_slots(current_state)
 
         # if we've entered a new block, solve the TSP to sequence the requests
-        if (block_index(current_state['current_time'])[0] != self.queue_block):
+        if (block_index(current_state['current_time'])[0] != self.queue_slot):
             self._sequence_requests_in_block(current_state)
 
 
@@ -210,7 +210,7 @@ class GurobiQueueManager(QueueManager):
         next_obs = {'target_field_id': int(self.queue.ix[idx].field_id),
             'target_ra': self.queue.ix[idx].ra,
             'target_dec': self.queue.ix[idx].dec,
-            'target_filter_id': int(self.queue.ix[idx].filter_id),
+            'target_filter_id': int(self.filter_by_slot[self.queue_slot]),
             'target_program_id': int(self.queue.ix[idx].program_id),
             'target_exposure_time': EXPOSURE_TIME,
             'target_sky_brightness': 0.,
@@ -284,14 +284,12 @@ class GurobiQueueManager(QueueManager):
                 df.filter_id.apply(lambda x: np.sum([xi == fid for xi in x]))
 
         # prepare the data for input to gurobi
-        import shelve
-        s = shelve.open('tmp_vars.shelf')
-        s['block_lim_mags'] = self.block_lim_mags
-        s['block_slot_metric'] = self.block_slot_metric
-        s['df'] = df
-        s.close()
-
-        1/0
+        #import shelve
+        #s = shelve.open('tmp_vars.shelf')
+        #s['block_lim_mags'] = self.block_lim_mags
+        #s['block_slot_metric'] = self.block_slot_metric
+        #s['df'] = df
+        #s.close()
 
         # select request_sets for the night
         self.request_sets_tonight = request_set_optimize(
@@ -305,16 +303,18 @@ class GurobiQueueManager(QueueManager):
         grp = df_slots.groupby('slot')
 
         self.queued_requests_by_slot = grp['request_id'].apply(list)
+        self.filter_by_slot = \
+            grp['metric_filter_id'].apply(lambda x: np.unique(x)[0])
 
 
 
     def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
 
-        self.queue_block = block_index(current_state['current_time'])
+        self.queue_slot = block_index(current_state['current_time'])
 
         # retrieve requests to be observed in this block
-        req_list = self.queued_requests_by_slot[self.queue_block]
+        req_list = self.queued_requests_by_slot[self.queue_slot]
 
         if np.all(np.isnan(req_list.values[0])):
             raise QueueEmptyError("No requests assigned to this block")
@@ -323,7 +323,7 @@ class GurobiQueueManager(QueueManager):
 
         # reconstruct
         df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
-        az = self.fields.block_az[self.queue_block]
+        az = self.fields.block_az[self.queue_slot]
         df = df.join(az, on='field_id')
 
         # compute overhead time between all request pairs
@@ -337,7 +337,7 @@ class GurobiQueueManager(QueueManager):
             return slew_time(axis, angle * u.deg)
 
         slews_by_axis['dome'] = coord_to_slewtime(
-            df[self.queue_block], axis='dome')
+            df[self.queue_slot], axis='dome')
         slews_by_axis['dec'] = coord_to_slewtime(
             df['dec'], axis='dec')
         slews_by_axis['ra'] = coord_to_slewtime(
@@ -380,8 +380,8 @@ class GreedyQueueManager(QueueManager):
         """Select the highest value request."""
 
         # since this is a greedy queue, we update the queue after each obs
-        # for speed, only do the whole recalculation if we're in a new block
-        if ((block_index(current_state['current_time'])[0] != self.queue_block)
+        # for speed, only do the whole recalculation if we're in a new slot
+        if ((block_index(current_state['current_time'])[0] != self.queue_slot)
                 or (len(self.queue) == 0)):
             self._update_queue(current_state)
         else:
@@ -467,7 +467,7 @@ class GreedyQueueManager(QueueManager):
         telescope state only"""
 
         # store block index for which these values were calculated
-        self.queue_block = block_index(current_state['current_time'])
+        self.queue_slot = block_index(current_state['current_time'])
 
         # check that the pool has fields in it
         if len(self.rp.pool) == 0:
@@ -491,7 +491,7 @@ class GreedyQueueManager(QueueManager):
         # if restricting to one program per block, drop other programs
         if self.block_programs:
             current_block_program = PROGRAM_BLOCK_SEQUENCE[
-                self.queue_block % LEN_BLOCK_SEQUENCE]
+                self.queue_slot % LEN_BLOCK_SEQUENCE]
             df = df.loc[df['program_id'] == current_block_program, :]
 
         # use cadence functions to compute requests with active cadence windows
@@ -635,8 +635,8 @@ def calc_pool_stats(df, intro=""):
         stats_str += "\t\t{} requests\n".format(np.sum(w))
         stats_str += "\t\t{} unique fields\n".format(
             len(set(df.loc[w, 'field_id'])))
-        stats_str += "\t\t{} filters\n".format(
-            len(set(df.loc[w, 'filter_id'])))
+#        stats_str += "\t\t{} filters\n".format(
+#            len(set(df.loc[w, 'filter_id'])))
         stats_str += "\t\t{} median requests tonight per field\n".format(
             np.median(df.loc[w, 'total_requests_tonight']))
 
