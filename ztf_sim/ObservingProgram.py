@@ -196,8 +196,7 @@ class ObservingProgram(object):
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
              'field_ids': request_fields.index.values,
-             # TODO: figure out how to handle filters
-             'filter_id': filter_sequence[0],
+             'filter_id': filter_sequence,
              'total_requests_tonight': self.n_visits_per_night})
 
         return request_set

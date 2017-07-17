@@ -8,9 +8,9 @@ import pandas as pd
 from collections import defaultdict
 from constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
 
-#s = shelve.open('tmp_vars.shelf',flag='r')
-#df_metric = s['block_slot_metric']
-#df = s['df']
+s = shelve.open('tmp_vars.shelf',flag='r')
+df_metric = s['block_slot_metric']
+df = s['df']
 
 requests_allowed = {1: 548, 2: 548, 3: 274}
 
@@ -24,17 +24,45 @@ def request_set_optimize(df_metric, df, requests_allowed):
     Decision variable is yes/no per request_id"""
 
     request_sets = df_metric.index.values
-    slots = df_metric.columns.values
+    slots = np.unique(df_metric.columns.get_level_values(0).values)
+    filter_ids = np.unique(df_metric.columns.get_level_values(1).values)
 
     nreqs = df['total_requests_tonight']
 
+    # can try working with it in 2D/3D, but may be easier just tidy up
+    #idx = pd.IndexSlice
+    #df_metric.loc[idx[:],idx[:,2]]
+    # df_metric.unstack()
+    
+    df_metric['request_id'] = df_metric.index
+    dft = pd.melt(df_metric,id_vars='request_id',
+        var_name=['slot','metric_filter_id'],
+        value_name='metric')
+    # get n_reqs by fid
+    n_reqs_cols = ['n_reqs_{}'.format(fid) for fid in filter_ids]
+    n_reqs_cols.append('total_requests_tonight')
+    dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
+
+    # nreqs_{fid} weighted sum over the filters
+    for fid in filter_ids:
+        wfid = dft['metric_filter_id'] == fid
+        n_req_col = 'n_reqs_{}'.format(fid)
+        dft.loc[wfid, 'metric'] *= (dft.loc[wfid, n_req_col] / 
+            dft.loc[wfid, 'total_requests_tonight'])
+    grprs = dft.groupby(['request_id','slot'])
+    dfrs = grprs['metric'].agg(np.sum)
+
     # calculate n_usable slots
-    df_usable = df_metric > 0.05
-    n_usable = df_usable.sum(axis=1)
+    grpr = dfrs.groupby('request_id')
+    n_usable = grpr.agg(lambda x: np.sum(x > 0.05)).astype(int)
     n_usable.name = 'n_usable' 
+    # also make a df_usable with slot columns for below
+    df_usable = dfrs.unstack() > 0.05
 
     # sum df_metric down to one column
-    metric_sum = (df_metric * df_usable).sum(axis=1)
+    # TODO: would be nice to restrict the sum to the n_usable slots, but
+    # this is a small nicety
+    metric_sum = grpr.agg(np.sum)
     metric_sum.name = 'metric_sum'
 
     # merge additional useful info

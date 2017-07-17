@@ -269,18 +269,29 @@ class GurobiQueueManager(QueueManager):
             df_az.name = 'azimuth'
             df = df.join(df_az, on='field_id')
             # TODO: only using r-band right now
-            lim_mags[bi] = self.compute_limiting_mag(df, ti, filter_id = 2)
+            for fid in FILTER_IDS:
+                lim_mags[(bi, fid)] = \
+                    self.compute_limiting_mag(df, ti, filter_id = fid)
 
+        # this results in a MultiIndex on the *columns*: level 0 is block,
+        # level 1 is filter_id.  df_metric.unstack() flattens it
         self.block_lim_mags = pd.DataFrame(lim_mags)
         self.block_slot_metric = self._slot_metric(self.block_lim_mags)
 
+        # count the number of observations requested by filter
+        for fid in FILTER_IDS:
+            df['n_reqs_{}'.format(fid)] = \
+                df.filter_id.apply(lambda x: np.sum([xi == fid for xi in x]))
+
         # prepare the data for input to gurobi
-        #import shelve
-        #s = shelve.open('tmp_vars.shelf')
-        #s['block_lim_mags'] = self.block_lim_mags
-        #s['block_slot_metric'] = self.block_slot_metric
-        #s['df'] = df
-        #s.close()
+        import shelve
+        s = shelve.open('tmp_vars.shelf')
+        s['block_lim_mags'] = self.block_lim_mags
+        s['block_slot_metric'] = self.block_slot_metric
+        s['df'] = df
+        s.close()
+
+        1/0
 
         # select request_sets for the night
         self.request_sets_tonight = request_set_optimize(
@@ -572,8 +583,8 @@ class RequestPool(object):
         """all scalars except field_ids"""
         # TODO: Compound Requests
 
-        assert ((scalar_len(program_id) == 1) and
-                (scalar_len(filter_id) == 1) )
+        assert (scalar_len(program_id) == 1) 
+#                (scalar_len(filter_id) == 1) )
 #                and (scalar_len(cadence_func) == 1))
 
         n_fields = scalar_len(field_ids)

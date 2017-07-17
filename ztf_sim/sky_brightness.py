@@ -36,9 +36,9 @@ class SkyBrightness(object):
         wr = (df['filter_id'] == FILTER_NAME_TO_ID['r'])
         if np.sum(wr):
             sky[wr] = self.clf_r.predict(df[wr])
-        wi = (df['filter_id'] == FILTER_NAME_TO_ID['i'])
-        if np.sum(wi):
-            sky[wi] = self.clf_i.predict(df[wi])
+#        wi = (df['filter_id'] == FILTER_NAME_TO_ID['i'])
+#        if np.sum(wi):
+#            sky[wi] = self.clf_i.predict(df[wi])
 
         return sky
 
