@@ -314,12 +314,15 @@ class GurobiQueueManager(QueueManager):
         self.queue_slot = block_index(current_state['current_time'])
 
         # retrieve requests to be observed in this block
-        req_list = self.queued_requests_by_slot[self.queue_slot]
+        req_list = self.queued_requests_by_slot[self.queue_slot].values[0]
 
-        if np.all(np.isnan(req_list.values[0])):
+        # request_set ids should be unique per block
+        assert( (len(set(req_list)) == len(req_list) ) )
+
+        if np.all(np.isnan(req_list)):
             raise QueueEmptyError("No requests assigned to this block")
 
-        idx = pd.Index(req_list.values[0])
+        idx = pd.Index(req_list)
 
         # reconstruct
         df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()

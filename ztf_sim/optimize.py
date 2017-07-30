@@ -108,8 +108,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
 
 
     # now get the decision variables
-    dfr['Yr_val'] = dfr['Yr'].apply(lambda x: x.getAttr('x'))
-    dfr['Yr_val'] = dfr['Yr_val'].astype(bool)
+    dfr['Yr_val'] = dfr['Yr'].apply(lambda x: x.getAttr('x') > 0.1)
 
     return dfr.loc[dfr['Yr_val'],'program_id'].index
 
@@ -167,7 +166,7 @@ def slot_optimize(df_metric, df, requests_allowed):
         for f in filter_ids:
             m.addGenConstrOr(ytf[t,f], 
                 dft.loc[(dft['slot'] == t) &
-                        (dft['metric_filter_id'] == f), 'Yrtf'], 
+                        (dft['metric_filter_id'] == f), 'Yrtf'], #tolist() 
                         "orconstr_{}_{}".format(t,f))
 
     # now constrain ourselves to one and only one filter per slot.  
@@ -200,11 +199,31 @@ def slot_optimize(df_metric, df, requests_allowed):
         raise ValueError("Optimization failure")
 
 
-    # now get the decision variables
-    dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x'))
-    dft['Yrtf_val'] = dft['Yrtf_val'].astype(bool)
+    # now get the decision variables.  Use > a constant to avoid 
+    # numerical precision issues
+    dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1) 
 
-    return dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
+    df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
+
+    n_iterations = 1    
+    # if we don't optimize long enough, we can end up not satisfying
+    # our constraints.  In that case, continue the optimization
+    # TODO: verify all of them
+    while df_schedule.groupby(['slot','request_id']).agg(len).max()[0] > 1:
+        n_iterations += 1
+        if n_iterations > 10:
+            1/0
+        print("> Slot optimization did not satisfy all constraints. Continuing Optimization (Iteration {})".format(n_iterations)) 
+        m.update()
+        m.optimize()
+
+        # now get the decision variables
+        dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1)
+        df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
+
+
+
+    return df_schedule
 
 def tsp_optimize(pairwise_distances):
     # core algorithmic code from
