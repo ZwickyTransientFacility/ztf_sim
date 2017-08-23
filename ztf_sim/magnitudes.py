@@ -15,7 +15,8 @@ def interp_R20_airmass(filter_id=2):
     return interp1d(alt, R20)
 
 R20_interp_alt = {1: interp_R20_airmass(filter_id=1),
-                  2: interp_R20_airmass(filter_id=2)}
+                  2: interp_R20_airmass(filter_id=2),
+                  3: interp_R20_airmass(filter_id=3)}
 
 
 def limiting_mag(exposure_time, seeing_fwhm, sky_brightness,
