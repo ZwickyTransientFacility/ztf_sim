@@ -152,7 +152,10 @@ def altitude_to_fwhm(altitude, filternum):
     # values from linear fit to PTF data: in
     # notebooks/plot_sky_brightness_model.ipynb
 
-    if filternum == 1:
+    # don't have a lot of PTF i-band data, so let's make it the same as
+    # r-band (atmosphere should contribute less)
+    # TODO: revise with ZTF on-sky data
+    if (filternum == 1) or (filternum == 3):
         return 3.258 - 0.00925 * altitude
     elif filternum == 2:
         return 3.049 - 0.0117 * altitude
