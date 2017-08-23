@@ -319,7 +319,14 @@ def _ptf_to_sqlite():
     df['ditheredRA'] = 0.
     df['ditheredDec'] = 0.
 
-    df_write_to_sqlite(df, 'ptf')
+    df['filter'] = df['filter'].map({1:'g',2:'r',4:'i'})
+    df.sort_values('expMJD',inplace=True)
+
+    # for some reason the night values from the db are not monotonic in MJD
+    # make my own versions
+    df['night'] = np.floor(df['expMJD'] - 54847).astype(int)
+
+    df_write_to_sqlite(df, 'ptf', tablename='Summary')
     return df
 
 
