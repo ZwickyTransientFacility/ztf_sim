@@ -2,7 +2,7 @@ from ZTFStateMachine import ZTFStateMachine
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from QueueManager import GreedyQueueManager, QueueEmptyError
+from QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from QueueManager import calc_pool_stats, calc_queue_stats
 from ObsLogger import ObsLogger
 from config import ZTFConfiguration
@@ -52,7 +52,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
         logfile='../sims/{}_log.txt'.format(run_name))
 
     # set up QueueManager
-    Q = GreedyQueueManager(block_programs=block_programs)
+    Q = GurobiQueueManager(block_programs=block_programs)
 
     for op in observing_programs:
         Q.add_observing_program(op)

@@ -74,31 +74,26 @@ class ObservingProgram(object):
         else:
             filter_ids_tonight = list(set(self.filter_ids))
 
-        # how many fields can we observe tonight?
-        n_requests = self.number_of_allowed_requests(time)
-
-        n_fields = np.round(n_requests / self.n_visits_per_night)
-
         # maintain balance between programs
-        if not block_programs:
-            obs_count_by_program = fields.count_total_obs_by_program()
-            total_obs = np.sum(obs_count_by_program.values())
-            # difference in expected obs from allowed program fraction,
-            # scaled to this subprogram
-            delta = np.round(
-                (obs_count_by_program[self.program_id] -
-                 self.program_observing_time_fraction * total_obs) 
-                 * self.subprogram_fraction)
-
-            # TODO: tweak as needed
-            # how quickly do we want to take to reach equalization?
-            CATCHUP_FACTOR = 0.20
-            n_fields -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
-
-            if n_fields <= 0:
-                # TODO: logging
-                print('No fields requested for program {} ({})'.format(self.program_id, self.subprogram_name))
-                return {}
+#        if not block_programs:
+#            obs_count_by_program = fields.count_total_obs_by_program()
+#            total_obs = np.sum(obs_count_by_program.values())
+#            # difference in expected obs from allowed program fraction,
+#            # scaled to this subprogram
+#            delta = np.round(
+#                (obs_count_by_program[self.program_id] -
+#                 self.program_observing_time_fraction * total_obs) 
+#                 * self.subprogram_fraction)
+#
+#            # TODO: tweak as needed
+#            # how quickly do we want to take to reach equalization?
+#            CATCHUP_FACTOR = 0.20
+#            n_fields -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
+#
+#            if n_fields <= 0:
+#                # TODO: logging
+#                print('No fields requested for program {} ({})'.format(self.program_id, self.subprogram_name))
+#                return {}
 
         # Choose which fields will be observed
 
@@ -121,9 +116,9 @@ class ObservingProgram(object):
 
         request_fields = fields.fields.loc[pool_ids]
 
-        if n_fields > len(request_fields):
-            # TODO: logging
-            print('Not enough requests in program {} ({}) to fill available time!'.format(self.program_id, self.subprogram_name))
+#        if n_fields > len(request_fields):
+#            # TODO: logging
+#            print('Not enough requests in program {} ({}) to fill available time!'.format(self.program_id, self.subprogram_name))
 
         # sort request sets by chosen priority metric
 
@@ -137,51 +132,53 @@ class ObservingProgram(object):
 
         #pdb.set_trace()
 
-        if self.nightly_priority == 'oldest':
-            # now grab the top n_fields sorted by last observed date
-            request_fields = request_fields.sort_values(
-                by='oldest_obs').iloc[:n_fields]
+# removing per-program priority for now...
 
-        elif self.nightly_priority == 'mean_observable_airmass':
-            # now grab the top n_fields sorted by average airmass
-            # above MAX_AIRMASS tonight.  (We already cut to only fields up
-            # long enough to get n_visits_per_night)
-            # TODO: make this a smarter, SNR-based calculation
-
-            request_fields = request_fields.join(
-                fields.mean_observable_airmass)
-
-            request_fields = request_fields.sort_values(
-                by='mean_observable_airmass').iloc[:n_fields]
-
-        elif self.nightly_priority == 'rotate':
-            field_rotation_nights = np.floor(len(request_fields) // n_fields)
-            # nightly rotation by ra strips
-            night_index_fields = np.floor(
-                time.mjd % field_rotation_nights).astype(np.int)
-            request_fields['ra_rotation_index'] = \
-                np.floor(request_fields['ra'] %
-                         field_rotation_nights).astype(np.int)
-            # drop "off" strips
-            wonstrip = request_fields[
-                'ra_rotation_index'] == night_index_fields
-            request_fields = request_fields[wonstrip]
-            # and take fields with last observed date
-            request_fields = request_fields.sort_values(
-                by='oldest_obs').iloc[:n_fields]
-
-        elif self.nightly_priority == 'radist':
-            assert ('ra0' in kwargs)
-            # TODO: do I want spherical distance rather than ra distance?
-            raise NotImplementedError
-        elif self.nightly_priority == 'decdist':
-            assert ('dec0' in kwargs)
-            raise NotImplementedError
-        elif self.nightly_priority == 'random':
-            request_fields = request_fields.reindex(
-                np.random.permutation(request_fields.index))[:n_fields]
-        else:
-            raise ValueError('requested prioritization scheme not found')
+#        if self.nightly_priority == 'oldest':
+#            # now grab the top n_fields sorted by last observed date
+#            request_fields = request_fields.sort_values(
+#                by='oldest_obs').iloc[:n_fields]
+#
+#        elif self.nightly_priority == 'mean_observable_airmass':
+#            # now grab the top n_fields sorted by average airmass
+#            # above MAX_AIRMASS tonight.  (We already cut to only fields up
+#            # long enough to get n_visits_per_night)
+#            # TODO: make this a smarter, SNR-based calculation
+#
+#            request_fields = request_fields.join(
+#                fields.mean_observable_airmass)
+#
+#            request_fields = request_fields.sort_values(
+#                by='mean_observable_airmass').iloc[:n_fields]
+#
+#        elif self.nightly_priority == 'rotate':
+#            field_rotation_nights = np.floor(len(request_fields) // n_fields)
+#            # nightly rotation by ra strips
+#            night_index_fields = np.floor(
+#                time.mjd % field_rotation_nights).astype(np.int)
+#            request_fields['ra_rotation_index'] = \
+#                np.floor(request_fields['ra'] %
+#                         field_rotation_nights).astype(np.int)
+#            # drop "off" strips
+#            wonstrip = request_fields[
+#                'ra_rotation_index'] == night_index_fields
+#            request_fields = request_fields[wonstrip]
+#            # and take fields with last observed date
+#            request_fields = request_fields.sort_values(
+#                by='oldest_obs').iloc[:n_fields]
+#
+#        elif self.nightly_priority == 'radist':
+#            assert ('ra0' in kwargs)
+#            # TODO: do I want spherical distance rather than ra distance?
+#            raise NotImplementedError
+#        elif self.nightly_priority == 'decdist':
+#            assert ('dec0' in kwargs)
+#            raise NotImplementedError
+#        elif self.nightly_priority == 'random':
+#            request_fields = request_fields.reindex(
+#                np.random.permutation(request_fields.index))[:n_fields]
+#        else:
+#            raise ValueError('requested prioritization scheme not found')
 
         # construct request sets: list of inputs to RequestPool.add_requests
         # scalar everything except field_ids
@@ -199,44 +196,8 @@ class ObservingProgram(object):
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
              'field_ids': request_fields.index.values,
-             'filter_id': filter_sequence[0],
-             'cadence_func': 'time_since_obs',
-             'cadence_pars': {'ref_obs': 'last_observed',
-                              # subtract off the length of the longest night
-                              # (>12.3 hours), so "one night
-                              # cadence" allows an object observed at the 
-                              # end of last night to be observed at the start
-                              # of this one
-                              'window_start': self.internight_gap.to(u.day).value - 0.6,
-                              # use a very large value here: gets added to
-                              # last_obs.  remember that we reset each night
-                              # anyway
-                              'window_stop': (100 * u.year).to(u.day).value,
-                              # TODO: do I want to specify this in some cases?
-                              'prev_filter': 'any'},
-             'request_number_tonight': 1,
-             'total_requests_tonight': self.n_visits_per_night,
-             'priority': 1})
-        # additional visits
-        for i in range(self.n_visits_per_night - 1):
-            request_set.append(
-                {'program_id': self.program_id,
-                 'subprogram_name': self.subprogram_name,
-                 'field_ids': request_fields.index,
-                 'filter_id': filter_sequence[i + 1],
-                 'cadence_func': 'time_since_obs',
-                 #'cadence_pars': {'ref_obs': 'first_obs_tonight',
-                 'cadence_pars': {'ref_obs': 'last_observed',
-                                  'window_start': (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
-                                  #'window_start': (i + 1) * (self.intranight_gap).to(u.day).value - self.intranight_half_width.to(u.day).value,
-                                  # run the window the rest of the night
-                                  'window_stop': 0.6,
-                                  #'window_stop': (i + 1) * (self.intranight_gap).to(u.day).value + self.intranight_half_width.to(u.day).value,
-                                  'prev_filter': filter_sequence[i]},
-                 #'prev_filter': 'any'},
-                 'request_number_tonight': i + 2,
-                 'total_requests_tonight': self.n_visits_per_night,
-                 'priority': 1})
+             'filter_id': filter_sequence,
+             'total_requests_tonight': self.n_visits_per_night})
 
         return request_set
 
@@ -248,7 +209,7 @@ class ObservingProgram(object):
         # "fudge factor" to provide ~15% extra requests for all programs
         # to minimize QueueEmptyErrors...
         # TODO: test how much we need this...
-        FUDGE_FACTOR = 1.15
+        FUDGE_FACTOR = 1.25
 
         obs_time = approx_hours_of_darkness(
             time) * self.program_observing_time_fraction * self.subprogram_fraction
@@ -257,3 +218,7 @@ class ObservingProgram(object):
                       (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value[0]  \
             * FUDGE_FACTOR
         return np.round(n_requests).astype(np.int)
+
+    def number_of_allowed_fields(self, time):
+        n_requests = self.number_of_allowed_requests(time)
+        return np.round(n_requests / self.n_visits_per_night)

@@ -64,7 +64,8 @@ PROGRAM_IDS = PROGRAM_ID_TO_NAME.keys()
 PROGRAM_BLOCK_SEQUENCE = [1, 2, 1, 2, 3]
 LEN_BLOCK_SEQUENCE = len(PROGRAM_BLOCK_SEQUENCE)
 
-FILTER_NAME_TO_ID = {'g': 1, 'r': 2, 'i': 3}
+# TODO: reenable i-band
+FILTER_NAME_TO_ID = {'g': 1, 'r': 2}# 'i': 3}
 FILTER_NAMES = FILTER_NAME_TO_ID.keys()
 FILTER_ID_TO_NAME = {v: k for k, v in FILTER_NAME_TO_ID.items()}
 FILTER_IDS = FILTER_ID_TO_NAME.keys()
@@ -87,4 +88,7 @@ def slew_time(axis, angle):
     slew_time = 0.5 * (2. * angle / vmax + t_acc + t_dec)
     w = 0.5 * vmax * (t_acc + t_dec) >= angle
     slew_time[w] = np.sqrt(2 * angle[w] * (1. / acc + 1. / dec))
-    return slew_time + SETTLE_TIME
+
+    wnonzero = slew_time > 0
+    slew_time[wnonzero] += SETTLE_TIME
+    return slew_time 
