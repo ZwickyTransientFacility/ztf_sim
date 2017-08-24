@@ -53,7 +53,9 @@ def Rstar20(filter_id=2, altitude=90.,
         R20[w1] = 123.73  # electrons/sec for 20th mag source
         w2 = filter_id == 2
         R20[w2] = 77.98
-        if np.sum(w1) + np.sum(w2) != len(R20):
+        w3 = filter_id == 3
+        R20[w3] = 46.41
+        if np.sum(w1) + np.sum(w2) + np.sum(w3) != len(R20):
             raise NotImplementedError
 
     elif aperture_cut and absorb:
@@ -61,7 +63,9 @@ def Rstar20(filter_id=2, altitude=90.,
         R20[w1] = R20_interp_alt[1](altitude[w1])
         w2 = filter_id == 2
         R20[w2] = R20_interp_alt[2](altitude[w2])
-        if np.sum(w1) + np.sum(w2) != len(R20):
+        w3 = filter_id == 3
+        R20[w3] = R20_interp_alt[3](altitude[w3])
+        if np.sum(w1) + np.sum(w2) + np.sum(w3) != len(R20):
             raise NotImplementedError
     else:
         raise NotImplementedError
