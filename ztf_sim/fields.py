@@ -51,8 +51,8 @@ class Fields(object):
         df['grid_id'] = 99
 
         for grid_id, bounds in grid_id_boundaries.items():
-            w = (df['field_id'] >= bounds['min']) &  \
-                    (df['field_id'] <= bounds['max'])
+            w = (df.index >= bounds['min']) &  \
+                    (df.index <= bounds['max'])
             df.loc[w,'grid_id'] = grid_id
 
         # initialize the last observed time
