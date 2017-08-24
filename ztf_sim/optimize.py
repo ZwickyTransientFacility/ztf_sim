@@ -70,6 +70,8 @@ def request_set_optimize(df_metric, df, requests_allowed):
     dfr = df[['program_id','total_requests_tonight']].join(n_usable).join(metric_sum)
 
     dfr['occupancy'] = dfr['total_requests_tonight']/dfr['n_usable']
+    # zero out any unusable slots
+    dfr.loc[dfr['n_usable'] == 0, 'occupancy'] = 0.
 
     # Create an empty model
     m = Model('requests')
