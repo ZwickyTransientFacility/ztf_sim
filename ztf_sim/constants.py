@@ -54,7 +54,7 @@ SETTLE_TIME = 2. * u.second
 
 MAX_AIRMASS = 2.5
 
-TIME_BLOCK_SIZE = 20. * u.min
+TIME_BLOCK_SIZE = 30. * u.min
 
 PROGRAM_NAME_TO_ID = {'collaboration': 1, 'MSIP': 2, 'Caltech': 3}
 PROGRAM_NAMES = PROGRAM_NAME_TO_ID.keys()
