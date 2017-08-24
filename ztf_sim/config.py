@@ -48,7 +48,8 @@ class ZTFConfiguration(object):
                                   prog['intranight_gap_min'] * u.min,
                                   prog['intranight_half_width_min'] * u.min,
                                   nightly_priority=prog['nightly_priority'],
-                                  filter_choice=prog['filter_choice'])
+                                  filter_choice=prog['filter_choice'],
+                                  active_months=prog['active_months'])
             OPs.append(OP)
 
         return OPs

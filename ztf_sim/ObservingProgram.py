@@ -9,7 +9,8 @@ class ObservingProgram(object):
                  program_observing_time_fraction, subprogram_fraction,
                  field_ids, filter_ids, internight_gap, n_visits_per_night,
                  intranight_gap, intranight_half_width,
-                 nightly_priority='oldest', filter_choice='rotate'):
+                 nightly_priority='oldest', filter_choice='rotate', 
+                 active_months='all'):
 
         self.program_id = program_id
         self.subprogram_name = subprogram_name
@@ -25,6 +26,7 @@ class ObservingProgram(object):
 
         self.nightly_priority = nightly_priority
         self.filter_choice = filter_choice
+        self.active_months = 'all'
 
     def assign_nightly_requests(self, time, fields, block_programs=True,
                                 **kwargs):
@@ -62,6 +64,13 @@ class ObservingProgram(object):
         # filter_choice = 'sequence':
         #   use hard-coded sequence given in filter_ids
 
+        # determine if this program is active this month and return
+        # an empty set if not
+        if self.active_months != 'all':
+            if time.to_datetime().month not in self.active_months:
+                return []
+        
+        
         # compute nightly altaz blocks and observability windows
         fields.compute_blocks(time)
         fields.compute_observability()
