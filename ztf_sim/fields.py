@@ -30,8 +30,9 @@ class Fields(object):
 
         df = pd.read_table('../data/ZTF_Fields.txt',
             names=['field_id','ra','dec','ebv','l','b',
-                    'ecl_lon','ecl_lat','number'],
-            sep='\s+',usecols=['field_id','ra','dec'],skiprows=1)
+                'ecliptic_lon', 'ecliptic_lat', 'number'],
+            sep='\s+',usecols=['field_id','ra','dec', 'l','b', 
+                'ecliptic_lon', 'ecliptic_lat'],skiprows=1)
 
 
         # drop fields below dec of -31 degrees for speed
