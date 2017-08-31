@@ -570,6 +570,64 @@ class GreedyQueueManager(QueueManager):
         self.rp.remove_requests(request_id)
 
 
+
+class ListQueueManager(QueueManager):
+    """Simple Queue that returns observations in order."""
+
+    def __init__(self, **kwargs):
+        super(ListQueueManager, self).__init__(**kwargs)
+
+    def _assign_nightly_requests(self, current_state):
+        raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
+
+    def load_queue(self, queue_dict_list):
+        """Initialize an ordered queue.
+
+        queue_dict_list is a list of dicts, one per observation"""
+        
+        self.queue = pd.DataFrame(queue_dict_list)
+
+        # check that major columns are included
+        required_columns = ['field_id','ra','dec', 'program_id', 'filter_id']
+
+    def _next_obs(self, current_state):
+        """Return the next observation in the time ordered queue unless it has expired."""
+
+        
+        if len(self.queue) == 0:
+            raise QueueEmptyError("No more observations in queue!")
+        
+        # take the next observation in line
+        idx = 0
+
+        # TODO: check if it has expired
+       
+        # if no exposure time is specified, use the default
+        if 'exposure_time' not in self.queue.columns:
+            texp = EXPOSURE_TIME
+        else:
+            texp =  self.queue.iloc[idx].exposure_time
+
+        next_obs = {'target_field_id': int(self.queue.iloc[idx].field_id),
+            'target_ra': self.queue.iloc[idx].ra,
+            'target_dec': self.queue.iloc[idx].dec,
+            'target_filter_id': self.queue.iloc[idx].filter_id,
+            'target_program_id': int(self.queue.iloc[idx].program_id),
+            'target_exposure_time': texp,
+            'target_sky_brightness': 0.,
+            'target_limiting_mag': 0.,
+            'target_metric_value':  0.,
+            'target_total_requests_tonight': 1,  
+            'request_id': self.queue.index[0]}
+
+        return next_obs
+
+    def _remove_requests(self, request_id):
+        """Remove a request from both the queue"""
+
+        self.queue = self.queue.drop(request_id)
+
+
 class RequestPool(object):
 
     def __init__(self):
