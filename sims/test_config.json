@@ -17,6 +17,7 @@
 		 "n_visits_per_night": 2,
 		 "intranight_gap_min": 60,
 		 "intranight_half_width_min": 20,
+		 "active_months": "all",
 		 "nightly_priority": "oldest"},
 		{"program_name": "collaboration",
 		 "subprogram_name": "all_sky",
@@ -30,6 +31,7 @@
 		 "n_visits_per_night": 4,
 		 "intranight_gap_min": 60,
 		 "intranight_half_width_min": 20,
+		 "active_months": "all",
 		 "nightly_priority": "mean_observable_airmass"},
 		{"program_name": "Caltech",
 		 "subprogram_name": "all_sky",
@@ -43,6 +45,7 @@
 		 "n_visits_per_night": 3,
 		 "intranight_gap_min": 90,
 		 "intranight_half_width_min": 20,
+		 "active_months": "all",
 		 "nightly_priority": "random"}
 	]
 }
