@@ -58,7 +58,7 @@ class QueueManager(object):
 
     def assign_nightly_requests(self, current_state):
         # clear previous request pool
-        self.rp.clear_all_requests()
+        self.rp.clear_all_request_sets()
         # reset the first observation of the night counters
         self.fields.clear_first_obs()
         # clear count of executed requests 
@@ -72,12 +72,9 @@ class QueueManager(object):
                 current_state['current_time'], self.fields,
                 block_programs=self.block_programs)
             for rs in request_sets:
-                self.rp.add_requests(rs['program_id'], rs['field_ids'],
-                                     rs['filter_id'], 
-                                     #rs['cadence_func'],
-                                     #rs['cadence_pars'],
+                self.rp.add_request_sets(rs['program_id'], rs['field_ids'],
+                                     rs['filter_ids'], 
                                      rs['total_requests_tonight'])
-                                     #priority=rs['priority'])
 
         assert(len(self.rp.pool) > 0)
 
@@ -127,8 +124,6 @@ class QueueManager(object):
 
         # define functions that actually do the work in subclasses
         return self._remove_requests(request_id)
-        self.queue = self.queue.drop(request_id)
-        self.rp.remove_requests(request_id)
 
     def compute_limiting_mag(self, df, time, filter_id=None):
         """compute limiting magnitude based on sky brightness and seeing"""
@@ -281,7 +276,7 @@ class GurobiQueueManager(QueueManager):
         # count the number of observations requested by filter
         for fid in FILTER_IDS:
             df['n_reqs_{}'.format(fid)] = \
-                df.filter_id.apply(lambda x: np.sum([xi == fid for xi in x]))
+                df.filter_ids.apply(lambda x: np.sum([xi == fid for xi in x]))
 
         # prepare the data for input to gurobi
         #import shelve
@@ -363,12 +358,13 @@ class GurobiQueueManager(QueueManager):
         # TODO: some sort of monitoring of expected vs. block time vs. actual
 
     def _remove_requests(self, request_id):
-        """Remove a request from both the queue"""
+        """Remove a request from both the queue and the pool"""
 
         # should be the topmost item
         assert (self.queue_order[0] == request_id)
         self.queue_order = self.queue_order[1:]
         self.queue = self.queue.drop(request_id)
+        # TODO: decrement it in the pool
 
 
 class GreedyQueueManager(QueueManager):
@@ -478,8 +474,21 @@ class GreedyQueueManager(QueueManager):
 
         # join with fields so we have the information we need
         # make a copy so rp.pool and self.queue are not linked
-        df = self.rp.pool.join(self.fields.fields, on='field_id').copy()
+        df_rs = self.rp.pool.join(self.fields.fields, on='field_id').copy()
 
+        # now expand the dataframe of request sets to a dataframe with one
+        # row per obs.  
+        requests = []   
+        for request_set_id, row in df_rs.iterrows():
+            rdict = row.to_dict()
+            filter_ids = rdict.pop('filter_ids')
+            for filter_id in filter_ids:
+                ri = rdict.copy()
+                ri['filter_id'] = filter_id
+                ri['request_set_id'] = request_set_id
+                requests.append(ri)
+        df = pd.DataFrame(requests)
+            
         df = self._update_overhead(current_state, df=df)
 
         # start with conservative altitude cut;
@@ -567,7 +576,8 @@ class GreedyQueueManager(QueueManager):
         """Remove a request from both the queue and the request pool"""
 
         self.queue = self.queue.drop(request_id)
-        self.rp.remove_requests(request_id)
+        raise NotImplementedError("Need to adjust pool behavior to remove single obs from request_sets")
+        #self.rp.remove_requests(request_id)
 
 
 
@@ -623,7 +633,7 @@ class ListQueueManager(QueueManager):
         return next_obs
 
     def _remove_requests(self, request_id):
-        """Remove a request from both the queue"""
+        """Remove a request from the queue"""
 
         self.queue = self.queue.drop(request_id)
 
@@ -637,46 +647,41 @@ class RequestPool(object):
         self.pool = pd.DataFrame()
         pass
 
-    def add_requests(self, program_id, field_ids, filter_id,
-                     #cadence_func, cadence_pars, 
+    def add_request_sets(self, program_id, field_ids, filter_ids,
                      total_requests_tonight, 
                      priority=1):
-        """all scalars except field_ids"""
-        # TODO: Compound Requests
+        """program_ids must be scalar"""
 
         assert (scalar_len(program_id) == 1) 
-#                (scalar_len(filter_id) == 1) )
-#                and (scalar_len(cadence_func) == 1))
 
         n_fields = scalar_len(field_ids)
         if n_fields == 1:
             field_ids = [field_ids]
 
         # build df as a list of dicts
-        requests = []
+        request_sets = []
         for i, field_id in enumerate(field_ids):
-            requests.append({
+            request_sets.append({
                 'program_id': program_id,
                 'field_id': field_id,
-                'filter_id': filter_id,
-                #'cadence_func': cadence_func,
-                #'cadence_pars': cadence_pars,
+                'filter_ids': filter_ids,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
-        self.pool = self.pool.append(pd.DataFrame(requests), ignore_index=True)
+        self.pool = self.pool.append(pd.DataFrame(request_sets), 
+            ignore_index=True)
 
-    def n_requests(self):
+    def n_request_sets(self):
         return len(self.pool)
 
-    def remove_requests(self, request_ids):
+    def remove_request_sets(self, request_ids):
         """Remove completed or otherwise unwanted requests by request_id
 
         request_ids : scalar or list
             requests to drop (index of self.pool)"""
         self.pool = self.pool.drop(request_ids)
 
-    def clear_all_requests(self):
+    def clear_all_request_sets(self):
         self.pool = pd.DataFrame()
 
 
@@ -688,16 +693,14 @@ def calc_pool_stats(df, intro=""):
     df = Q.rp.pool"""
 
     stats_str = intro + "\n"
-    stats_str += "\t{} requests\n".format(len(df))
+    stats_str += "\t{} request sets\n".format(len(df))
     stats_str += "\t{} unique fields\n".format(len(set(df.field_id)))
     for prog_id in PROGRAM_IDS:
         w = df.program_id == prog_id
         stats_str += "\tProgram {}:\n".format(prog_id)
-        stats_str += "\t\t{} requests\n".format(np.sum(w))
+        stats_str += "\t\t{} request sets\n".format(np.sum(w))
         stats_str += "\t\t{} unique fields\n".format(
             len(set(df.loc[w, 'field_id'])))
-#        stats_str += "\t\t{} filters\n".format(
-#            len(set(df.loc[w, 'filter_id'])))
         stats_str += "\t\t{} median requests tonight per field\n".format(
             np.median(df.loc[w, 'total_requests_tonight']))
 

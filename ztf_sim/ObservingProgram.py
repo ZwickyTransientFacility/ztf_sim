@@ -202,12 +202,11 @@ class ObservingProgram(object):
             filter_sequence = self.filter_ids
 
         request_set = []
-        # first visit
         request_set.append(
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
              'field_ids': request_fields.index.values,
-             'filter_id': filter_sequence,
+             'filter_ids': filter_sequence,
              'total_requests_tonight': self.n_visits_per_night})
 
         return request_set
