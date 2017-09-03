@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Calculate basic efficiency statistics for a ztf_sim run."""
+from __future__ import print_function
 
 import sys
 # hack to get the path right
@@ -111,7 +112,7 @@ def calc_stats(sim_name):
     stats['Average Summed Figure of Merit per Science Hour'] = df.metricValue.sum() \
         / stats['Total Science Time (h)']
 
-    for k, v in stats.iteritems():
+    for k, v in stats.items():
         print('{}\t{}'.format(k, v))
     return stats
 

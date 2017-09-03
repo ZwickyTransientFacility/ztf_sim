@@ -57,17 +57,17 @@ MAX_AIRMASS = 2.5
 TIME_BLOCK_SIZE = 30. * u.min
 
 PROGRAM_NAME_TO_ID = {'collaboration': 1, 'MSIP': 2, 'Caltech': 3}
-PROGRAM_NAMES = PROGRAM_NAME_TO_ID.keys()
-PROGRAM_ID_TO_NAME = {v: k for k, v in PROGRAM_NAME_TO_ID.items()}
-PROGRAM_IDS = PROGRAM_ID_TO_NAME.keys()
+PROGRAM_NAMES = list(PROGRAM_NAME_TO_ID.keys())
+PROGRAM_ID_TO_NAME = {v: k for k, v in list(PROGRAM_NAME_TO_ID.items())}
+PROGRAM_IDS = list(PROGRAM_ID_TO_NAME.keys())
 
 PROGRAM_BLOCK_SEQUENCE = [1, 2, 1, 2, 3]
 LEN_BLOCK_SEQUENCE = len(PROGRAM_BLOCK_SEQUENCE)
 
 FILTER_NAME_TO_ID = {'g': 1, 'r': 2, 'i': 3}
-FILTER_NAMES = FILTER_NAME_TO_ID.keys()
-FILTER_ID_TO_NAME = {v: k for k, v in FILTER_NAME_TO_ID.items()}
-FILTER_IDS = FILTER_ID_TO_NAME.keys()
+FILTER_NAMES = list(FILTER_NAME_TO_ID.keys())
+FILTER_ID_TO_NAME = {v: k for k, v in list(FILTER_NAME_TO_ID.items())}
+FILTER_IDS = list(FILTER_ID_TO_NAME.keys())
 
 PIXEL_SCALE = 1.006  # arcsec/pixel
 

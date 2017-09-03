@@ -1,5 +1,8 @@
-from constants import *
-from utils import approx_hours_of_darkness
+from __future__ import absolute_import
+from builtins import range
+from builtins import object
+from .constants import *
+from .utils import approx_hours_of_darkness
 import pdb
 
 

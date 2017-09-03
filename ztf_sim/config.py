@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 
+from builtins import object
 import json
 import numpy as np
-from ObservingProgram import ObservingProgram
-from fields import Fields
-from constants import *
+from .ObservingProgram import ObservingProgram
+from .fields import Fields
+from .constants import *
 
 
 class ZTFConfiguration(object):

@@ -1,3 +1,6 @@
+from __future__ import print_function
+from __future__ import absolute_import
+from builtins import object
 import sklearn
 from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
@@ -6,7 +9,7 @@ from sklearn.externals import joblib
 import xgboost as xgb
 import pandas as pd
 import numpy as np
-from constants import FILTER_NAME_TO_ID
+from .constants import FILTER_NAME_TO_ID
 
 
 class SkyBrightness(object):
@@ -92,7 +95,7 @@ def train_sky_model(filter_name='r', df=None):
     #('rf', ensemble.RandomForestRegressor(n_jobs=-1))])
 
     clf.fit(X_train, y_train.values.reshape(-1, 1))
-    print clf.score(X_test, y_test.values.reshape(-1, 1))
+    print(clf.score(X_test, y_test.values.reshape(-1, 1)))
 
     joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 

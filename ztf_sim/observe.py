@@ -1,12 +1,14 @@
-from ZTFStateMachine import ZTFStateMachine
+from __future__ import print_function
+from __future__ import absolute_import
+from .ZTFStateMachine import ZTFStateMachine
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
-from QueueManager import calc_pool_stats, calc_queue_stats
-from ObsLogger import ObsLogger
-from config import ZTFConfiguration
-from constants import *
+from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
+from .QueueManager import calc_pool_stats, calc_queue_stats
+from .ObsLogger import ObsLogger
+from .config import ZTFConfiguration
+from .constants import *
 
 # check aggressively for setting with copy
 import pandas as pd
@@ -21,7 +23,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
         try:
             from pyinstrument import Profiler
         except ImportError:
-            print 'Error importing pyinstrument'
+            print('Error importing pyinstrument')
             profile = False
 
     ztf_config = ZTFConfiguration('../sims/{}'.format(config_file))
@@ -147,7 +149,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
 
     if profile:
         profiler.stop()
-        print profiler.output_text(unicode=True, color=True)
+        print(profiler.output_text(str=True, color=True))
         with open('../sims/{}_profile.txt'.format(run_name), 'w') as f:
             f.write(profiler.output_text())
 

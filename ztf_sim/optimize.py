@@ -1,12 +1,16 @@
+from __future__ import print_function
+from __future__ import absolute_import
 
 
+from builtins import str
+from builtins import range
 from gurobipy import *
 import numpy as np
 import shelve
 import astropy.units as u
 import pandas as pd
 from collections import defaultdict
-from constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
+from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
 
 #s = shelve.open('tmp_vars.shelf',flag='r')
 #df_metric = s['block_slot_metric']
@@ -94,7 +98,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
     constr_balance = m.addConstrs(
         ((np.sum(dfr.loc[dfr['program_id'] == p, 'Yr'] * 
                  dfr.loc[dfr['program_id'] == p, 'total_requests_tonight']  )
-        <= requests_allowed[p]) for p in requests_allowed.keys()), 
+        <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
         "constr_balance")
 
     # Quick and dirty is okay!
@@ -186,7 +190,7 @@ def slot_optimize(df_metric, df, requests_allowed):
     # program balance
     constr_balance = m.addConstrs(
         ((np.sum(dft.loc[dft['program_id'] == p, 'Yrtf'])
-        <= requests_allowed[p]) for p in requests_allowed.keys()), 
+        <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
         "constr_balance")
 
     # Quick and dirty is okay!

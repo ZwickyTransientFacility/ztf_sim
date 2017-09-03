@@ -1,14 +1,18 @@
+from __future__ import print_function
+from __future__ import absolute_import
 
+from builtins import zip
+from builtins import object
 import numpy as np
 import pandas as pd
-from fields import Fields
-from sky_brightness import SkyBrightness, FakeSkyBrightness
-from magnitudes import limiting_mag
+from .fields import Fields
+from .sky_brightness import SkyBrightness, FakeSkyBrightness
+from .magnitudes import limiting_mag
 import astropy.coordinates as coord
-from cadence import *
-from optimize import request_set_optimize, slot_optimize, tsp_optimize
-from constants import *
-from utils import *
+from .cadence import *
+from .optimize import request_set_optimize, slot_optimize, tsp_optimize
+from .constants import *
+from .utils import *
 import pdb
 
 class QueueEmptyError(Exception):
@@ -88,7 +92,7 @@ class QueueManager(object):
         self.requests_allowed = {id:0 for id in PROGRAM_IDS}
         
         obs_count_by_program = self.fields.count_total_obs_by_program()
-        total_obs = np.sum(obs_count_by_program.values())
+        total_obs = np.sum(list(obs_count_by_program.values()))
         for program in self.observing_programs:
             n_requests = program.number_of_allowed_requests(time)
             delta = np.round(
@@ -102,7 +106,7 @@ class QueueManager(object):
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[program.program_id] += n_requests
 
-        for id, n_requests in self.requests_allowed.items():
+        for id, n_requests in list(self.requests_allowed.items()):
             if n_requests < 0:
                 self.requests_allowed[id] = 0
 

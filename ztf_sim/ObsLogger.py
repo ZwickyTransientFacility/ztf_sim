@@ -1,16 +1,18 @@
+from __future__ import absolute_import
 
+from builtins import object
 import numpy as np
 from sqlalchemy import create_engine
 import sqlite3
 import astropy.coordinates as coord
 import astropy.units as u
 import astroplan.moon
-from fields import Fields
-from utils import *
-from constants import *
+from .fields import Fields
+from .utils import *
+from .constants import *
 
 
-class ObsLogger:
+class ObsLogger(object):
 
     def __init__(self, run_name, survey_start_time):
         self.run_name = run_name
@@ -230,8 +232,8 @@ class ObsLogger:
             request['target_metric_value']
 
         # use placeholders to create the INSERT query
-        columns = ', '.join(record.keys())
-        placeholders = '{' + '}, {'.join(record.keys()) + '}'
+        columns = ', '.join(list(record.keys()))
+        placeholders = '{' + '}, {'.join(list(record.keys())) + '}'
         query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
             columns, placeholders)
         query_filled = query.format(**record)

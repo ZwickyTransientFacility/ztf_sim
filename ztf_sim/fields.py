@@ -1,9 +1,12 @@
 """Routines for working with the ZTF discrete field grid"""
+from __future__ import absolute_import
 
+from builtins import zip
+from builtins import object
 import numpy as np
 import pandas as pd
-from utils import *
-from constants import *
+from .utils import *
+from .constants import *
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
@@ -50,7 +53,7 @@ class Fields(object):
         # intialize with a bad int value
         df['grid_id'] = 99
 
-        for grid_id, bounds in grid_id_boundaries.items():
+        for grid_id, bounds in list(grid_id_boundaries.items()):
             w = (df.index >= bounds['min']) &  \
                     (df.index <= bounds['max'])
             df.loc[w,'grid_id'] = grid_id

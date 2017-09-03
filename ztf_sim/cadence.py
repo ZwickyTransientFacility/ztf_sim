@@ -1,9 +1,10 @@
 
 """Functions defining cadence windows.  Return True if the field can
 be observed at the supplied time."""
+from __future__ import absolute_import
 
 import numpy as np
-from constants import *
+from .constants import *
 
 
 def no_cadence(*args):
@@ -52,10 +53,10 @@ def time_since_obs(request_row, current_state):
         # taken
         return False
 
-    if pars.has_key('window_start') and pars.has_key('window_stop'):
+    if 'window_start' in pars and 'window_stop' in pars:
         window_start_ut = ref_obs + pars['window_start']
         window_stop_ut = ref_obs + pars['window_stop']
-    elif pars.has_key('window_center') and pars.has_key('window_half_width'):
+    elif 'window_center' in pars and 'window_half_width' in pars:
         window_start_ut = ref_obs + \
             pars['window_center'] - pars['window_half_width']
         window_stop_ut = ref_obs + \
