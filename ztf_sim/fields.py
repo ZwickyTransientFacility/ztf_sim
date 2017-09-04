@@ -5,8 +5,8 @@ from builtins import zip
 from builtins import object
 import numpy as np
 import pandas as pd
-from .utils import *
-from .constants import *
+from utils import *
+from constants import *
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time

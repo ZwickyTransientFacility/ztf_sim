@@ -10,7 +10,7 @@ import shelve
 import astropy.units as u
 import pandas as pd
 from collections import defaultdict
-from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
+from constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
 
 #s = shelve.open('tmp_vars.shelf',flag='r')
 #df_metric = s['block_slot_metric']
