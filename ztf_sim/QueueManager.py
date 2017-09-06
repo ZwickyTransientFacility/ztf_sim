@@ -5,15 +5,15 @@ from builtins import zip
 from builtins import object
 import numpy as np
 import pandas as pd
-from fields import Fields
-from sky_brightness import SkyBrightness, FakeSkyBrightness
-from magnitudes import limiting_mag
 import astropy.coordinates as coord
-from cadence import *
-from optimize import request_set_optimize, slot_optimize, tsp_optimize
-from constants import *
-from utils import *
 import pdb
+from .fields import Fields
+from .sky_brightness import SkyBrightness, FakeSkyBrightness
+from .magnitudes import limiting_mag
+from .cadence import *
+from .optimize import request_set_optimize, slot_optimize, tsp_optimize
+from .constants import *
+from .utils import *
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""

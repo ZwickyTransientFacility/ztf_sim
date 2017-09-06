@@ -1,9 +1,9 @@
 from __future__ import absolute_import
 from builtins import range
 from builtins import object
-from constants import *
-from utils import approx_hours_of_darkness
 import pdb
+from .constants import *
+from .utils import approx_hours_of_darkness
 
 
 class ObservingProgram(object):

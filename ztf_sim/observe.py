@@ -1,14 +1,14 @@
 from __future__ import print_function
 from __future__ import absolute_import
-from ZTFStateMachine import ZTFStateMachine
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
-from QueueManager import calc_pool_stats, calc_queue_stats
-from ObsLogger import ObsLogger
-from config import ZTFConfiguration
-from constants import *
+from .ZTFStateMachine import ZTFStateMachine
+from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
+from .QueueManager import calc_pool_stats, calc_queue_stats
+from .ObsLogger import ObsLogger
+from .config import ZTFConfiguration
+from .constants import *
 
 # check aggressively for setting with copy
 import pandas as pd

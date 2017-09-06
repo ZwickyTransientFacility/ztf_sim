@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import numpy as np
 from scipy.interpolate import interp1d
-from constants import *
+from .constants import *
 
 
 # TODO: need to add i-band

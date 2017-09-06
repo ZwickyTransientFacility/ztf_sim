@@ -5,10 +5,10 @@ from astropy.time import Time
 import numpy as np
 import astropy.units as u
 import astropy.coordinates as coord
-from utils import *
-from constants import *
 import logging
 from transitions import logger
+from .utils import *
+from .constants import *
 
 
 class ZTFStateMachine(Machine):

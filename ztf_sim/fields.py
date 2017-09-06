@@ -5,13 +5,13 @@ from builtins import zip
 from builtins import object
 import numpy as np
 import pandas as pd
-from utils import *
-from constants import *
 import astropy.coordinates as coord
 import astropy.units as u
 from astropy.time import Time
 from collections import defaultdict
 import itertools
+from .utils import *
+from .constants import *
 
 
 class Fields(object):
