@@ -9,15 +9,15 @@ from sklearn.externals import joblib
 import xgboost as xgb
 import pandas as pd
 import numpy as np
-from .constants import FILTER_NAME_TO_ID
+from .constants import FILTER_NAME_TO_ID, BASE_DIR
 
 
 class SkyBrightness(object):
 
     def __init__(self):
-        self.clf_r = joblib.load('../data/sky_model/sky_model_r.pkl')
-        self.clf_g = joblib.load('../data/sky_model/sky_model_g.pkl')
-        self.clf_i = joblib.load('../data/sky_model/sky_model_i.pkl')
+        self.clf_r = joblib.load(BASE_DIR + '../data/sky_model/sky_model_r.pkl')
+        self.clf_g = joblib.load(BASE_DIR + '../data/sky_model/sky_model_g.pkl')
+        self.clf_i = joblib.load(BASE_DIR + '../data/sky_model/sky_model_i.pkl')
 
     def predict(self, df):
         """df is a dataframe with columns:
@@ -62,7 +62,7 @@ def train_sky_model(filter_name='r', df=None):
     filterid_map = {'r': 2, 'g': 1, 'i': 4}
 
     if df is None:
-        df = pd.read_csv('../data/ptf-iptf_diq.csv.gz')
+        df = pd.read_csv(BASE_DIR + '../data/ptf-iptf_diq.csv.gz')
     # note that this is by pid, so there are multiple entries per image...
 
     df = df[df['filterkey'] == filterid_map[filter_name]]
@@ -97,6 +97,6 @@ def train_sky_model(filter_name='r', df=None):
     clf.fit(X_train, y_train.values.reshape(-1, 1))
     print(clf.score(X_test, y_test.values.reshape(-1, 1)))
 
-    joblib.dump(clf, '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
+    joblib.dump(clf, BASE_DIR + '../data/sky_model/sky_model_{}.pkl'.format(filter_name))
 
     return clf

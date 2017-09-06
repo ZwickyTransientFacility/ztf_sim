@@ -16,7 +16,8 @@ def df_write_to_sqlite(df, dbname, tablename=None,
 
     if tablename is None:
         tablename = dbname
-    engine = create_engine('sqlite:///../{}/{}.db'.format(directory, dbname))
+    engine = create_engine('sqlite:///{}../{}/{}.db'.format(BASE_DIR,
+        directory, dbname))
     df.to_sql(tablename, engine, if_exists='replace', **kwargs)
 
 
@@ -25,7 +26,8 @@ def df_read_from_sqlite(dbname, tablename=None,
 
     if tablename is None:
         tablename = dbname
-    engine = create_engine('sqlite:///../{}/{}.db'.format(directory, dbname))
+    engine = create_engine('sqlite:///{}../{}/{}.db'.format(BASE_DIR,
+        directory, dbname))
     df = pd.read_sql(tablename, engine, **kwargs)
 
     return df
@@ -169,7 +171,7 @@ def bin_ptf_obstimes(time_block_size=TIME_BLOCK_SIZE):
     including H-alpha) into
     blocks to use for weather analysis."""
 
-    df = pd.read_table('../data/mjd.txt.gz', sep='|',
+    df = pd.read_table(BASE_DIR + '../data/mjd.txt.gz', sep='|',
                        names=['expMJD'],
                        skipfooter=1)
     t = Time(df['expMJD'], format='mjd', location=P48_loc)
@@ -266,7 +268,7 @@ def _ptf_to_sqlite():
     # e.nid, e.exptime, e.airmass,
     # e.obslst, e.altitude, e.azimuth, e.moonra, e.moondec, e.moonalt, e.moonphas, \
     # e.windspeed, e.outrelhu
-    df = pd.read_table('../data/opsim_dump.txt.gz', sep='|',
+    df = pd.read_table(BASE_DIR + '../data/opsim_dump.txt.gz', sep='|',
                        names=['obsHistID', 'propID', 'fieldID', 'fieldRA_deg', 'fieldDec_deg',
                               'filter', 'expMJD', 'night', 'visitExpTime', 'airmass',
                               'lst', 'altitude', 'azimuth', 'moonRA', 'moonDec', 'moonAlt', 'moonPhase',
@@ -275,7 +277,7 @@ def _ptf_to_sqlite():
 
     # sky
     # e.expid, qa.fwhmsex, sdqa.metricvalue
-    df_sky = pd.read_table('../data/opsim_dump_sky.txt.gz', sep='|',
+    df_sky = pd.read_table(BASE_DIR + '../data/opsim_dump_sky.txt.gz', sep='|',
                            names=['obsHistID', 'finSeeing',
                                   'filtSkyBrightness'],
                            # have to use converters otherwise filtSkyBrightness
@@ -292,7 +294,7 @@ def _ptf_to_sqlite():
 
     # limmag
     # e.expid, qa.fwhmsex, sdqa.metricvalue
-    df_lim = pd.read_table('../data/opsim_dump_sky.txt.gz', sep='|',
+    df_lim = pd.read_table(BASE_DIR + '../data/opsim_dump_sky.txt.gz', sep='|',
                            names=['obsHistID', 'finSeeing', 'fiveSigmaDepth'],
                            converters={
                                'fiveSigmaDepth': lambda x: np.float(x)},

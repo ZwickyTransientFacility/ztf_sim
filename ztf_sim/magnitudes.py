@@ -8,7 +8,7 @@ from .constants import *
 # TODO: need to add i-band
 def interp_R20_airmass(filter_id=2):
     """Returns function to interpolate electrons/sec of a 20th mag source as a function of altitude."""
-    R20_file = '../data/R20_absorbed_ZTF{}.txt'.format(
+    R20_file = BASE_DIR + '../data/R20_absorbed_ZTF{}.txt'.format(
         FILTER_ID_TO_NAME[filter_id])
     data = np.loadtxt(R20_file)
     alt = data[:, 0]

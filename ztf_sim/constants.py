@@ -1,9 +1,15 @@
 
+import os
+import inspect
 import numpy as np
 from astropy.time import Time
 import astropy.coordinates as coords
 import astropy.units as u
 import astroplan
+
+BASE_DIR = os.path.dirname(os.path.abspath(inspect.getfile(
+                inspect.currentframe()))) + '/'
+
 
 P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.35s'),
                                lon=coords.Longitude('-116d51m32.04s'),

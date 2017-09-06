@@ -26,7 +26,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
             print('Error importing pyinstrument')
             profile = False
 
-    ztf_config = ZTFConfiguration('../sims/{}'.format(config_file))
+    ztf_config = ZTFConfiguration(BASE_DIR + '../sims/{}'.format(config_file))
 
     # load config parameters into local variables
     run_name = ztf_config.config['run_name']
@@ -51,7 +51,7 @@ def observe(config_file, profile=False, raise_queue_empty=True):
     tel = ZTFStateMachine(
         current_time=survey_start_time,
         historical_observability_year=weather_year,
-        logfile='../sims/{}_log.txt'.format(run_name))
+        logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
 
     # set up QueueManager
     Q = GurobiQueueManager(block_programs=block_programs)

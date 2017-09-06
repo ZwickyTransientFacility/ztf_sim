@@ -20,8 +20,8 @@ class ObsLogger(object):
         self.prev_obs = None
         self.mjd_tonight = None
         self.moon_illumination_tonight = None
-        self.engine = create_engine('sqlite:///../sims/{}.db'.format(
-            self.run_name))
+        self.engine = create_engine('sqlite:///{}../sims/{}.db'.format(
+            BASE_DIR, self.run_name))
         self.conn = self.engine.connect()
         self.create_fields_table(clobber=True)
         self.create_pointing_log(clobber=True)
