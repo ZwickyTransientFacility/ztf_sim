@@ -122,7 +122,7 @@ def seeing_at_pointing(zenith_seeing, altitude):
 
 
 def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
-                             latitude=P48_loc.latitude, twilight=coord.Angle(12. * u.degree)):
+                             latitude=P48_loc.lat, twilight=coord.Angle(12. * u.degree)):
     """Compute the hours of darkness (greater than t degrees twilight)
 
     The main approximation is a casual treatment of the time since the solstice"""
