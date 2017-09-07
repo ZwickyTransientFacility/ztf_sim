@@ -7,7 +7,7 @@ import sqlite3
 import astropy.coordinates as coord
 import astropy.units as u
 import astroplan.moon
-from .fields import Fields
+from .Fields import Fields
 from .utils import *
 from .constants import *
 

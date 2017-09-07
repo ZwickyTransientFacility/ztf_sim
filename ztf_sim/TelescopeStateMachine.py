@@ -11,7 +11,7 @@ from .utils import *
 from .constants import *
 
 
-class ZTFStateMachine(Machine):
+class TelescopeStateMachine(Machine):
 
     def __init__(self, current_time=Time('2018-01-01', scale='utc',
                                          location=P48_loc),
@@ -20,7 +20,7 @@ class ZTFStateMachine(Machine):
                  current_filter_id=2, filters=FILTER_IDS,
                  current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,
-                 logfile='../sims/log_ztf_sim',
+                 logfile=BASE_DIR + '../sims/log_ztf_sim',
                  historical_observability_year=2015):
 
         # Define some states.

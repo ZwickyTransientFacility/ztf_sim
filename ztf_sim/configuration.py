@@ -4,11 +4,11 @@ from builtins import object
 import json
 import numpy as np
 from .ObservingProgram import ObservingProgram
-from .fields import Fields
+from .Fields import Fields
 from .constants import *
 
 
-class ZTFConfiguration(object):
+class Configuration(object):
 
     def __init__(self, config_file):
 

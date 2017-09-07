@@ -3,11 +3,11 @@ from __future__ import absolute_import
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
-from .ZTFStateMachine import ZTFStateMachine
+from .TelescopeStateMachine import TelescopeStateMachine
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from .QueueManager import calc_pool_stats, calc_queue_stats
 from .ObsLogger import ObsLogger
-from .config import ZTFConfiguration
+from .configuration import Configuration
 from .constants import *
 
 # check aggressively for setting with copy
@@ -26,7 +26,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             print('Error importing pyinstrument')
             profile = False
 
-    ztf_config = ZTFConfiguration(BASE_DIR + '../sims/{}'.format(config_file))
+    ztf_config = Configuration(BASE_DIR + '../sims/{}'.format(config_file))
 
     # load config parameters into local variables
     run_name = ztf_config.config['run_name']
@@ -48,7 +48,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
 
     survey_start_time = Time(start_time, scale='utc', location=P48_loc)
 
-    tel = ZTFStateMachine(
+    tel = TelescopeStateMachine(
         current_time=survey_start_time,
         historical_observability_year=weather_year,
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))

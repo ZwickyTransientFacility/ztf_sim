@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
 import pdb
-from .fields import Fields
-from .sky_brightness import SkyBrightness, FakeSkyBrightness
+from .Fields import Fields
+from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
 from .cadence import *
 from .optimize import request_set_optimize, slot_optimize, tsp_optimize
