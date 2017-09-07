@@ -6,7 +6,7 @@ from .config import *
 from .constants import *
 from .fields import *
 from .magnitudes import *
-from .observe import *
+from .simulate import *
 from .sky_brightness import *
 from .utils import *
 set()

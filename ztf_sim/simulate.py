@@ -17,7 +17,7 @@ pd.options.mode.chained_assignment = 'raise'  # default='warn'
 # TODO: tag database with commit hash
 
 
-def observe(config_file, profile=False, raise_queue_empty=True):
+def simulate(config_file, profile=False, raise_queue_empty=True):
 
     if profile:
         try:
