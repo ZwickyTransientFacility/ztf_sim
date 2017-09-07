@@ -7,7 +7,7 @@ from .TelescopeStateMachine import TelescopeStateMachine
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from .QueueManager import calc_pool_stats, calc_queue_stats
 from .ObsLogger import ObsLogger
-from .configuration import Configuration
+from .configuration import ObservingProgramConfiguration
 from .constants import *
 
 # check aggressively for setting with copy
@@ -26,7 +26,8 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             print('Error importing pyinstrument')
             profile = False
 
-    ztf_config = Configuration(BASE_DIR + '../sims/{}'.format(config_file))
+    ztf_config = ObservingProgramConfiguration(
+            BASE_DIR + '../sims/{}'.format(config_file))
 
     # load config parameters into local variables
     run_name = ztf_config.config['run_name']

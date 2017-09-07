@@ -13,13 +13,19 @@ class Configuration(object):
     def __init__(self, config_file):
 
         self.load_configuration(config_file)
-        self.check_configuration()
 
     def load_configuration(self, config_file):
         with open(config_file, 'r') as f:
             config = json.load(f)
         # TODO: construct and validate a schema
         self.config = config
+
+
+class ObservingProgramConfiguration(Configuration):
+
+    def __init__(self, config_file):
+        super(ObservingProgramConfiguration, self).__init__(config_file)
+        self.check_configuration()
 
     def check_configuration(self):
 
