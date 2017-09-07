@@ -1,6 +1,7 @@
 from .Fields import *
 from .ObsLogger import *
 from .ObservingProgram import *
+from .Scheduler import *
 from .SkyBrightness import *
 from .TelescopeStateMachine import *
 from .cadence import *
