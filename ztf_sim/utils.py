@@ -8,7 +8,9 @@ import astropy.units as u
 import astroplan
 from sqlalchemy import create_engine
 from datetime import datetime
-from .constants import *
+from .constants import BASE_DIR, P48_loc, P48_Observer, TIME_BLOCK_SIZE 
+
+
 
 
 def df_write_to_sqlite(df, dbname, tablename=None,

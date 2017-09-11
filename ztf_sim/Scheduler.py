@@ -2,6 +2,9 @@
 from builtins import object
 from .QueueManager import ListQueueManager, GreedyQueueManager, GurobiQueueManager
 from .configuration import ObservingProgramConfiguration
+from .constants import BASE_DIR
+
+
 
 
 
@@ -18,8 +21,13 @@ class Scheduler(object):
         # use for swapping queues in the night, e.g. for TOOs
         self.prev_Q = None
 
+        self.set_queue_manager(queue_manager = queue_manager)
 
-    def set_queue_manager(self, queue_manager = 'gurobi')
+        for op in self.observing_programs:
+            self.Q.add_observing_program(op)
+
+
+    def set_queue_manager(self, queue_manager = 'gurobi'):
 
         assert (queue_manager in ('list', 'greedy', 'gurobi'))
 

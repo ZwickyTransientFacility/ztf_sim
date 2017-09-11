@@ -2,7 +2,10 @@ from __future__ import absolute_import
 from builtins import range
 from builtins import object
 import pdb
-from .constants import *
+import numpy as np
+import astropy.units as u
+from astropy.time import Time
+from .constants import EXPOSURE_TIME, READOUT_TIME
 from .utils import approx_hours_of_darkness
 
 

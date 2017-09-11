@@ -1,14 +1,17 @@
 from __future__ import print_function
 from __future__ import absolute_import
+import numpy as np
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
 from .TelescopeStateMachine import TelescopeStateMachine
+from .Scheduler import Scheduler
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from .QueueManager import calc_pool_stats, calc_queue_stats
 from .ObsLogger import ObsLogger
 from .configuration import ObservingProgramConfiguration
-from .constants import *
+from .constants import BASE_DIR, P48_loc
+
 
 # check aggressively for setting with copy
 import pandas as pd
@@ -54,17 +57,15 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         historical_observability_year=weather_year,
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
 
-    # set up QueueManager
-    Q = GurobiQueueManager(block_programs=block_programs)
-
-    for op in observing_programs:
-        Q.add_observing_program(op)
+    # set up Scheduler
+    # TODO: make queue manager a config parameter
+    scheduler = Scheduler(config_file, queue_manager='gurobi')
 
     # initialize nightly field requests (Tom Barlow function)
-    Q.assign_nightly_requests(tel.current_state_dict())
+    scheduler.Q.assign_nightly_requests(tel.current_state_dict())
     # log pool stats
     tel.logger.info(calc_pool_stats(
-        Q.rp.pool, intro="Nightly requests initialized"))
+        scheduler.Q.rp.pool, intro="Nightly requests initialized"))
 
     # initialize sqlite history
     log = ObsLogger(run_name, tel.current_time)
@@ -76,19 +77,19 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         # check if it is a new night and reload queue with new requests
         if np.floor(tel.current_time.mjd) > current_night_mjd:
             log.prev_obs = None
-            Q.assign_nightly_requests(tel.current_state_dict())
+            scheduler.Q.assign_nightly_requests(tel.current_state_dict())
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             tel.logger.info(calc_pool_stats(
-                Q.rp.pool, intro="Nightly requests initialized"))
+                scheduler.Q.rp.pool, intro="Nightly requests initialized"))
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
             # get coords
             try:
-                next_obs = Q.next_obs(current_state)
+                next_obs = scheduler.Q.next_obs(current_state)
                 # TODO: debugging check...
-                assert(next_obs['request_id'] in Q.queue.index)
+                assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
                 if not raise_queue_empty:
                     tel.logger.info("Queue empty!  Waiting...")
@@ -97,10 +98,10 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
                     continue
                 else:
                     tel.logger.info(calc_queue_stats(
-                        Q.queue, current_state,
+                        scheduler.Q.queue, current_state,
                         intro="Queue returned no next_obs. Current queue status:"))
                     tel.logger.info(calc_pool_stats(
-                        Q.rp.pool, intro="Current pool status:"))
+                        scheduler.Q.rp.pool, intro="Current pool status:"))
 
                     # TODO: in py3, chained exceptions come for free
                     raise QueueEmptyError
@@ -138,11 +139,11 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
                 current_state = tel.current_state_dict()
                 log.log_pointing(current_state, next_obs)
                 # b) update Fields
-                Q.fields.mark_field_observed(next_obs, current_state)
+                scheduler.Q.fields.mark_field_observed(next_obs, current_state)
                 # c) remove completed request_id from the pool and the queue
                 # TODO: debugging check
-                assert(next_obs['request_id'] in Q.queue.index)
-                Q.remove_requests(next_obs['request_id'])
+                assert(next_obs['request_id'] in scheduler.Q.queue.index)
+                scheduler.Q.remove_requests(next_obs['request_id'])
         else:
             log.prev_obs = None
             tel.set_cant_observe()

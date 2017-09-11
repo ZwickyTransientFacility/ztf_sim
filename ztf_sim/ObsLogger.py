@@ -9,7 +9,7 @@ import astropy.units as u
 import astroplan.moon
 from .Fields import Fields
 from .utils import *
-from .constants import *
+from .constants import BASE_DIR, FILTER_ID_TO_NAME
 
 
 class ObsLogger(object):

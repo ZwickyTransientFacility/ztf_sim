@@ -11,7 +11,8 @@ from astropy.time import Time
 from collections import defaultdict
 import itertools
 from .utils import *
-from .constants import *
+from .constants import BASE_DIR, P48_loc, PROGRAM_IDS, FILTER_IDS
+from .constants import TIME_BLOCK_SIZE, MAX_AIRMASS, EXPOSURE_TIME
 
 
 class Fields(object):
@@ -324,7 +325,7 @@ class Fields(object):
                     program_id, filter_id)] = np.nan
 
 
-def generate_test_field_grid(filename='../data/ZTF_fields.txt',
+def generate_test_field_grid(filename=BASE_DIR+'../data/ZTF_fields.txt',
                              dbname='test_fields'):
     """Convert Eran's field grid to sqlite"""
 

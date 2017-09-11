@@ -3,9 +3,10 @@ from __future__ import absolute_import
 from builtins import object
 import json
 import numpy as np
+import astropy.units as u
 from .ObservingProgram import ObservingProgram
 from .Fields import Fields
-from .constants import *
+from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID
 
 
 class Configuration(object):

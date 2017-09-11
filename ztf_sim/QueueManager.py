@@ -12,7 +12,9 @@ from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
 from .cadence import *
 from .optimize import request_set_optimize, slot_optimize, tsp_optimize
-from .constants import *
+from .constants import PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
+from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
+from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE
 from .utils import *
 
 class QueueEmptyError(Exception):

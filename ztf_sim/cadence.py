@@ -4,7 +4,7 @@ be observed at the supplied time."""
 from __future__ import absolute_import
 
 import numpy as np
-from .constants import *
+from .constants import FILTER_IDS
 
 
 def no_cadence(*args):
