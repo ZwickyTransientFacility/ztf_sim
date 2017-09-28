@@ -78,9 +78,9 @@ class QueueManager(object):
                 current_state['current_time'], self.fields,
                 block_programs=self.block_programs)
             for rs in request_sets:
-                self.rp.add_request_sets(rs['program_id'], rs['field_ids'],
-                                     rs['filter_ids'], 
-                                     rs['total_requests_tonight'])
+                self.rp.add_request_sets(rs['program_id'], 
+                            rs['subprogram_name'], rs['field_ids'],
+                            rs['filter_ids'], rs['total_requests_tonight'])
 
         assert(len(self.rp.pool) > 0)
 
@@ -213,6 +213,7 @@ class GurobiQueueManager(QueueManager):
             'target_dec': self.queue.ix[idx].dec,
             'target_filter_id': int(self.filter_by_slot[self.queue_slot]),
             'target_program_id': int(self.queue.ix[idx].program_id),
+            'target_subprogram_name': self.queue.ix[idx].subprogram_name,
             'target_exposure_time': EXPOSURE_TIME,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
@@ -414,6 +415,7 @@ class GreedyQueueManager(QueueManager):
                 'target_dec': self.queue.ix[max_idx].dec,
                 'target_filter_id': self.queue.ix[max_idx].filter_id,
                 'target_program_id': self.queue.ix[max_idx].program_id,
+                'target_subprogram_name': self.queue.ix[max_idx].subprogram_name,
                 'target_exposure_time': EXPOSURE_TIME,
                 'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
                 'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
@@ -629,6 +631,7 @@ class ListQueueManager(QueueManager):
             'target_dec': self.queue.iloc[idx].dec,
             'target_filter_id': self.queue.iloc[idx].filter_id,
             'target_program_id': int(self.queue.iloc[idx].program_id),
+            'target_subprogram_name': self.queue.iloc[idx].subprogram_name,
             'target_exposure_time': texp,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
@@ -653,12 +656,12 @@ class RequestPool(object):
         self.pool = pd.DataFrame()
         pass
 
-    def add_request_sets(self, program_id, field_ids, filter_ids,
-                     total_requests_tonight, 
-                     priority=1):
+    def add_request_sets(self, program_id, subprogram_name, 
+                field_ids, filter_ids, total_requests_tonight, priority=1):
         """program_ids must be scalar"""
 
         assert (scalar_len(program_id) == 1) 
+        assert (scalar_len(subprogram_name) == 1) 
 
         n_fields = scalar_len(field_ids)
         if n_fields == 1:
@@ -669,6 +672,7 @@ class RequestPool(object):
         for i, field_id in enumerate(field_ids):
             request_sets.append({
                 'program_id': program_id,
+                'subprogram_name': subprogram_name,
                 'field_id': field_id,
                 'filter_ids': filter_ids,
                 'total_requests_tonight': total_requests_tonight,
