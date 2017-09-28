@@ -282,13 +282,15 @@ class Fields(object):
         cuts = self.select_fields(**kwargs)
         return self.fields[cuts].index
 
-    def mark_field_observed(self, request, current_state):
+    def mark_field_observed(self, request, current_time):
         """Update time last observed and number of observations for a single field"""
 
         field_id = request['target_field_id']
         program_id = request['target_program_id']
         filter_id = request['target_filter_id']
-        time_obs = current_state['current_time'] - EXPOSURE_TIME
+        # don't try to correct this to the actual observation time,
+        # because we don't have an easy way to get the readout overheads
+        time_obs = current_time
 
         # need this syntax to avoid setting on a copy
         self.fields.loc[field_id,
