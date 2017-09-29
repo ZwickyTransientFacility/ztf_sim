@@ -312,7 +312,7 @@ def _ptf_to_sqlite():
 
     # a small number of bad rows came through
     wgood = np.isfinite(df['expMJD'])
-    df = df.ix[wgood]
+    df = df.loc[wgood]
 
     # add additional columns in OpSim db
     df['sessionID'] = 0

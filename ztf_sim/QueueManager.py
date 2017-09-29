@@ -206,29 +206,27 @@ class GurobiQueueManager(QueueManager):
             raise QueueEmptyError("Ran out of observations this block.") 
         
         idx = self.queue_order[0]
+        row = self.queue.loc[idx]
 
         # TODO: make the queue have the right datatypes
-        next_obs = {'target_field_id': int(self.queue.ix[idx].field_id),
-            'target_ra': self.queue.ix[idx].ra,
-            'target_dec': self.queue.ix[idx].dec,
+        next_obs = {'target_field_id': int(row['field_id']),
+            'target_ra': row['ra'],
+            'target_dec': row['dec'],
             'target_filter_id': int(self.filter_by_slot[self.queue_slot]),
-            'target_program_id': int(self.queue.ix[idx].program_id),
-            'target_subprogram_name': self.queue.ix[idx].subprogram_name,
+            'target_program_id': int(row['program_id']),
+            'target_subprogram_name': row['subprogram_name'],
             'target_exposure_time': EXPOSURE_TIME,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
             'target_total_requests_tonight':
-            int(self.queue.ix[idx].total_requests_tonight),
+            int(row['total_requests_tonight']),
             'request_id': idx}
 
 #            'target_sky_brightness': self.queue.ix[idx].sky_brightness,
 #            'target_limiting_mag': self.queue.ix[idx].limiting_mag,
 #            'target_metric_value':  self.queue.ix[idx].value,
 #            'target_request_number_tonight':
-#            'target_total_requests_tonight':
-#            self.queue.ix[idx].total_requests_tonight,
-#            'request_id': idx}
 
         return next_obs
 
@@ -396,9 +394,10 @@ class GreedyQueueManager(QueueManager):
 
         # request_id of the highest value request
         max_idx = self.queue.value.argmax()
+        row = self.queue[max_idx]
 
         # enforce program balance
-        progid = self.queue.ix[max_idx].program_id
+        progid = row['program_id']
         if ((self.requests_completed[progid] + 1) >= 
                 self.requests_allowed[progid]):
             # this program has used up all its obs for tonight.
@@ -410,18 +409,17 @@ class GreedyQueueManager(QueueManager):
             # and request a new next_obs
             next_obs = self._next_obs(current_state)
         else:
-            next_obs = {'target_field_id': self.queue.ix[max_idx].field_id,
-                'target_ra': self.queue.ix[max_idx].ra,
-                'target_dec': self.queue.ix[max_idx].dec,
-                'target_filter_id': self.queue.ix[max_idx].filter_id,
-                'target_program_id': self.queue.ix[max_idx].program_id,
-                'target_subprogram_name': self.queue.ix[max_idx].subprogram_name,
+            next_obs = {'target_field_id': row['field_id'],
+                'target_ra': row['ra'],
+                'target_dec': row['dec'],
+                'target_filter_id': row['filter_id'],
+                'target_program_id': row['program_id'],
+                'target_subprogram_name': row['subprogram_name'],
                 'target_exposure_time': EXPOSURE_TIME,
-                'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
-                'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
-                'target_metric_value':  self.queue.ix[max_idx].value,
-                'target_total_requests_tonight':
-                self.queue.ix[max_idx].total_requests_tonight,
+#                'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
+#                'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
+#                'target_metric_value':  self.queue.ix[max_idx].value,
+                'target_total_requests_tonight': row['total_requests_tonight'],
                 'request_id': max_idx}
 
         return next_obs
