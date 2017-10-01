@@ -169,6 +169,31 @@ class QueueManager(object):
             df.loc[wup, 'sky_brightness'],
             filter_id = df.loc[wup,'filter_id'],
             altitude = df.loc[wup,'altitude'], SNR=5.)
+
+        # renormalize limiting mags to the R-band range so we maintain 
+        # the causal structure with airmass, etc. but can get i-band scheduled
+        
+        # bright time limiting mags (from PTF-trained model--see 170930 notes
+        # and plot_sky_brightness_model.ipynb)
+        mlim_bright_g = 19.9
+        mlim_bright_r = 20.1
+        mlim_bright_i = 19.5
+        dm_g = (21.9-19.9)
+        dm_r = (21.5-20.1)
+        dm_i = (20.9-19.5)
+
+        wg = df['filter_id'] == 1
+        if np.sum(wg):
+            df.loc[wg,'limiting_mag'] = \
+                (df.loc[wg,'limiting_mag'] - mlim_bright_g) * dm_r/dm_g \
+                + mlim_bright_r
+
+        wi = df['filter_id'] == 3
+        if np.sum(wi):
+            df.loc[wi,'limiting_mag'] = \
+                (df.loc[wi,'limiting_mag'] - mlim_bright_i) * dm_r/dm_i \
+                + mlim_bright_r
+
         # assign a very bright limiting mag to the fields that are down 
         # so the metric goes to zero
         df.loc[~wup, 'limiting_mag'] = -99
