@@ -27,7 +27,7 @@ class SkyBrightness(object):
         azimuth: degrees
         altitude: degrees
         sunalt: degrees
-        filterkey: 1, 2, 4"""
+        filterkey: 1, 2, 3"""
 
         filter_ids = df['filter_id'].unique()
         assert(np.sum(filter_ids > 3) == 0)
