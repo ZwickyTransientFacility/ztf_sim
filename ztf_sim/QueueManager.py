@@ -336,10 +336,12 @@ class GurobiQueueManager(QueueManager):
     def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
 
-        self.queue_slot = block_index(current_state['current_time'])
+        self.queue_slot = block_index(current_state['current_time'])[0]
+
+        assert(self.queue_slot in self.queued_requests_by_slot.index)
 
         # retrieve requests to be observed in this block
-        req_list = self.queued_requests_by_slot[self.queue_slot].values[0]
+        req_list = self.queued_requests_by_slot[self.queue_slot]
 
         # request_set ids should be unique per block
         assert( (len(set(req_list)) == len(req_list) ) )
@@ -365,7 +367,7 @@ class GurobiQueueManager(QueueManager):
             return slew_time(axis, angle * u.deg)
 
         slews_by_axis['dome'] = coord_to_slewtime(
-            df[self.queue_slot], axis='dome')
+            df['azimuth'], axis='dome')
         slews_by_axis['dec'] = coord_to_slewtime(
             df['dec'], axis='dec')
         slews_by_axis['ra'] = coord_to_slewtime(
