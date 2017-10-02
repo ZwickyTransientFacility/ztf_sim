@@ -336,7 +336,9 @@ class GurobiQueueManager(QueueManager):
     def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
 
-        self.queue_slot = block_index(current_state['current_time'])
+        self.queue_slot = block_index(current_state['current_time'])[0]
+
+        assert(self.queue_slot in self.queued_requests_by_slot.index)
 
         # retrieve requests to be observed in this block
         req_list = self.queued_requests_by_slot[self.queue_slot].values[0]
