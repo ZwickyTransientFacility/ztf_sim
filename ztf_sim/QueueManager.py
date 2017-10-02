@@ -341,7 +341,7 @@ class GurobiQueueManager(QueueManager):
         assert(self.queue_slot in self.queued_requests_by_slot.index)
 
         # retrieve requests to be observed in this block
-        req_list = self.queued_requests_by_slot[self.queue_slot].values[0]
+        req_list = self.queued_requests_by_slot[self.queue_slot]
 
         # request_set ids should be unique per block
         assert( (len(set(req_list)) == len(req_list) ) )
