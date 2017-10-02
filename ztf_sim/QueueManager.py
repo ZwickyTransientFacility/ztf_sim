@@ -367,7 +367,7 @@ class GurobiQueueManager(QueueManager):
             return slew_time(axis, angle * u.deg)
 
         slews_by_axis['dome'] = coord_to_slewtime(
-            df[self.queue_slot], axis='dome')
+            df['azimuth'], axis='dome')
         slews_by_axis['dec'] = coord_to_slewtime(
             df['dec'], axis='dec')
         slews_by_axis['ra'] = coord_to_slewtime(
