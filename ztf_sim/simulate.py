@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import absolute_import
+import configparser
 import numpy as np
 import astropy.coordinates as coord
 from astropy.time import Time
@@ -20,7 +21,8 @@ pd.options.mode.chained_assignment = 'raise'  # default='warn'
 # TODO: tag database with commit hash
 
 
-def simulate(config_file, profile=False, raise_queue_empty=True):
+def simulate(observing_program_config_file, run_config_file = 'default.cfg',
+        profile=False, raise_queue_empty=True):
 
     if profile:
         try:
@@ -29,18 +31,23 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             print('Error importing pyinstrument')
             profile = False
 
-    ztf_config = ObservingProgramConfiguration(
-            BASE_DIR + '../sims/{}'.format(config_file))
+    run_config = configparser.ConfigParser()
+    run_config.read(BASE_DIR+'../config/{}'.format(run_config_file))
 
     # load config parameters into local variables
-    run_name = ztf_config.config['run_name']
-    start_time = ztf_config.config['start_time']
-    weather_year = ztf_config.config['weather_year']
-    if weather_year == "None":
+    start_time = run_config['simulation']['start_time']
+    weather_year = run_config['simulation'].getint(['weather_year'])
+    if ((weather_year.lower() == "none") or (len(weather_year) == 0)):
         weather_year = None
-    survey_duration = ztf_config.config['survey_duration_days'] * u.day
-    block_programs = ztf_config.config['block_programs']
-    observing_programs = ztf_config.build_observing_programs()
+    survey_duration = \
+        run_config['simulation'].getfloat(['survey_duration_days']) * u.day
+    block_programs = run_config['simulation'].getboolean(['block_programs'])
+
+    op_config = ObservingProgramConfiguration(
+            BASE_DIR + '../sims/{}'.format(observing_program_config_file))
+
+    run_name = op_config.config['run_name']
+    observing_programs = op_config.build_observing_programs()
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -68,7 +75,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         scheduler.Q.rp.pool, intro="Nightly requests initialized"))
 
     # initialize sqlite history
-    log = ObsLogger(run_name, tel.current_time)
+    log = ObsLogger(run_name, survey_start_time=tel.current_time)
 
     current_night_mjd = np.floor(tel.current_time.mjd)
 
