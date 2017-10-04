@@ -74,9 +74,6 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
     tel.logger.info(calc_pool_stats(
         scheduler.Q.rp.pool, intro="Nightly requests initialized"))
 
-    # initialize sqlite history
-    log = ObsLogger(run_name, survey_start_time=tel.current_time)
-
     current_night_mjd = np.floor(tel.current_time.mjd)
 
     while tel.current_time < (survey_start_time + survey_duration):
@@ -85,7 +82,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         if np.floor(tel.current_time.mjd) > current_night_mjd:
             # use the state machine to allow us to skip weathered out nights
             #if tel.check_if_ready():
-            log.prev_obs = None
+            scheduler.log.prev_obs = None
             scheduler.Q.assign_nightly_requests(tel.current_state_dict())
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
@@ -102,7 +99,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             except QueueEmptyError:
                 if not raise_queue_empty:
                     tel.logger.info("Queue empty!  Waiting...")
-                    log.prev_obs = None
+                    scheduler.log.prev_obs = None
                     tel.wait()
                     continue
                 else:
@@ -119,7 +116,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
                 if not tel.start_filter_change(next_obs['target_filter_id']):
                     tel.logger.info("Filter change failure!  Waiting...")
-                    log.prev_obs = None
+                    scheduler.log.prev_obs = None
                     tel.wait()
                     continue
 
@@ -131,7 +128,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
-                log.prev_obs = None
+                scheduler.log.prev_obs = None
                 tel.wait()
                 continue
 
@@ -139,14 +136,14 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             if not tel.start_exposing():
                 tel.set_cant_observe()
                 tel.logger.info("Exposure failure!  Waiting...")
-                log.prev_obs = None
+                scheduler.log.prev_obs = None
                 tel.wait()
                 continue
             else:
                 # exposure completed successfully.  now
                 # a) store exposure information in pointing history sqlite db
                 current_state = tel.current_state_dict()
-                log.log_pointing(current_state, next_obs)
+                scheduler.log.log_pointing(current_state, next_obs)
                 # b) update Fields
                 scheduler.Q.fields.mark_field_observed(next_obs, 
                         current_state['current_time'])
@@ -156,7 +153,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
                 # TODO: check this with request sets...
                 scheduler.Q.remove_requests(next_obs['request_id'])
         else:
-            log.prev_obs = None
+            scheduler.log.prev_obs = None
             tel.set_cant_observe()
             tel.wait()
 
