@@ -169,10 +169,11 @@ class ObsLogger(object):
                             record['fieldDec'] * u.radian)
         altaz = skycoord_to_altaz(sc, exposure_start)
 
-        pointing_seeing = seeing_at_pointing(state['current_zenith_seeing'].to(
+        if 'current_zenith_seeing' in state:
+            pointing_seeing = seeing_at_pointing(state['current_zenith_seeing'].to(
             u.arcsec).value, altaz.alt.value)
-        record['FWHMgeom'] = pointing_seeing
-        record['FWHMeff'] = pointing_seeing
+            record['FWHMgeom'] = pointing_seeing
+            record['FWHMeff'] = pointing_seeing
         # transparency
 
         # finRank
