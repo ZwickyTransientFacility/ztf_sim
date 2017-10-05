@@ -12,15 +12,15 @@ from .constants import BASE_DIR
 
 class Scheduler(object):
 
-    def __init__(self, observing_program_config_file, run_config_file, 
-            queue_manager = 'gurobi'):
+    def __init__(self, observing_program_config_file_fullpath, 
+            run_config_file_fullpath):
 
         self.op_config = ObservingProgramConfiguration(
-            BASE_DIR + '../sims/{}'.format(observing_program_config_file))
+            observing_program_config_file_fullpath)
         self.observing_programs = self.op_config.build_observing_programs()
 
         self.run_config = configparser.ConfigParser()
-        self.run_config.read(BASE_DIR + '../config/{}'.format(run_config_file))
+        self.run_config.read(run_config_file_fullpath)
 
 
         self.Q = None

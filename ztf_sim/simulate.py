@@ -32,7 +32,8 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             profile = False
 
     run_config = configparser.ConfigParser()
-    run_config.read(BASE_DIR+'../config/{}'.format(run_config_file))
+    run_config_file_fullpath = BASE_DIR+'../config/{}'.format(run_config_file)
+    run_config.read(run_config_file_fullpath)
 
     # load config parameters into local variables
     start_time = run_config['simulation']['start_time']
@@ -43,8 +44,10 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         run_config['simulation'].getfloat(['survey_duration_days']) * u.day
     block_programs = run_config['simulation'].getboolean(['block_programs'])
 
+    observing_program_config_file_fullpath = \
+            BASE_DIR + '../sims/{}'.format(observing_program_config_file)
     op_config = ObservingProgramConfiguration(
-            BASE_DIR + '../sims/{}'.format(observing_program_config_file))
+            observing_program_config_file_fullpath)
 
     run_name = op_config.config['run_name']
     observing_programs = op_config.build_observing_programs()
@@ -65,8 +68,8 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
 
     # set up Scheduler
-    # TODO: make queue manager a config parameter
-    scheduler = Scheduler(config_file, queue_manager='gurobi')
+    scheduler = Scheduler(observing_program_config_file_fullpath,
+            run_config_file_fullpath)
 
     # initialize nightly field requests (Tom Barlow function)
     scheduler.Q.assign_nightly_requests(tel.current_state_dict())
