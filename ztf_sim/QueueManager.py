@@ -394,8 +394,10 @@ class GurobiQueueManager(QueueManager):
         # should be the topmost item
         assert (self.queue_order[0] == request_id)
         self.queue_order = self.queue_order[1:]
+        row = self.queue[request_id]
         self.queue = self.queue.drop(request_id)
-        # TODO: decrement it in the pool
+        # TODO: consider if I need this information for within-night recomputes
+        self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
 
 class GreedyQueueManager(QueueManager):
