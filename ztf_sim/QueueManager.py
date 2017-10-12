@@ -6,6 +6,7 @@ from builtins import object
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
+import astropy.units as u
 import pdb
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
@@ -647,6 +648,9 @@ class ListQueueManager(QueueManager):
     def _assign_nightly_requests(self, current_state):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
+    def _update_queue(self, current_state):
+        pass
+
     def load_queue(self, queue_dict_list, append=False):
         """Initialize an ordered queue.
 
@@ -663,7 +667,7 @@ class ListQueueManager(QueueManager):
                 raise ValueError(f'Missing required column {col}')
 
 
-        queue = df.join(self.fields.fields, on='field_id').copy()
+        queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
 
         # if some of the field ids are bad, there will be missing rows
         if len(queue) != len(df):
@@ -680,7 +684,7 @@ class ListQueueManager(QueueManager):
 
 
         if append:
-            self.queue.append(queue, ignore_index=True)
+            self.queue = self.queue.append(queue, ignore_index=True)
         else:
             self.queue = queue
 
@@ -700,14 +704,16 @@ class ListQueueManager(QueueManager):
         while True:
             if len(self.queue) == 0:
                 raise QueueEmptyError("No more observations in queue!")
-            ra = self.queue.iloc[idx].ra,
-            dec = self.queue.iloc[idx].dec,
-            sc = coord.SkyCoord(ra,dec)
+            ra = self.queue.iloc[idx].ra
+            dec = self.queue.iloc[idx].dec
+            sc = coord.SkyCoord(ra,dec, unit=u.deg)
             airmass = altitude_to_airmass(
-                    skycoord_to_altaz(sc, current_state['current_time']).alt)
+                    skycoord_to_altaz(sc, 
+                        current_state['current_time']).alt.to(u.deg).value)
             if airmass <= self.queue.iloc[idx].max_airmass:
                 break
             else:
+                print('Above max airmass, removing from queue!')
                 self._remove_requests(self.queue.index[idx])
                 # this effectively pops off iloc=0, so we can keep idx=0.  
 

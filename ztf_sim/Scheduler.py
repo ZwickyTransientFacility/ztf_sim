@@ -38,7 +38,7 @@ class Scheduler(object):
         if 'log_name' in self.run_config['scheduler']:
             log_name = self.run_config['scheduler']['log_name']
         else:
-            log_name = self.op_config['run_name']
+            log_name = self.op_config.config['run_name']
 
         # initialize sqlite history
         self.log = ObsLogger(log_name,
