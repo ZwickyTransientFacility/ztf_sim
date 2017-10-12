@@ -432,7 +432,7 @@ class GreedyQueueManager(QueueManager):
         if ((current_state['current_time'] - self.time_of_last_filter_change)
                 < self.min_time_before_filter_change):
             # only consider observations in the current filter
-            queue = self.queue[self.queue['filter_id'] == current_state['current_filter_id']
+            queue = self.queue[self.queue['filter_id'] == current_state['current_filter_id']]
             # unless there are no more observations, in which case allow a
             # change
             if len(queue) == 0:
@@ -720,7 +720,7 @@ class ListQueueManager(QueueManager):
             'target_filter_id': self.queue.iloc[idx].filter_id,
             'target_program_id': int(self.queue.iloc[idx].program_id),
             'target_subprogram_name': self.queue.iloc[idx].subprogram_name,
-            'target_exposure_time': self.queue.iloc[idx].exposure_time
+            'target_exposure_time': self.queue.iloc[idx].exposure_time,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
