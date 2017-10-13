@@ -7,15 +7,16 @@ import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
 import astropy.units as u
-import pdb
+import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
 from .optimize import request_set_optimize, slot_optimize, tsp_optimize
-from .constants import PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
+from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, altitude_to_airmass, seeing_at_pointing
+from .utils import scalar_len, nightly_blocks
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -25,7 +26,10 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, observing_programs=[], rp=None, fields=None,
-                 block_programs=True):
+                 block_programs=True, queue_name = 'default'):
+
+        # queue name (useful in Scheduler object when swapping queues)
+        self.queue_name = queue_name
 
         # list of ObservingPrograms
         self.observing_programs = observing_programs
@@ -207,6 +211,7 @@ class GurobiQueueManager(QueueManager):
     def __init__(self, **kwargs):
         super(GurobiQueueManager, self).__init__(**kwargs)
         self.block_obs_number = 0
+        self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state):
         self._assign_slots(current_state)
@@ -407,6 +412,7 @@ class GreedyQueueManager(QueueManager):
         super(GreedyQueueManager, self).__init__(**kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
+        self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state):
         # initialize the time of last filter change
@@ -644,6 +650,7 @@ class ListQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
         super(ListQueueManager, self).__init__(**kwargs)
+        self.queue_type = 'list'
 
     def _assign_nightly_requests(self, current_state):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
@@ -651,7 +658,7 @@ class ListQueueManager(QueueManager):
     def _update_queue(self, current_state):
         pass
 
-    def load_queue(self, queue_dict_list, append=False):
+    def load_list_queue(self, queue_dict_list, append=False):
         """Initialize an ordered queue.
 
         queue_dict_list is a list of dicts, one per observation"""
@@ -667,7 +674,10 @@ class ListQueueManager(QueueManager):
                 raise ValueError(f'Missing required column {col}')
 
 
-        queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
+        # by default use field ids alone to specify pointings, 
+        # but allow manual ra/dec if needed
+        if ('ra' not in df.columns) and ('dec' not in df.columns):
+            queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
 
         # if some of the field ids are bad, there will be missing rows
         if len(queue) != len(df):
