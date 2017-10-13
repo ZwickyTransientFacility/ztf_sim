@@ -25,9 +25,9 @@ class Scheduler(object):
 
         self.Q = None
         # use for swapping queues in the night, e.g. for TOOs
-        self.prev_Q = None
+        self.other_queues = {}
 
-        self.set_queue_manager(
+        self.set_queue_manager(queue_name = 'default',
             queue_manager = self.run_config['scheduler']['queue_manager'])
 
         for op in self.observing_programs:
@@ -45,19 +45,23 @@ class Scheduler(object):
                 clobber=self.run_config['scheduler'].getboolean('clobber_db')) 
 
 
-    def set_queue_manager(self, queue_manager = 'gurobi'):
+    def set_queue_manager(self, queue_name = 'default', 
+            queue_manager = 'gurobi', clobber=False):
+
+        # TODO: log the switch
 
         assert (queue_manager in ('list', 'greedy', 'gurobi'))
 
-        self.prev_Q = self.Q
+        # store previous queue
+        if self.Q is not None:
+            self.other_queues[self.Q.queue_name] = self.Q
 
-        if queue_manager == 'list':
-            self.Q = ListQueueManager()
-        elif queue_manager == 'greedy':
-            self.Q = GreedyQueueManager()
-        elif queue_manager == 'gurobi':
-            self.Q = GurobiQueueManager()
-
-    def pop_prev_queue(self):
-
-        self.Q = self.prev_Q
+        if clobber or (queue_name not in self.other_queues):
+            if queue_manager == 'list':
+                self.Q = ListQueueManager(queue_name=queue_name)
+            elif queue_manager == 'greedy':
+                self.Q = GreedyQueueManager(queue_name=queue_name)
+            elif queue_manager == 'gurobi':
+                self.Q = GurobiQueueManager(queue_name=queue_name)
+        else:
+            self.Q = self.other_queues.pop(queue_name)
