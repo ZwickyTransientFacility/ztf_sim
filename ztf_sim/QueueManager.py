@@ -16,7 +16,7 @@ from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, altitude_to_airmass, seeing_at_pointing
-from .utils import scalar_len, nightly_blocks
+from .utils import scalar_len, nightly_blocks, block_index
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
