@@ -77,7 +77,6 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         # check if it is a new night and reload queue with new requests
         if np.floor(tel.current_time.mjd) > current_night_mjd:
             # use the state machine to allow us to skip weathered out nights
-            #if tel.check_if_ready():
             log.prev_obs = None
             scheduler.Q.assign_nightly_requests(tel.current_state_dict())
             current_night_mjd = np.floor(tel.current_time.mjd)
