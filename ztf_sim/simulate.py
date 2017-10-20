@@ -1,5 +1,6 @@
 from __future__ import print_function
 from __future__ import absolute_import
+import configparser
 import numpy as np
 import astropy.coordinates as coord
 from astropy.time import Time
@@ -20,7 +21,8 @@ pd.options.mode.chained_assignment = 'raise'  # default='warn'
 # TODO: tag database with commit hash
 
 
-def simulate(config_file, profile=False, raise_queue_empty=True):
+def simulate(observing_program_config_file, run_config_file = 'default.cfg',
+        profile=False, raise_queue_empty=True):
 
     if profile:
         try:
@@ -29,18 +31,26 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             print('Error importing pyinstrument')
             profile = False
 
-    ztf_config = ObservingProgramConfiguration(
-            BASE_DIR + '../sims/{}'.format(config_file))
+    run_config = configparser.ConfigParser()
+    run_config_file_fullpath = BASE_DIR+'../config/{}'.format(run_config_file)
+    run_config.read(run_config_file_fullpath)
 
     # load config parameters into local variables
-    run_name = ztf_config.config['run_name']
-    start_time = ztf_config.config['start_time']
-    weather_year = ztf_config.config['weather_year']
-    if weather_year == "None":
+    start_time = run_config['simulation']['start_time']
+    weather_year = run_config['simulation'].getint(['weather_year'])
+    if ((weather_year.lower() == "none") or (len(weather_year) == 0)):
         weather_year = None
-    survey_duration = ztf_config.config['survey_duration_days'] * u.day
-    block_programs = ztf_config.config['block_programs']
-    observing_programs = ztf_config.build_observing_programs()
+    survey_duration = \
+        run_config['simulation'].getfloat(['survey_duration_days']) * u.day
+    block_programs = run_config['simulation'].getboolean(['block_programs'])
+
+    observing_program_config_file_fullpath = \
+            BASE_DIR + '../sims/{}'.format(observing_program_config_file)
+    op_config = ObservingProgramConfiguration(
+            observing_program_config_file_fullpath)
+
+    run_name = op_config.config['run_name']
+    observing_programs = op_config.build_observing_programs()
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -58,17 +68,14 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
 
     # set up Scheduler
-    # TODO: make queue manager a config parameter
-    scheduler = Scheduler(config_file, queue_manager='gurobi')
+    scheduler = Scheduler(observing_program_config_file_fullpath,
+            run_config_file_fullpath)
 
     # initialize nightly field requests (Tom Barlow function)
     scheduler.Q.assign_nightly_requests(tel.current_state_dict())
     # log pool stats
     tel.logger.info(calc_pool_stats(
         scheduler.Q.rp.pool, intro="Nightly requests initialized"))
-
-    # initialize sqlite history
-    log = ObsLogger(run_name, tel.current_time)
 
     current_night_mjd = np.floor(tel.current_time.mjd)
 
@@ -77,7 +84,8 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
         # check if it is a new night and reload queue with new requests
         if np.floor(tel.current_time.mjd) > current_night_mjd:
             # use the state machine to allow us to skip weathered out nights
-            log.prev_obs = None
+            #if tel.check_if_ready():
+            scheduler.log.prev_obs = None
             scheduler.Q.assign_nightly_requests(tel.current_state_dict())
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
@@ -94,7 +102,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             except QueueEmptyError:
                 if not raise_queue_empty:
                     tel.logger.info("Queue empty!  Waiting...")
-                    log.prev_obs = None
+                    scheduler.log.prev_obs = None
                     tel.wait()
                     continue
                 else:
@@ -111,7 +119,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
                 if not tel.start_filter_change(next_obs['target_filter_id']):
                     tel.logger.info("Filter change failure!  Waiting...")
-                    log.prev_obs = None
+                    scheduler.log.prev_obs = None
                     tel.wait()
                     continue
 
@@ -123,7 +131,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
-                log.prev_obs = None
+                scheduler.log.prev_obs = None
                 tel.wait()
                 continue
 
@@ -131,14 +139,14 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
             if not tel.start_exposing():
                 tel.set_cant_observe()
                 tel.logger.info("Exposure failure!  Waiting...")
-                log.prev_obs = None
+                scheduler.log.prev_obs = None
                 tel.wait()
                 continue
             else:
                 # exposure completed successfully.  now
                 # a) store exposure information in pointing history sqlite db
                 current_state = tel.current_state_dict()
-                log.log_pointing(current_state, next_obs)
+                scheduler.log.log_pointing(current_state, next_obs)
                 # b) update Fields
                 scheduler.Q.fields.mark_field_observed(next_obs, 
                         current_state['current_time'])
@@ -148,7 +156,7 @@ def simulate(config_file, profile=False, raise_queue_empty=True):
                 # TODO: check this with request sets...
                 scheduler.Q.remove_requests(next_obs['request_id'])
         else:
-            log.prev_obs = None
+            scheduler.log.prev_obs = None
             tel.set_cant_observe()
             tel.wait()
 

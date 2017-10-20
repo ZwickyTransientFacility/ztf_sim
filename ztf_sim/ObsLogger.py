@@ -5,6 +5,7 @@ import numpy as np
 from sqlalchemy import create_engine
 import sqlite3
 import astropy.coordinates as coord
+from astropy.time import Time
 import astropy.units as u
 import astroplan.moon
 from .Fields import Fields
@@ -14,17 +15,18 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME
 
 class ObsLogger(object):
 
-    def __init__(self, run_name, survey_start_time):
-        self.run_name = run_name
+    def __init__(self, log_name, survey_start_time = Time('2018-01-01'),
+            clobber = False):
+        self.log_name = log_name
         self.survey_start_time = survey_start_time
         self.prev_obs = None
         self.mjd_tonight = None
         self.moon_illumination_tonight = None
         self.engine = create_engine('sqlite:///{}../sims/{}.db'.format(
-            BASE_DIR, self.run_name))
+            BASE_DIR, self.log_name))
         self.conn = self.engine.connect()
-        self.create_fields_table(clobber=True)
-        self.create_pointing_log(clobber=True)
+        self.create_fields_table(clobber=clobber)
+        self.create_pointing_log(clobber=clobber)
 
     def create_fields_table(self, clobber=True):
 
@@ -167,10 +169,11 @@ class ObsLogger(object):
                             record['fieldDec'] * u.radian)
         altaz = skycoord_to_altaz(sc, exposure_start)
 
-        pointing_seeing = seeing_at_pointing(state['current_zenith_seeing'].to(
+        if 'current_zenith_seeing' in state:
+            pointing_seeing = seeing_at_pointing(state['current_zenith_seeing'].to(
             u.arcsec).value, altaz.alt.value)
-        record['FWHMgeom'] = pointing_seeing
-        record['FWHMeff'] = pointing_seeing
+            record['FWHMgeom'] = pointing_seeing
+            record['FWHMeff'] = pointing_seeing
         # transparency
 
         # finRank

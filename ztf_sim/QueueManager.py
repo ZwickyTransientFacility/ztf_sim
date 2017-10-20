@@ -6,16 +6,17 @@ from builtins import object
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
-import pdb
+import astropy.units as u
+import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
-from .cadence import *
 from .optimize import request_set_optimize, slot_optimize, tsp_optimize
-from .constants import PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
+from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
-from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE
-from .utils import *
+from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+from .utils import skycoord_to_altaz, altitude_to_airmass, seeing_at_pointing
+from .utils import scalar_len, nightly_blocks, block_index
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -25,7 +26,10 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, observing_programs=[], rp=None, fields=None,
-                 block_programs=True):
+                 block_programs=True, queue_name = 'default'):
+
+        # queue name (useful in Scheduler object when swapping queues)
+        self.queue_name = queue_name
 
         # list of ObservingPrograms
         self.observing_programs = observing_programs
@@ -126,7 +130,7 @@ class QueueManager(object):
         return self._update_queue(current_state)
 
     def remove_requests(self, request_id):
-        """Remove a request from both the queue and the request pool"""
+        """Remove a request from both the queue and the request set pool"""
 
         # define functions that actually do the work in subclasses
         return self._remove_requests(request_id)
@@ -207,6 +211,7 @@ class GurobiQueueManager(QueueManager):
     def __init__(self, **kwargs):
         super(GurobiQueueManager, self).__init__(**kwargs)
         self.block_obs_number = 0
+        self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state):
         self._assign_slots(current_state)
@@ -395,17 +400,24 @@ class GurobiQueueManager(QueueManager):
         # should be the topmost item
         assert (self.queue_order[0] == request_id)
         self.queue_order = self.queue_order[1:]
+        row = self.queue[request_id]
         self.queue = self.queue.drop(request_id)
-        # TODO: decrement it in the pool
+        # TODO: consider if I need this information for within-night recomputes
+        self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
 
 class GreedyQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
         super(GreedyQueueManager, self).__init__(**kwargs)
+        self.time_of_last_filter_change = None
+        self.min_time_before_filter_change = TIME_BLOCK_SIZE
+        self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state):
-        pass
+        # initialize the time of last filter change
+        if self.time_of_last_filter_change is None:
+            self.time_of_last_filter_change = current_state['current_time']
 
     def _next_obs(self, current_state):
         """Select the highest value request."""
@@ -419,11 +431,30 @@ class GreedyQueueManager(QueueManager):
             # otherwise just recalculate the overhead times
             _ = self._update_overhead(current_state)
 
+        # in case this wasn't initialized by assign_nightly_requests
+        if self.time_of_last_filter_change is None:
+            self.time_of_last_filter_change = current_state['current_time']
+
+        # check if filter changes are allowed yet
+        if ((current_state['current_time'] - self.time_of_last_filter_change)
+                < self.min_time_before_filter_change):
+            # only consider observations in the current filter
+            queue = self.queue[self.queue['filter_id'] == current_state['current_filter_id']]
+            # unless there are no more observations, in which case allow a
+            # change
+            if len(queue) == 0:
+                queue = self.queue
+        else:
+            # allow filter changes if desired
+            queue = self.queue
+
         # request_id of the highest value request
-        max_idx = self.queue.value.argmax()
-        row = self.queue[max_idx]
+        max_idx = queue.value.argmax()
+        row = queue[max_idx]
+
 
         # enforce program balance
+        # TODO: make this configurable for commissioning
         progid = row['program_id']
         if ((self.requests_completed[progid] + 1) >= 
                 self.requests_allowed[progid]):
@@ -608,9 +639,9 @@ class GreedyQueueManager(QueueManager):
     def _remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
 
+        row = self.queue[request_id]
         self.queue = self.queue.drop(request_id)
-        raise NotImplementedError("Need to adjust pool behavior to remove single obs from request_sets")
-        #self.rp.remove_requests(request_id)
+        self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
 
 
@@ -619,19 +650,55 @@ class ListQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
         super(ListQueueManager, self).__init__(**kwargs)
+        self.queue_type = 'list'
 
     def _assign_nightly_requests(self, current_state):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
-    def load_queue(self, queue_dict_list):
+    def _update_queue(self, current_state):
+        pass
+
+    def load_list_queue(self, queue_dict_list, append=False):
         """Initialize an ordered queue.
 
         queue_dict_list is a list of dicts, one per observation"""
         
-        self.queue = pd.DataFrame(queue_dict_list)
+        df = pd.DataFrame(queue_dict_list)
 
         # check that major columns are included
-        required_columns = ['field_id','ra','dec', 'program_id', 'filter_id']
+        required_columns = ['field_id','program_id', 'subprogram_name',
+                'filter_id']
+
+        for col in required_columns:
+            if col not in df.columns:
+                raise ValueError(f'Missing required column {col}')
+
+
+        # by default use field ids alone to specify pointings, 
+        # but allow manual ra/dec if needed
+        if ('ra' not in df.columns) and ('dec' not in df.columns):
+            queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
+
+        # if some of the field ids are bad, there will be missing rows
+        if len(queue) != len(df):
+            raise ValueError('One or more field ids are malformed: {}'.format(
+                df.index.difference(self.fields.fields.index)))
+
+        # add standard keywords if not present
+        if 'exposure_time' not in queue.columns:
+            queue['exposure_time'] = EXPOSURE_TIME
+        if 'max_airmass' not in queue.columns:
+            queue['max_airmass'] = MAX_AIRMASS
+        if 'n_repeats' not in queue.columns:
+            queue['n_repeats'] = 1
+
+
+        if append:
+            self.queue = self.queue.append(queue, ignore_index=True)
+        else:
+            self.queue = queue
+
+
 
     def _next_obs(self, current_state):
         """Return the next observation in the time ordered queue unless it has expired."""
@@ -643,13 +710,25 @@ class ListQueueManager(QueueManager):
         # take the next observation in line
         idx = 0
 
-        # TODO: check if it has expired
-       
-        # if no exposure time is specified, use the default
-        if 'exposure_time' not in self.queue.columns:
-            texp = EXPOSURE_TIME
-        else:
-            texp =  self.queue.iloc[idx].exposure_time
+        # TODO: check if it's past the max airmass
+        while True:
+            if len(self.queue) == 0:
+                raise QueueEmptyError("No more observations in queue!")
+            ra = self.queue.iloc[idx].ra
+            dec = self.queue.iloc[idx].dec
+            sc = coord.SkyCoord(ra,dec, unit=u.deg)
+            airmass = altitude_to_airmass(
+                    skycoord_to_altaz(sc, 
+                        current_state['current_time']).alt.to(u.deg).value)
+            if airmass <= self.queue.iloc[idx].max_airmass:
+                break
+            else:
+                print('Above max airmass, removing from queue!')
+                self._remove_requests(self.queue.index[idx])
+                # this effectively pops off iloc=0, so we can keep idx=0.  
+
+        
+        # TODO: think if we want a time-based expiration as well
 
         next_obs = {'target_field_id': int(self.queue.iloc[idx].field_id),
             'target_ra': self.queue.iloc[idx].ra,
@@ -657,19 +736,22 @@ class ListQueueManager(QueueManager):
             'target_filter_id': self.queue.iloc[idx].filter_id,
             'target_program_id': int(self.queue.iloc[idx].program_id),
             'target_subprogram_name': self.queue.iloc[idx].subprogram_name,
-            'target_exposure_time': texp,
+            'target_exposure_time': self.queue.iloc[idx].exposure_time,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
             'target_total_requests_tonight': 1,  
-            'request_id': self.queue.index[0]}
+            'request_id': self.queue.index[idx]}
 
         return next_obs
 
     def _remove_requests(self, request_id):
         """Remove a request from the queue"""
 
-        self.queue = self.queue.drop(request_id)
+        if self.queue.loc[request_id,'n_repeats'] > 1:
+            self.queue.loc[request_id,'n_repeats'] -= 1
+        else:    
+            self.queue = self.queue.drop(request_id)
 
 
 class RequestPool(object):
@@ -709,12 +791,28 @@ class RequestPool(object):
     def n_request_sets(self):
         return len(self.pool)
 
-    def remove_request_sets(self, request_ids):
+    def remove_request_sets(self, request_set_ids):
         """Remove completed or otherwise unwanted requests by request_id
 
         request_ids : scalar or list
             requests to drop (index of self.pool)"""
-        self.pool = self.pool.drop(request_ids)
+        self.pool = self.pool.drop(request_set_ids)
+
+    def remove_request(self, request_set_id, filter_id):
+        """Remove single completed request from a request set. 
+
+        request_set_id: scalar 
+            request set to modify (index of self.pool)
+        filter_id: scalar
+            filter_id of completed observation"""
+
+        rs = self.pool[request_set_id]
+        filters = rs['filter_ids']
+        filters.remove('filter_id')
+        if len(filters) == 0:
+            self.remove_request_sets(request_set_id)
+        else:
+            self.pool.loc[request_set_id, 'filter_id'] = filters 
 
     def clear_all_request_sets(self):
         self.pool = pd.DataFrame()

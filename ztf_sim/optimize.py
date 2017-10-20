@@ -1,7 +1,7 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-
+import os
 from builtins import str
 from builtins import range
 from gurobipy import *
@@ -80,6 +80,10 @@ def request_set_optimize(df_metric, df, requests_allowed):
     # Create an empty model
     m = Model('requests')
 
+    # set the number of threads Gurobi uses
+    if 'GRB_USE_NTHREADS' in os.environ:
+        m.Params.Threads = int(os.environ['GRB_USE_NTHREADS'])
+
     # decision variable: yes or no for each request set
     yr_dict = m.addVars(df_metric_local.index,name='Yr',vtype=GRB.BINARY)
     yr_series = pd.Series(yr_dict,name='Yr')
@@ -148,6 +152,10 @@ def slot_optimize(df_metric, df, requests_allowed):
 
     # Create an empty model
     m = Model('slots')
+
+    # set the number of threads Gurobi uses
+    if 'GRB_USE_NTHREADS' in os.environ:
+        m.Params.Threads = int(os.environ['GRB_USE_NTHREADS'])
 
     yrtf_dict = m.addVars(dft.index,name='Yrtf',vtype=GRB.BINARY)
     yrtf_series = pd.Series(yrtf_dict,name='Yrtf')
@@ -287,6 +295,10 @@ def tsp_optimize(pairwise_distances):
         return [0, 1], [pairwise_distances[0,1]]
     
     m = Model() 
+
+    # set the number of threads Gurobi uses
+    if 'GRB_USE_NTHREADS' in os.environ:
+        m.Params.Threads = int(os.environ['GRB_USE_NTHREADS'])
         
 
     # Create variables 
