@@ -37,12 +37,17 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
 
     # load config parameters into local variables
     start_time = run_config['simulation']['start_time']
-    weather_year = run_config['simulation'].getint(['weather_year'])
-    if ((weather_year.lower() == "none") or (len(weather_year) == 0)):
+    try:
+        weather_year = run_config['simulation']['weather_year']
+    except KeyError:
         weather_year = None
+    if (weather_year.lower() == "none"):
+        weather_year = None
+    else:
+        weather_year = int(weather_year)
     survey_duration = \
-        run_config['simulation'].getfloat(['survey_duration_days']) * u.day
-    block_programs = run_config['simulation'].getboolean(['block_programs'])
+        run_config['simulation'].getfloat('survey_duration_days') * u.day
+    block_programs = run_config['simulation'].getboolean('block_programs')
 
     observing_program_config_file_fullpath = \
             BASE_DIR + '../sims/{}'.format(observing_program_config_file)
