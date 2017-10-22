@@ -425,12 +425,16 @@ class GreedyQueueManager(QueueManager):
 
         # since this is a greedy queue, we update the queue after each obs
         # for speed, only do the whole recalculation if we're in a new slot
-        if ((block_index(current_state['current_time'])[0] != self.queue_slot)
-                or (len(self.queue) == 0)):
-            self._update_queue(current_state)
-        else:
-            # otherwise just recalculate the overhead times
-            _ = self._update_overhead(current_state)
+#        if ((block_index(current_state['current_time'])[0] != self.queue_slot)
+#                or (len(self.queue) == 0)):
+#            self._update_queue(current_state)
+#        else:
+#            # otherwise just recalculate the overhead times
+#            _ = self._update_overhead(current_state)
+
+        # to get the "on the fly" cadence windows to work I have to 
+        # run the whole queue every time right now...
+        self._update_queue(current_state)
 
         # in case this wasn't initialized by assign_nightly_requests
         if self.time_of_last_filter_change is None:
@@ -587,6 +591,7 @@ class GreedyQueueManager(QueueManager):
 
         cadence_cuts  = df.apply(enough_gap_since_last_obs, 
             args=(current_state,),axis=1)
+        
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
@@ -787,7 +792,7 @@ class RequestPool(object):
                 'program_id': program_id,
                 'subprogram_name': subprogram_name,
                 'field_id': field_id,
-                'filter_ids': filter_ids,
+                'filter_ids': filter_ids.copy(),
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
