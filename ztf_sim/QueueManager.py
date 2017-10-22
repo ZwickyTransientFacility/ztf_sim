@@ -27,7 +27,7 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, observing_programs=[], rp=None, fields=None,
-                 block_programs=True, queue_name = 'default'):
+                 block_programs=False, queue_name = 'default'):
 
         # queue name (useful in Scheduler object when swapping queues)
         self.queue_name = queue_name
