@@ -64,7 +64,8 @@ MAX_AIRMASS = 2.5
 
 TIME_BLOCK_SIZE = 30. * u.min
 
-PROGRAM_NAME_TO_ID = {'MSIP':1, 'collaboration': 2, 'Caltech': 3}
+PROGRAM_NAME_TO_ID = {'engineering': 0, 
+                      'MSIP':1, 'collaboration': 2, 'Caltech': 3}
 PROGRAM_NAMES = list(PROGRAM_NAME_TO_ID.keys())
 PROGRAM_ID_TO_NAME = {v: k for k, v in list(PROGRAM_NAME_TO_ID.items())}
 PROGRAM_IDS = list(PROGRAM_ID_TO_NAME.keys())
