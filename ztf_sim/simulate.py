@@ -77,7 +77,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             run_config_file_fullpath)
 
     # initialize nightly field requests (Tom Barlow function)
-    scheduler.Q.assign_nightly_requests(tel.current_state_dict())
+    scheduler.Q.assign_nightly_requests(tel.current_state_dict()) 
     # log pool stats
     tel.logger.info(calc_pool_stats(
         scheduler.Q.rp.pool, intro="Nightly requests initialized"))

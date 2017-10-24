@@ -12,6 +12,7 @@ from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
 from .optimize import request_set_optimize, slot_optimize, tsp_optimize
+from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
@@ -26,7 +27,7 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, observing_programs=[], rp=None, fields=None,
-                 block_programs=True, queue_name = 'default'):
+                 block_programs=False, queue_name = 'default'):
 
         # queue name (useful in Scheduler object when swapping queues)
         self.queue_name = queue_name
@@ -424,12 +425,16 @@ class GreedyQueueManager(QueueManager):
 
         # since this is a greedy queue, we update the queue after each obs
         # for speed, only do the whole recalculation if we're in a new slot
-        if ((block_index(current_state['current_time'])[0] != self.queue_slot)
-                or (len(self.queue) == 0)):
-            self._update_queue(current_state)
-        else:
-            # otherwise just recalculate the overhead times
-            _ = self._update_overhead(current_state)
+#        if ((block_index(current_state['current_time'])[0] != self.queue_slot)
+#                or (len(self.queue) == 0)):
+#            self._update_queue(current_state)
+#        else:
+#            # otherwise just recalculate the overhead times
+#            _ = self._update_overhead(current_state)
+
+        # to get the "on the fly" cadence windows to work I have to 
+        # run the whole queue every time right now...
+        self._update_queue(current_state)
 
         # in case this wasn't initialized by assign_nightly_requests
         if self.time_of_last_filter_change is None:
@@ -450,7 +455,7 @@ class GreedyQueueManager(QueueManager):
 
         # request_id of the highest value request
         max_idx = queue.value.argmax()
-        row = queue[max_idx]
+        row = queue.loc[max_idx]
 
 
         # enforce program balance
@@ -474,9 +479,9 @@ class GreedyQueueManager(QueueManager):
                 'target_program_id': row['program_id'],
                 'target_subprogram_name': row['subprogram_name'],
                 'target_exposure_time': EXPOSURE_TIME,
-#                'target_sky_brightness': self.queue.ix[max_idx].sky_brightness,
-#                'target_limiting_mag': self.queue.ix[max_idx].limiting_mag,
-#                'target_metric_value':  self.queue.ix[max_idx].value,
+                'target_sky_brightness': row['sky_brightness'],
+                'target_limiting_mag': row['limiting_mag'],
+                'target_metric_value':  row['value'],
                 'target_total_requests_tonight': row['total_requests_tonight'],
                 'request_id': max_idx}
 
@@ -530,7 +535,7 @@ class GreedyQueueManager(QueueManager):
         telescope state only"""
 
         # store block index for which these values were calculated
-        self.queue_slot = block_index(current_state['current_time'])
+        self.queue_slot = block_index(current_state['current_time'])[0]
 
         # check that the pool has fields in it
         if len(self.rp.pool) == 0:
@@ -570,18 +575,24 @@ class GreedyQueueManager(QueueManager):
                 self.queue_slot % LEN_BLOCK_SEQUENCE]
             df = df.loc[df['program_id'] == current_block_program, :]
 
+
+
         # use cadence functions to compute requests with active cadence windows
         # this is slow, so do it after our altitude cut
         # TODO: consider instead
         # df.apply(time_since_obs,args=(current_state,),axis=1)
-        in_window = {}
-        for idx, row in df.iterrows():
-            # this is way, way slower
-            # df['in_cadence_window'].ix[idx] = \
-            in_window[idx] = eval(
-                '{}(row, current_state)'.format(row['cadence_func']))
+        #in_window = {}
+        #for idx, row in df.iterrows():
+        #    # this is way, way slower
+        #    # df['in_cadence_window'].ix[idx] = \
+        #    in_window[idx] = eval(
+        #        '{}(row, current_state)'.format(row['cadence_func']))
+        #cadence_cuts = pd.Series(in_window)
 
-        cadence_cuts = pd.Series(in_window)
+        cadence_cuts  = df.apply(enough_gap_since_last_obs, 
+            args=(current_state,),axis=1)
+        
+
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
             print(calc_queue_stats(df, current_state,
@@ -639,7 +650,7 @@ class GreedyQueueManager(QueueManager):
     def _remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
 
-        row = self.queue[request_id]
+        row = self.queue.loc[request_id]
         self.queue = self.queue.drop(request_id)
         self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
@@ -781,7 +792,7 @@ class RequestPool(object):
                 'program_id': program_id,
                 'subprogram_name': subprogram_name,
                 'field_id': field_id,
-                'filter_ids': filter_ids,
+                'filter_ids': filter_ids.copy(),
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
@@ -806,13 +817,13 @@ class RequestPool(object):
         filter_id: scalar
             filter_id of completed observation"""
 
-        rs = self.pool[request_set_id]
+        rs = self.pool.loc[request_set_id].copy()
         filters = rs['filter_ids']
-        filters.remove('filter_id')
+        filters.remove(filter_id)
         if len(filters) == 0:
             self.remove_request_sets(request_set_id)
         else:
-            self.pool.loc[request_set_id, 'filter_id'] = filters 
+            self.pool.set_value(request_set_id, 'filter_ids', filters)
 
     def clear_all_request_sets(self):
         self.pool = pd.DataFrame()

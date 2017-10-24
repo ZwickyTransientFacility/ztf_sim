@@ -11,8 +11,9 @@ from astropy.time import Time
 from collections import defaultdict
 import itertools
 from .utils import *
-from .constants import BASE_DIR, P48_loc, PROGRAM_IDS, FILTER_IDS
-from .constants import TIME_BLOCK_SIZE, MAX_AIRMASS, EXPOSURE_TIME
+from .constants import BASE_DIR, P48_loc, P48_slew_pars, PROGRAM_IDS, FILTER_IDS
+from .constants import TIME_BLOCK_SIZE, MAX_AIRMASS, EXPOSURE_TIME, READOUT_TIME
+from .constants import slew_time
 
 
 class Fields(object):

@@ -34,7 +34,7 @@ class ObservingProgram(object):
         self.filter_choice = filter_choice
         self.active_months = 'all'
 
-    def assign_nightly_requests(self, time, fields, block_programs=True,
+    def assign_nightly_requests(self, time, fields, block_programs=False,
                                 **kwargs):
 
         # need a way to make this flexible without coding a new class for
@@ -205,7 +205,7 @@ class ObservingProgram(object):
                                range(self.n_visits_per_night)]
         elif self.filter_choice == 'sequence':
             assert(len(self.filter_ids) == self.n_visits_per_night)
-            filter_sequence = self.filter_ids
+            filter_sequence = self.filter_ids.copy()
 
         request_set = []
         request_set.append(
