@@ -31,108 +31,112 @@ class ObsLogger(object):
     def create_fields_table(self, clobber=True):
 
         if clobber:
+            # Drop table if it exists
             try:
                 self.conn.execute("""DROP TABLE Field""")
             except:
                 pass
 
-        self.conn.execute("""
-        CREATE TABLE Field(
-        fieldID   INTEGER PRIMARY KEY,
-        fieldFov  REAL,
-        fieldRA   REAL,
-        fieldDec  REAL,
-        fieldGL   REAL,
-        fieldGB   REAL,
-        fieldEL   REAL,
-        fieldEB   REAL
-        )""")
+            # create table
+            self.conn.execute("""
+            CREATE TABLE Field(
+            fieldID   INTEGER PRIMARY KEY,
+            fieldFov  REAL,
+            fieldRA   REAL,
+            fieldDec  REAL,
+            fieldGL   REAL,
+            fieldGB   REAL,
+            fieldEL   REAL,
+            fieldEB   REAL
+            )""")
 
-        f = Fields()
-        df = f.fields.reset_index()
-        df.rename(columns={'field_id': 'fieldID',
-                           'ra': 'fieldRA',
-                           'dec': 'fieldDec',
-                           'l': 'fieldGL',
-                           'b': 'fieldGB',
-                           'ecliptic_lon': 'fieldEL',
-                           'ecliptic_lat': 'fieldEB'}, inplace=True)
-        df.set_index(['fieldID'], inplace=True)
-        df.drop([u'grid_id', u'last_observed_1_1',
-                 u'first_obs_tonight_1_1',     u'last_observed_1_2',
-                 u'first_obs_tonight_1_2',     u'last_observed_2_1',
-                 u'first_obs_tonight_2_1',     u'last_observed_2_2',
-                 u'first_obs_tonight_2_2',     u'last_observed_3_1',
-                 u'first_obs_tonight_3_1',     u'last_observed_3_2',
-                 u'first_obs_tonight_3_2',             u'n_obs_1_1',
-                 u'n_obs_1_2',             u'n_obs_2_1',
-                 u'n_obs_2_2',             u'n_obs_3_1',
-                 u'n_obs_3_2'], axis=1, inplace=True)
+            f = Fields()
+            df = f.fields.reset_index()
+            df.rename(columns={'field_id': 'fieldID',
+                               'ra': 'fieldRA',
+                               'dec': 'fieldDec',
+                               'l': 'fieldGL',
+                               'b': 'fieldGB',
+                               'ecliptic_lon': 'fieldEL',
+                               'ecliptic_lat': 'fieldEB'}, inplace=True)
+            df.set_index(['fieldID'], inplace=True)
+            df.drop([u'grid_id', u'last_observed_1_1',
+                     u'first_obs_tonight_1_1',     u'last_observed_1_2',
+                     u'first_obs_tonight_1_2',     u'last_observed_2_1',
+                     u'first_obs_tonight_2_1',     u'last_observed_2_2',
+                     u'first_obs_tonight_2_2',     u'last_observed_3_1',
+                     u'first_obs_tonight_3_1',     u'last_observed_3_2',
+                     u'first_obs_tonight_3_2',             u'n_obs_1_1',
+                     u'n_obs_1_2',             u'n_obs_2_1',
+                     u'n_obs_2_2',             u'n_obs_3_1',
+                     u'n_obs_3_2'], axis=1, inplace=True)
 
-        # (circumscribed) field diameter in degrees
-        df['fieldFov'] = 10.428
-        df.to_sql('Field', self.engine, if_exists='replace')
+            # (circumscribed) field diameter in degrees
+            df['fieldFov'] = 10.428
+            df.to_sql('Field', self.engine, if_exists='replace')
 
     def create_pointing_log(self, clobber=True):
 
         if clobber:
+            # Drop table if it exists
             try:
                 self.conn.execute("""DROP TABLE Summary""")
             # TODO: better error handling
             except:
                 pass
 
-        self.conn.execute("""
-        CREATE TABLE Summary(
-        obsHistID         INTEGER PRIMARY KEY,
-        sessionID INTEGER,
-        propID INTEGER,
-        fieldID      INTEGER,
-        fieldRA      REAL,
-        fieldDec      REAL,
-        filter             TEXT,
-        expDate            INTEGER,
-        expMJD             REAL,
-        night              INTEGER,
-        visitTime          REAL,
-        visitExpTime       REAL,
-        finRank            REAL,
-        FWHMgeom           REAL,
-        FWHMeff            REAL,
-        transparency       REAL,
-        airmass            REAL,
-        vSkyBright         REAL,
-        filtSkyBright      REAL,
-        rotSkyPos          REAL,
-        rotTelPos          REAL,
-        lst                REAL,
-        altitude           REAL,
-        azimuth            REAL,
-        dist2Moon          REAL,
-        solarElong         REAL,
-        moonRA             REAL,
-        moonDec            REAL,
-        moonAlt            REAL,
-        moonAZ             REAL,
-        moonPhase          REAL,
-        sunAlt             REAL,
-        sunAz              REAL,
-        phaseAngle         REAL,
-        rScatter           REAL,
-        mieScatter         REAL,
-        moonBright         REAL,
-        darkBright         REAL,
-        rawSeeing          REAL,
-        wind               REAL,
-        humidity           REAL,
-        slewDist           REAL,
-        slewTime           REAL,
-        fiveSigmaDepth     REAL,
-        ditheredRA         REAL,
-        ditheredDec        REAL,
-        totalRequestsTonight INTEGER,
-        metricValue        REAL
-        )""")
+            # create table
+            self.conn.execute("""
+            CREATE TABLE Summary(
+            obsHistID         INTEGER PRIMARY KEY,
+            sessionID INTEGER,
+            propID INTEGER,
+            fieldID      INTEGER,
+            fieldRA      REAL,
+            fieldDec      REAL,
+            filter             TEXT,
+            expDate            INTEGER,
+            expMJD             REAL,
+            night              INTEGER,
+            visitTime          REAL,
+            visitExpTime       REAL,
+            finRank            REAL,
+            FWHMgeom           REAL,
+            FWHMeff            REAL,
+            transparency       REAL,
+            airmass            REAL,
+            vSkyBright         REAL,
+            filtSkyBright      REAL,
+            rotSkyPos          REAL,
+            rotTelPos          REAL,
+            lst                REAL,
+            altitude           REAL,
+            azimuth            REAL,
+            dist2Moon          REAL,
+            solarElong         REAL,
+            moonRA             REAL,
+            moonDec            REAL,
+            moonAlt            REAL,
+            moonAZ             REAL,
+            moonPhase          REAL,
+            sunAlt             REAL,
+            sunAz              REAL,
+            phaseAngle         REAL,
+            rScatter           REAL,
+            mieScatter         REAL,
+            moonBright         REAL,
+            darkBright         REAL,
+            rawSeeing          REAL,
+            wind               REAL,
+            humidity           REAL,
+            slewDist           REAL,
+            slewTime           REAL,
+            fiveSigmaDepth     REAL,
+            ditheredRA         REAL,
+            ditheredDec        REAL,
+            totalRequestsTonight INTEGER,
+            metricValue        REAL
+            )""")
 
     def log_pointing(self, state, request):
 
