@@ -347,7 +347,7 @@ class GurobiQueueManager(QueueManager):
         assert(self.queue_slot in self.queued_requests_by_slot.index)
 
         # retrieve requests to be observed in this block
-        req_list = self.queued_requests_by_slot[self.queue_slot]
+        req_list = self.queued_requests_by_slot.loc[self.queue_slot]
 
         # request_set ids should be unique per block
         assert( (len(set(req_list)) == len(req_list) ) )
@@ -395,16 +395,20 @@ class GurobiQueueManager(QueueManager):
 
         # TODO: some sort of monitoring of expected vs. block time vs. actual
 
-    def _remove_requests(self, request_id):
-        """Remove a request from both the queue and the pool"""
+    def _remove_requests(self, request_set_id):
+        """Remove a request from both the queue and the pool.
+        
+        Note that gurobi queue uses request_set_id to index."""
 
         # should be the topmost item
-        assert (self.queue_order[0] == request_id)
+        assert (self.queue_order[0] == request_set_id)
         self.queue_order = self.queue_order[1:]
-        row = self.queue[request_id]
-        self.queue = self.queue.drop(request_id)
-        # TODO: consider if I need this information for within-night recomputes
-        self.rp.remove_request(row['request_set_id'], row['filter_id'])
+        row = self.queue.loc[request_set_id]
+        self.queue = self.queue.drop(request_set_id)
+        # (past slot assignments are still in self.queued_requests_by_slot)
+        # (we will only reuse the RequestPool if we do recomputes)
+        self.rp.remove_request(request_set_id, 
+                self.filter_by_slot.loc[self.queue_slot])
 
 
 class GreedyQueueManager(QueueManager):
