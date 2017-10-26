@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
 import astropy.units as u
+from astropy.time import Time
 import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
@@ -17,7 +18,7 @@ from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, altitude_to_airmass, seeing_at_pointing
-from .utils import scalar_len, nightly_blocks, block_index
+from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -204,6 +205,18 @@ class QueueManager(object):
         df.loc[~wup, 'limiting_mag'] = -99
 
         return df['limiting_mag']
+
+    def return_queue(self):
+        """Return queue values, ordered in the expected sequence if possible"""
+
+        queue = self._return_queue()
+
+        cols = ['field_id','filter_id','exposure_time','program_id',
+                'subprogram_name','ra','dec','ordered']
+        if self.queue_type == 'gurobi':
+            cols.append('slot_start_time')
+
+        return queue.loc[:,cols]
 
 
 
@@ -409,6 +422,40 @@ class GurobiQueueManager(QueueManager):
         # (we will only reuse the RequestPool if we do recomputes)
         self.rp.remove_request(request_set_id, 
                 self.filter_by_slot.loc[self.queue_slot])
+
+    def _return_queue(self):
+
+        # start by setting up the current slot
+        if len(self.queue) > 0:
+            queue = self.queue.loc[self.Q.queue_order].copy()
+            queue.loc[:,'ordered'] = True
+            queue.loc[:,'slot_start_time'] = block_index_to_time(slot,
+                    Time.now(), where='start').iso
+        else:
+            # before the night starts, the queue is empty
+            queue = self.queue.copy()
+
+        # now loop over upcoming slots, ensuring they are sorted (should be)
+        slots = self.queued_requests_by_slot.index.values
+        slots = np.sort(slots)
+
+        for slot in slots:
+            if (self.queue_slot is not None):
+                if slot <= self.queue_slot:
+                    continue
+            slot_requests = self.queued_requests_by_slot.loc[slot]
+ 
+            idx = pd.Index(slot_requests)
+            # reconstruct
+            df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
+            df.loc[:,'filter_id'] = self.filter_by_slot[slot]
+            df.loc[:,'ordered'] = False
+            df.loc[:,'slot_start_time'] = block_index_to_time(slot,
+                    Time.now(), where='start').iso
+            queue = queue.append(df)
+        
+
+        return queue
 
 
 class GreedyQueueManager(QueueManager):
@@ -658,6 +705,13 @@ class GreedyQueueManager(QueueManager):
         self.queue = self.queue.drop(request_id)
         self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
+    def _return_queue(self):
+
+        queue = self.queue.sort_values('value',ascending=False).copy()
+        # we have put these in value order but the sequence can change
+        queue['ordered'] = False
+        return queue
+
 
 
 class ListQueueManager(QueueManager):
@@ -767,6 +821,13 @@ class ListQueueManager(QueueManager):
             self.queue.loc[request_id,'n_repeats'] -= 1
         else:    
             self.queue = self.queue.drop(request_id)
+
+    def _return_queue(self):
+
+        # by construction the list queue is already in order
+        queue = self.queue.copy()
+        queue['ordered'] = True
+        return queue
 
 
 class RequestPool(object):
