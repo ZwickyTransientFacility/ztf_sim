@@ -427,7 +427,7 @@ class GurobiQueueManager(QueueManager):
 
         # start by setting up the current slot
         if len(self.queue) > 0:
-            queue = self.queue.loc[self.Q.queue_order].copy()
+            queue = self.queue.loc[self.queue_order].copy()
             queue.loc[:,'ordered'] = True
             queue.loc[:,'slot_start_time'] = block_index_to_time(slot,
                     Time.now(), where='start').iso
