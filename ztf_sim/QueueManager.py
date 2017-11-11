@@ -169,6 +169,7 @@ class QueueManager(object):
 
         # compute sky brightness
         # only have values for reasonable altitudes (set by R20_absorbed...)
+        # TODO: consider using MAX_AIRMASS here instead
         wup = df['altitude'] > 10
         df.loc[wup, 'sky_brightness'] = self.Sky.predict(df[wup])
 
@@ -441,8 +442,8 @@ class GurobiQueueManager(QueueManager):
         if len(self.queue) > 0:
             queue = self.queue.loc[self.queue_order].copy()
             queue.loc[:,'ordered'] = True
-            queue.loc[:,'slot_start_time'] = block_index_to_time(slot,
-                    Time.now(), where='start').iso
+            queue.loc[:,'slot_start_time'] = block_index_to_time(
+                    self.queue_slot, Time.now(), where='start').iso
         else:
             # before the night starts, the queue is empty
             queue = self.queue.copy()
