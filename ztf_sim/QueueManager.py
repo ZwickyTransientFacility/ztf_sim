@@ -156,7 +156,10 @@ class QueueManager(object):
             # https://github.com/astropy/astroplan/pull/213
             time)
         # time, P48_loc)
-        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
+        
+        # WORKING AROUND BUG in moon distance!!!!  171110
+        moon_sc = coord.SkyCoord(moon.ra,moon.dec)
+        df.loc[:, 'moon_dist'] = sc.separation(moon_sc).to(u.deg).value
         df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
         df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
 

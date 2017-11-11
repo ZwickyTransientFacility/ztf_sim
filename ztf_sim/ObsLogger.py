@@ -196,7 +196,10 @@ class ObsLogger(object):
         sun_altaz = skycoord_to_altaz(sun, exposure_start)
         moon = coord.get_moon(exposure_start, P48_loc)
         moon_altaz = skycoord_to_altaz(moon, exposure_start)
-        record['dist2Moon'] = sc.separation(moon).to(u.radian).value
+
+        # WORKING AROUND a bug in sc.separation(moon)!
+        moon_sc = coord.SkyCoord(moon.ra,moon.dec)
+        record['dist2Moon'] = sc.separation(moon_sc).to(u.radian).value
         record['solarElong'] = sc.separation(sun).to(u.deg).value
         record['moonRA'] = moon.ra.to(u.radian).value
         record['moonDec'] = moon.dec.to(u.radian).value
