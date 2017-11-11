@@ -163,6 +163,10 @@ class QueueManager(object):
         df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
         df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
 
+        # check if the sun is up anywhere and break things if it isn't
+        if np.sum(df['sunalt'] > -6) != 0:
+            raise ValueError('Some pointings outside six-degree twilight!')
+
         # compute sky brightness
         # only have values for reasonable altitudes (set by R20_absorbed...)
         wup = df['altitude'] > 10
@@ -206,6 +210,11 @@ class QueueManager(object):
         # assign a very bright limiting mag to the fields that are down 
         # so the metric goes to zero
         df.loc[~wup, 'limiting_mag'] = -99
+
+        # assign a very bright limiting mag to the fields within 20 degrees of
+        # the moon 
+        wmoon = df['moon_dist'] < 20
+        df.loc[wmoon, 'limiting_mag'] = -99
 
         return df['limiting_mag']
 
