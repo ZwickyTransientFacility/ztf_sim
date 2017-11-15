@@ -151,15 +151,10 @@ class QueueManager(object):
         sun_altaz = skycoord_to_altaz(sun, time)
         moon = coord.get_moon(time, location=P48_loc)
         moon_altaz = skycoord_to_altaz(moon, time)
-        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
-            # Don't use P48_loc to avoid astropy bug:
-            # https://github.com/astropy/astroplan/pull/213
-            time)
-        # time, P48_loc)
+        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(time)
         
         # WORKING AROUND BUG in moon distance!!!!  171110
-        moon_sc = coord.SkyCoord(moon.ra,moon.dec)
-        df.loc[:, 'moon_dist'] = sc.separation(moon_sc).to(u.deg).value
+        df.loc[:, 'moon_dist'] = moon.separation(sc).to(u.deg).value
         df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
         df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
 
@@ -674,36 +669,9 @@ class GreedyQueueManager(QueueManager):
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
-        # compute inputs for sky brightness
-        sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
-        sun = coord.get_sun(current_state['current_time'])
-        sun_altaz = skycoord_to_altaz(sun, current_state['current_time'])
-        moon = coord.get_moon(current_state['current_time'],
-                              location=P48_loc)
-        moon_altaz = skycoord_to_altaz(moon, current_state['current_time'])
-        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(
-            # Don't use P48_loc to avoid astropy bug:
-            # https://github.com/astropy/astroplan/pull/213
-            current_state['current_time'])
-        # current_state['current_time'], P48_loc)
-        df.loc[:, 'moon_dist'] = sc.separation(moon).to(u.deg).value
-        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
-        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
+        df.loc[:, 'limiting_mag'] = self.compute_limiting_mag(df,
+                current_state['current_time'])
 
-        # compute sky brightness
-        df.loc[:, 'sky_brightness'] = self.Sky.predict(df)
-        #df = pd.merge(df, df_sky, left_on='field_id', right_index=True)
-
-        # compute seeing at each pointing
-        df.loc[:, 'seeing'] = seeing_at_pointing(current_state['current_zenith_seeing'],
-                                                 df['altitude'])
-        #df_seeing.name = 'seeing'
-        #df = pd.merge(df, df_seeing, left_on='field_id', right_index=True)
-
-        df.loc[:, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, df['seeing'],
-                                                 df['sky_brightness'],
-                                                 filter_id=df['filter_id'],
-                                                 altitude=df['altitude'], SNR=5.)
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
 

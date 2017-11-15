@@ -198,9 +198,9 @@ class ObsLogger(object):
         moon_altaz = skycoord_to_altaz(moon, exposure_start)
 
         # WORKING AROUND a bug in sc.separation(moon)!
-        moon_sc = coord.SkyCoord(moon.ra,moon.dec)
-        record['dist2Moon'] = sc.separation(moon_sc).to(u.radian).value
-        record['solarElong'] = sc.separation(sun).to(u.deg).value
+        #moon_sc = coord.SkyCoord(moon.ra,moon.dec)
+        record['dist2Moon'] = moon.separation(sc).to(u.radian).value
+        record['solarElong'] = sun.separation(sc).to(u.deg).value
         record['moonRA'] = moon.ra.to(u.radian).value
         record['moonDec'] = moon.dec.to(u.radian).value
         record['moonAlt'] = moon_altaz.alt.to(u.radian).value
