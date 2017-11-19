@@ -212,7 +212,7 @@ class QueueManager(object):
         wmoon = df['moon_dist'] < 20
         df.loc[wmoon, 'limiting_mag'] = -99
 
-        return df['limiting_mag']
+        return df['limiting_mag'], df['sky_brightness']
 
     def return_queue(self):
         """Return queue values, ordered in the expected sequence if possible"""
@@ -259,20 +259,23 @@ class GurobiQueueManager(QueueManager):
         
         idx = self.queue_order[0]
         row = self.queue.loc[idx]
+        filter_id = int(self.filter_by_slot[self.queue_slot])
 
         # TODO: make the queue have the right datatypes
         next_obs = {'target_field_id': int(row['field_id']),
             'target_ra': row['ra'],
             'target_dec': row['dec'],
-            'target_filter_id': int(self.filter_by_slot[self.queue_slot]),
+            'target_filter_id': filter_id,
             'target_program_id': int(row['program_id']),
             'target_subprogram_name': row['subprogram_name'],
             'target_exposure_time': EXPOSURE_TIME,
-            'target_sky_brightness': 0.,
-            'target_limiting_mag': 0.,
-            'target_metric_value':  0.,
-            'target_total_requests_tonight':
-            int(row['total_requests_tonight']),
+            'target_sky_brightness': 
+                    self.block_sky_brightness.loc[idx,self.queue_slot][filter_id],
+            'target_limiting_mag': 
+                    self.block_lim_mags.loc[idx,self.queue_slot][filter_id],
+            'target_metric_value':  
+                    self.block_slot_metric.loc[idx,self.queue_slot][filter_id],
+            'target_total_requests_tonight': int(row['total_requests_tonight']),
             'request_id': idx}
 
 #            'target_sky_brightness': self.queue.ix[idx].sky_brightness,
@@ -308,6 +311,7 @@ class GurobiQueueManager(QueueManager):
             time_block_size=TIME_BLOCK_SIZE)
 
         lim_mags = {}
+        sky_brightnesses = {}
         for bi, ti in zip(blocks, times):
             if 'altitude' in df.columns:
                 df.drop('altitude', axis=1, inplace=True)
@@ -322,12 +326,15 @@ class GurobiQueueManager(QueueManager):
             df = df.join(df_az, on='field_id')
             # TODO: only using r-band right now
             for fid in FILTER_IDS:
-                lim_mags[(bi, fid)] = \
+                df_limmag, df_sky = \
                     self.compute_limiting_mag(df, ti, filter_id = fid)
+                lim_mags[(bi, fid)] = df_limmag
+                sky_brightnesses[(bi, fid)] = df_sky
 
         # this results in a MultiIndex on the *columns*: level 0 is block,
         # level 1 is filter_id.  df_metric.unstack() flattens it
         self.block_lim_mags = pd.DataFrame(lim_mags)
+        self.block_sky_brightness = pd.DataFrame(sky_brightnesses)
         self.block_slot_metric = self._slot_metric(self.block_lim_mags)
 
         # count the number of observations requested by filter
@@ -669,8 +676,10 @@ class GreedyQueueManager(QueueManager):
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
-        df.loc[:, 'limiting_mag'] = self.compute_limiting_mag(df,
+        df_limmag, df_sky = self.compute_limiting_mag(df,
                 current_state['current_time'])
+        df.loc[:, 'limiting_mag'] = df_limmag
+        df.loc[:, 'sky_brightness'] = df_sky
 
         #df_limmag.name = 'limiting_mag'
         #df = pd.merge(df, df_limmag, left_on='field_id', right_index=True)
