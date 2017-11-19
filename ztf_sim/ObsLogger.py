@@ -60,12 +60,12 @@ class ObsLogger(object):
                                'ecliptic_lon': 'fieldEL',
                                'ecliptic_lat': 'fieldEB'}, inplace=True)
             df.set_index(['fieldID'], inplace=True)
+            df['fieldFov'] = 10.428
 
-            df_min = df['fieldRA', 'fieldDec', 'fieldGL', 'fieldGB',
-                'fieldEL', 'fieldEB']
+            df_min = df[['fieldFov','fieldRA', 'fieldDec', 'fieldGL', 'fieldGB',
+                'fieldEL', 'fieldEB']]
 
             # (circumscribed) field diameter in degrees
-            df_min['fieldFov'] = 10.428
             df_min.to_sql('Field', self.engine, if_exists='replace')
 
     def create_pointing_log(self, clobber=True):
@@ -82,7 +82,7 @@ class ObsLogger(object):
             self.conn.execute("""
             CREATE TABLE Summary(
             obsHistID         INTEGER PRIMARY KEY,
-            sessionID INTEGER,
+            requestID INTEGER,
             propID INTEGER,
             fieldID      INTEGER,
             fieldRA      REAL,
@@ -93,15 +93,10 @@ class ObsLogger(object):
             night              INTEGER,
             visitTime          REAL,
             visitExpTime       REAL,
-            finRank            REAL,
             FWHMgeom           REAL,
             FWHMeff            REAL,
-            transparency       REAL,
             airmass            REAL,
-            vSkyBright         REAL,
             filtSkyBright      REAL,
-            rotSkyPos          REAL,
-            rotTelPos          REAL,
             lst                REAL,
             altitude           REAL,
             azimuth            REAL,
@@ -114,21 +109,12 @@ class ObsLogger(object):
             moonPhase          REAL,
             sunAlt             REAL,
             sunAz              REAL,
-            phaseAngle         REAL,
-            rScatter           REAL,
-            mieScatter         REAL,
-            moonBright         REAL,
-            darkBright         REAL,
-            rawSeeing          REAL,
-            wind               REAL,
-            humidity           REAL,
             slewDist           REAL,
             slewTime           REAL,
             fiveSigmaDepth     REAL,
-            ditheredRA         REAL,
-            ditheredDec        REAL,
             totalRequestsTonight INTEGER,
-            metricValue        REAL
+            metricValue        REAL,
+            subprogram         TEXT
             )""")
 
     def log_pointing(self, state, request):
@@ -137,7 +123,8 @@ class ObsLogger(object):
         # don't use request_id here, but
         # let sqlite create a unique non-null key
         #record['obsHistID'] = request['request_id']
-        record['sessionID'] = 0
+        # give request id its own column
+        record['requestID'] = request['request_id']
         record['propID'] = request['target_program_id']
         record['fieldID'] = request['target_field_id']
         record['fieldRA'] = np.radians(request['target_ra'])
@@ -171,14 +158,9 @@ class ObsLogger(object):
             u.arcsec).value, altaz.alt.value)
             record['FWHMgeom'] = pointing_seeing
             record['FWHMeff'] = pointing_seeing
-        # transparency
 
-        # finRank
         record['airmass'] = altaz.secz.value
-        # vSkyBright
         record['filtSkyBright'] = request['target_sky_brightness']
-        record['rotSkyPos'] = 0.  # TODO: confirm
-        record['rotTelPos'] = 0.
         # despite the docs, it seems lst is stored as radians
         record['lst'] = np.radians(exposure_start.sidereal_time('apparent').to(
             u.hourangle).value/24.*360.)
@@ -213,10 +195,6 @@ class ObsLogger(object):
 
         record['sunAlt'] = sun_altaz.alt.to(u.radian).value
         record['sunAz'] = sun_altaz.az.to(u.radian).value
-        # phaseAngle, rScatter, mieScatter, moonBright, darkBright
-        # rawSeeing
-        # wind
-        # humidity
         if self.prev_obs is not None:
             sc_prev = coord.SkyCoord(self.prev_obs['fieldRA'] * u.radian,
                                      self.prev_obs['fieldDec'] * u.radian)
@@ -225,14 +203,14 @@ class ObsLogger(object):
                                   (self.prev_obs['expDate'] +
                                       self.prev_obs['visitTime']))
         record['fiveSigmaDepth'] = request['target_limiting_mag']
-        record['ditheredRA'] = 0.
-        record['ditheredDec'] = 0.
 
         # ztf_sim specific keywords!
         record['totalRequestsTonight'] = \
             request['target_total_requests_tonight']
-        record['metricValue'] = \
-            request['target_metric_value']
+        record['metricValue'] = request['target_metric_value']
+        record['subprogram'] = '\"' + \
+            request['target_subprogram_name'] + '\"'
+    
 
         # use placeholders to create the INSERT query
         columns = ', '.join(list(record.keys()))
