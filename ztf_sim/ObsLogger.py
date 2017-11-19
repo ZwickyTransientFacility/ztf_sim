@@ -60,20 +60,13 @@ class ObsLogger(object):
                                'ecliptic_lon': 'fieldEL',
                                'ecliptic_lat': 'fieldEB'}, inplace=True)
             df.set_index(['fieldID'], inplace=True)
-            df.drop([u'grid_id', u'last_observed_1_1',
-                     u'first_obs_tonight_1_1',     u'last_observed_1_2',
-                     u'first_obs_tonight_1_2',     u'last_observed_2_1',
-                     u'first_obs_tonight_2_1',     u'last_observed_2_2',
-                     u'first_obs_tonight_2_2',     u'last_observed_3_1',
-                     u'first_obs_tonight_3_1',     u'last_observed_3_2',
-                     u'first_obs_tonight_3_2',             u'n_obs_1_1',
-                     u'n_obs_1_2',             u'n_obs_2_1',
-                     u'n_obs_2_2',             u'n_obs_3_1',
-                     u'n_obs_3_2'], axis=1, inplace=True)
+
+            df_min = df['fieldRA', 'fieldDec', 'fieldGL', 'fieldGB',
+                'fieldEL', 'fieldEB']
 
             # (circumscribed) field diameter in degrees
-            df['fieldFov'] = 10.428
-            df.to_sql('Field', self.engine, if_exists='replace')
+            df_min['fieldFov'] = 10.428
+            df_min.to_sql('Field', self.engine, if_exists='replace')
 
     def create_pointing_log(self, clobber=True):
 
