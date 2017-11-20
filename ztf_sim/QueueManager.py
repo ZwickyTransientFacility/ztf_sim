@@ -17,7 +17,8 @@ from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
-from .utils import skycoord_to_altaz, altitude_to_airmass, seeing_at_pointing
+from .utils import skycoord_to_altaz, seeing_at_pointing
+from .utils import altitude_to_airmass, airmass_to_altitude
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
 
 class QueueEmptyError(Exception):
@@ -164,8 +165,7 @@ class QueueManager(object):
 
         # compute sky brightness
         # only have values for reasonable altitudes (set by R20_absorbed...)
-        # TODO: consider using MAX_AIRMASS here instead
-        wup = df['altitude'] > 10
+        wup = df['altitude'] >= airmass_to_altitude(MAX_AIRMASS) 
         df.loc[wup, 'sky_brightness'] = self.Sky.predict(df[wup])
 
         # compute seeing at each pointing
