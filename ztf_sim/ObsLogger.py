@@ -214,8 +214,11 @@ class ObsLogger(object):
         # convert nan to SQL NULL. might be smarter to just replace the
         # insertion method below with something smarter (pd.to_sql?)
         for k,v in record.items():
-            if np.isnan(v):
-                record[k] = 'NULL'
+            try:
+                if np.isnan(v):
+                    record[k] = 'NULL'
+            except TypeError:
+                continue
 
         # use placeholders to create the INSERT query
         columns = ', '.join(list(record.keys()))
