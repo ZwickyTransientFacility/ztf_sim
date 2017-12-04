@@ -18,7 +18,7 @@ from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, seeing_at_pointing
-from .utils import altitude_to_airmass, airmass_to_altitude
+from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
 
 class QueueEmptyError(Exception):
@@ -211,6 +211,29 @@ class QueueManager(object):
         # the moon 
         wmoon = df['moon_dist'] < 20
         df.loc[wmoon, 'limiting_mag'] = -99
+
+        df['ha'] = RA_to_HA(df['ra'], time)
+
+        # lock out TCS limits
+        
+        # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
+        # fields not hit by the airmass cut)
+        whalimit = np.abs(df['ha']) >= (5.95 * u.hourangle)
+        df.loc[halimit, 'limiting_mag'] = -99
+        
+        
+        # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
+        
+        w1 = (df['ha'] <= (-17.6*u.degree)) & (df['dec'] <= (-22*u.degree))
+        df.loc[w1, 'limiting_mag'] = -99
+
+        # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.  
+        w2 = (df['ha'] >= (-17.6*u.degree)) & (df['dec'] <= (-45*u.degree))
+        df.loc[w2, 'limiting_mag'] = -99
+
+        # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".  
+        w3 = (np.abs(df['ha']) >= (3.*u.degree)) & (df['dec'] <= (-46*u.degree))
+        df.loc[w3, 'limiting_mag'] = -99
 
         return df['limiting_mag'], df['sky_brightness']
 
