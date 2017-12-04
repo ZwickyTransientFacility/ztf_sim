@@ -212,27 +212,29 @@ class QueueManager(object):
         wmoon = df['moon_dist'] < 20
         df.loc[wmoon, 'limiting_mag'] = -99
 
-        df['ha'] = RA_to_HA(df['ra'], time)
+        ha_vals = RA_to_HA(df['ra'].values*u.degree, time)
+        # for limits below, need ha-180-180
+        ha_vals = ha_vals.wrap_at(180.*u.degree)
+        ha = pd.Series(ha_vals.to(u.degree), index=df.index, name='ha')
 
         # lock out TCS limits
         
         # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
         # fields not hit by the airmass cut)
-        whalimit = np.abs(df['ha']) >= (5.95 * u.hourangle)
-        df.loc[halimit, 'limiting_mag'] = -99
-        
+        whalimit = np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value
+        df.loc[whalimit, 'limiting_mag'] = -99
         
         # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
         
-        w1 = (df['ha'] <= (-17.6*u.degree)) & (df['dec'] <= (-22*u.degree))
+        w1 = (ha <= -17.6) & (df['dec'] <= -22)
         df.loc[w1, 'limiting_mag'] = -99
 
         # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.  
-        w2 = (df['ha'] >= (-17.6*u.degree)) & (df['dec'] <= (-45*u.degree))
+        w2 = (ha >= -17.6) & (df['dec'] <= -45)
         df.loc[w2, 'limiting_mag'] = -99
 
         # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".  
-        w3 = (np.abs(df['ha']) >= (3.*u.degree)) & (df['dec'] <= (-46*u.degree))
+        w3 = (np.abs(ha) >= 3.) & (df['dec'] <= -46)
         df.loc[w3, 'limiting_mag'] = -99
 
         return df['limiting_mag'], df['sky_brightness']
