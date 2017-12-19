@@ -6,7 +6,7 @@ While you can install `ztf_sim` on your laptop, it can take a day or more to run
 
 Since `ztf_sim` has several dependencies, we recommend installing in a [conda environment](http://conda.pydata.org/docs/using/envs.html).  
 
-`ztf_sim` is python 2.7 only for now.  
+`ztf_sim` requires python 3.6 or later.
 
 Packages needed:
 
