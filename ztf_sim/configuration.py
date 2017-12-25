@@ -46,7 +46,15 @@ class ObservingProgramConfiguration(Configuration):
         OPs = []
         f = Fields()
         for prog in self.config['observing_programs']:
-            field_ids = f.select_field_ids(**prog['field_selections'])
+            # TODO: make these exclusive (one but not both)
+            assert(('field_ids' in prog) or ('field_selections' in prog))
+            if 'field_ids' in prog:
+                field_ids = prog['field_ids']
+                for field_id in field_ids:
+                    if field_id not in f.fields.index:
+                        raise ValueError(f'Input field_id {field_id} is not valid')
+            else: 
+                field_ids = f.select_field_ids(**prog['field_selections'])
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
                                   prog['subprogram_name'], 
                                   prog['program_observing_fraction'],
