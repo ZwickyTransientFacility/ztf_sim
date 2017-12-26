@@ -1,6 +1,8 @@
 
 # Configuring ztf_sim
 
+*NOTE THAT THE DOCUMENTATION BELOW IS OUTDATED AND SOME OPTIONS NO LONGER WORK AS DESCRIBED*
+
 Here is an example configuration file, which is in JSON format:
 
 ```
