@@ -26,12 +26,12 @@ Packages needed:
 Note that Gurobi is commercial software, but [academic licenses](http://www.gurobi.com/academia/for-universities) are available. 
 Install Gurobi via conda:
 
-        conda config --add channels http://conda.anaconda.org/gurobi
-	conda install gurobi
+    conda config --add channels http://conda.anaconda.org/gurobi
+    conda install gurobi
 
 And activate it with your license:
 
-	grbgetkey YOUR-LICENSE-KEY
+    grbgetkey YOUR-LICENSE-KEY
 
 In the future we plan to provide appropriate recipes for installing these libraries in one go.
 
@@ -39,4 +39,4 @@ In the future we plan to provide appropriate recipes for installing these librar
 
 `ztf_sim` is only available from Github right now, so you'll need to download the source code to a convenient location:
 
-        git clone https://github.com/ZwickyTransientFacility/ztf_sim.git
+    git clone https://github.com/ZwickyTransientFacility/ztf_sim.git
