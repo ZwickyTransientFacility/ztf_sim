@@ -72,8 +72,6 @@ class QueueManager(object):
     def assign_nightly_requests(self, current_state):
         # clear previous request pool
         self.rp.clear_all_request_sets()
-        # reset the first observation of the night counters
-        self.fields.clear_first_obs()
         # clear count of executed requests 
         self.requests_completed = {id:0 for id in PROGRAM_IDS}
         # set number of allowed requests by program.

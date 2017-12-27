@@ -318,11 +318,3 @@ class Fields(object):
                 count[program_id] += self.fields[col].sum()
 
         return count
-
-    def clear_first_obs(self):
-        """Reset the time of the nightly first observations."""
-
-        for program_id in PROGRAM_IDS:
-            for filter_id in FILTER_IDS:
-                self.fields.loc[:, 'first_obs_tonight_{}_{}'.format(
-                    program_id, filter_id)] = np.nan
