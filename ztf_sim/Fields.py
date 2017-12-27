@@ -326,22 +326,3 @@ class Fields(object):
             for filter_id in FILTER_IDS:
                 self.fields.loc[:, 'first_obs_tonight_{}_{}'.format(
                     program_id, filter_id)] = np.nan
-
-
-def generate_test_field_grid(filename=BASE_DIR+'../data/ZTF_fields.txt',
-                             dbname='test_fields'):
-    """Convert Eran's field grid to sqlite"""
-
-    df = pd.read_table(filename, delimiter='\s+', skiprows=1,
-                       names=['field_id', 'ra', 'dec', 'extinction_b-v',
-                              'l', 'b',
-                              'ecliptic_lon', 'ecliptic_lat'], index_col=0)
-
-    # insert label for offset grids
-    grid = pd.Series(df.index >=
-                     1000, index=df.index, name='grid_id', dtype=np.int8)
-
-    df = df.join(grid)
-
-    df_write_to_sqlite(df[['ra', 'dec', 'l', 'b', 'ecliptic_lon', 'ecliptic_lat',
-                           'grid_id']], dbname, index_label='field_id')
