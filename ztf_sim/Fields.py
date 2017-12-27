@@ -183,20 +183,11 @@ class Fields(object):
                       abs_b_range=None,
                       ecliptic_lon_range=None, ecliptic_lat_range=None,
                       grid_id=None,
-                      program_id=None, filter_id=None,
-                      n_obs_range=None, last_observed_range=None,
-                      observable_hours_range=None,
-                      reducefunc=None):
+                      observable_hours_range=None):
         """Select a subset of fields based on their sky positions.
 
         Each _range keyword takes a list[min, max].
         grid_id is a scalar
-        n_obs_range and last_observed_range require specifying
-        program_id and filter_id.  if these are not scalar,
-        reducefunc (e.g., [np.min, np.max]) is used to collapse the range
-        selection over multiple programs or filters
-        reducefunc should have two elements to describe the reduction for the
-        min comparison and the max.
 
         Returns a boolean array indexed by field_id."""
 
@@ -233,72 +224,9 @@ class Fields(object):
             if arg is not None:
                 cuts = cuts & (fields[scalar_keys[i]] == arg)
 
-        # n_obs and last_observed require special treatment,
-        # since we have to specify the program_id and filter_id
-
-        pf_keys = ['n_obs', 'last_observed']
-
-        for i, arg in enumerate([n_obs_range, last_observed_range]):
-            if arg is not None:
-                assert ((program_id is not None) and (filter_id is not None))
-                if (scalar_len(program_id) == 1) and (scalar_len(filter_id) == 1):
-                    key = '{}_{}_{}'.format(pf_keys[i], program_id, filter_id)
-                    cuts = cuts & (fields[key] >= arg[0]) & \
-                        (fields[key] <= arg[1])
-                else:
-                    # combined selections across several filters
-                    # and/or programs
-                    assert (reducefunc is not None)
-                    assert len(reducefunc) == 2
-                    # build the keys
-                    keys = []
-                    for pi in np.atleast_1d(program_id):
-                        for fi in np.atleast_1d(filter_id):
-                            keys.append('{}_{}_{}'.format(pf_keys[i], pi, fi))
-                    mincomp = fields[keys].apply(reducefunc[0], axis=1)
-                    maxcomp = fields[keys].apply(reducefunc[1], axis=1)
-                    cuts = cuts & (mincomp >= arg[0]) & \
-                        (maxcomp <= arg[1])
-
         return cuts
 
     def select_field_ids(self, **kwargs):
         """Returns a pandas index"""
         cuts = self.select_fields(**kwargs)
         return self.fields[cuts].index
-
-    def mark_field_observed(self, request, current_time):
-        """Update time last observed and number of observations for a single field"""
-
-        field_id = request['target_field_id']
-        program_id = request['target_program_id']
-        filter_id = request['target_filter_id']
-        # don't try to correct this to the actual observation time,
-        # because we don't have an easy way to get the readout overheads
-        time_obs = current_time
-
-        # need this syntax to avoid setting on a copy
-        self.fields.loc[field_id,
-                        'last_observed_{}_{}'.format(program_id, filter_id)] = time_obs.mjd
-
-        if np.isnan(self.fields.loc[field_id,
-                                    'first_obs_tonight_{}_{}'.format(
-                                        program_id, filter_id)]):
-            self.fields.loc[field_id,
-                            'first_obs_tonight_{}_{}'.format(
-                                program_id, filter_id)] = time_obs.mjd
-
-        self.fields.loc[field_id,
-                        'n_obs_{}_{}'.format(program_id, filter_id)] += 1
-
-    def count_total_obs_by_program(self):
-        """Sum total number of exposures by program id"""
-
-        count = defaultdict(int)
-        for program_id in PROGRAM_IDS:
-            cols = ['n_obs_{}_{}'.format(program_id, filter_id)
-                    for filter_id in FILTER_IDS]
-            for col in cols:
-                count[program_id] += self.fields[col].sum()
-
-        return count
