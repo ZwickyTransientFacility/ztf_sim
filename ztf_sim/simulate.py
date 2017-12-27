@@ -152,10 +152,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
                 # a) store exposure information in pointing history sqlite db
                 current_state = tel.current_state_dict()
                 scheduler.log.log_pointing(current_state, next_obs)
-                # b) update Fields
-                scheduler.Q.fields.mark_field_observed(next_obs, 
-                        current_state['current_time'])
-                # c) remove completed request_id from the pool and the queue
+                # b) remove completed request_id from the pool and the queue
                 # TODO: debugging check
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
                 # TODO: check this with request sets...

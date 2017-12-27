@@ -60,22 +60,6 @@ class Fields(object):
                     (df.index <= bounds['max'])
             df.loc[w,'grid_id'] = grid_id
 
-        # initialize the last observed time
-        # TODO: load last observed time per filter & program
-
-        for program_id in PROGRAM_IDS:
-            for filter_id in FILTER_IDS:
-                df['last_observed_{}_{}'.format(program_id, filter_id)] = \
-                    Time('2001-01-01').mjd
-                df['first_obs_tonight_{}_{}'.format(program_id, filter_id)] = \
-                    np.nan
-
-        # TODO: load total observations per filter & program
-
-        for program_id in PROGRAM_IDS:
-            for filter_id in FILTER_IDS:
-                df['n_obs_{}_{}'.format(program_id, filter_id)] = 0
-
         self.fields = df
         self.field_coords = self._field_coords()
 
