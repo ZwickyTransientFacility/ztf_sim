@@ -1,3 +1,10 @@
+# simulation outputs
+sims/log*
+sims/*.db
+sims/*.txt
+sims/*.json
+sims/profile*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
