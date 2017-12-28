@@ -2,8 +2,8 @@ from __future__ import absolute_import
 
 from builtins import object
 import numpy as np
+import pandas as pd
 from sqlalchemy import create_engine
-import sqlite3
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
@@ -28,6 +28,8 @@ class ObsLogger(object):
         self.create_fields_table(clobber=clobber)
         self.create_pointing_log(clobber=clobber)
 
+        self.history = pd.read_sql('Summary', engine)
+
     def create_fields_table(self, clobber=True):
 
         if clobber:
@@ -37,7 +39,9 @@ class ObsLogger(object):
             except:
                 pass
 
-            # create table
+        # If the table doesn't exist, create it
+        if not self.engine.dialect.has_table(self.engine, 'Field'): 
+
             self.conn.execute("""
             CREATE TABLE Field(
             fieldID   INTEGER PRIMARY KEY,
@@ -77,6 +81,9 @@ class ObsLogger(object):
             # TODO: better error handling
             except:
                 pass
+
+        # If the table doesn't exist, create it
+        if not self.engine.dialect.has_table(self.engine, 'Summary'): 
 
             # create table
             self.conn.execute("""
@@ -211,24 +218,44 @@ class ObsLogger(object):
         record['subprogram'] = '\"' + \
             request['target_subprogram_name'] + '\"'
 
-        # convert nan to SQL NULL. might be smarter to just replace the
-        # insertion method below with something smarter (pd.to_sql?)
-        for k,v in record.items():
-            try:
-                if np.isnan(v):
-                    record[k] = 'NULL'
-            except TypeError:
-                continue
+        record_row = pd.from_dict(record)
 
-        # use placeholders to create the INSERT query
-        columns = ', '.join(list(record.keys()))
-        placeholders = '{' + '}, {'.join(list(record.keys())) + '}'
-        query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
-            columns, placeholders)
-        query_filled = query.format(**record)
-        self.conn.execute(query_filled)
+        # append to our local history DataFrame
+        # note that the index here will change when reloaded from the db
+        self.history = self.history.append(record_row)
+
+        # write to the database
+        record_row.to_sql('Summary', self.conn, index=False)
+
+#        # convert nan to SQL NULL. might be smarter to just replace the
+#        # insertion method below with something smarter (pd.to_sql?)
+#        for k,v in record.items():
+#            try:
+#                if np.isnan(v):
+#                    record[k] = 'NULL'
+#            except TypeError:
+#                continue
+#
+#        # use placeholders to create the INSERT query
+#        columns = ', '.join(list(record.keys()))
+#        placeholders = '{' + '}, {'.join(list(record.keys())) + '}'
+#        query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
+#            columns, placeholders)
+#        query_filled = query.format(**record)
+#        self.conn.execute(query_filled)
+
 
         # save record for next obs
         self.prev_obs = record
 
-        pass
+
+    def count_total_obs_by_subprogram(self):
+        """Count of observations by program and subprogram.
+        
+        Returns a dict with keys (program_id, subprogram_name)"""
+
+        # TODO: may need to allow for a date range to handle active months
+        grp = self.history.groupby(['propID','subprogram'])
+
+        return grp['requestID'].agg(len).to_dict()
+

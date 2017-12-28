@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 from builtins import zip
 from builtins import object
+from collections import defaultdict
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -40,11 +41,9 @@ class QueueManager(object):
         # block on which the queue parameters were calculated
         self.queue_slot = None
 
-        # number allowed requests by program tonight (dict)
+        # number allowed requests by subprogram tonight 
+        # (dict of (program_id, subprogram_name))
         self.requests_allowed = {}
-
-        # count of executed requests by program tonight (dict)
-        self.requests_completed = {id:0 for id in PROGRAM_IDS}
 
         # the queue itself
         self.queue = pd.DataFrame()
@@ -69,13 +68,12 @@ class QueueManager(object):
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
-    def assign_nightly_requests(self, current_state):
+    def assign_nightly_requests(self, current_state, obs_log):
         # clear previous request pool
         self.rp.clear_all_request_sets()
-        # clear count of executed requests 
-        self.requests_completed = {id:0 for id in PROGRAM_IDS}
         # set number of allowed requests by program.
-        self.determine_allowed_requests(current_state['current_time'])
+        self.determine_allowed_requests(current_state['current_time'],
+                obs_log)
 
         for program in self.observing_programs:
 
@@ -92,18 +90,19 @@ class QueueManager(object):
         # any specific tasks needed)
         self._assign_nightly_requests(current_state)
 
-    def determine_allowed_requests(self, time):
+    def determine_allowed_requests(self, time, obs_log):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
 
-        self.requests_allowed = {id:0 for id in PROGRAM_IDS}
+        self.requests_allowed = defaultdict(int)
         
-        obs_count_by_program = self.fields.count_total_obs_by_program()
-        total_obs = np.sum(list(obs_count_by_program.values()))
+        obs_count_by_subprogram = obs_log.count_total_obs_by_subprogram()
+        total_obs = np.sum(list(obs_count_by_subprogram.values()))
         for program in self.observing_programs:
             n_requests = program.number_of_allowed_requests(time)
             delta = np.round(
-                (obs_count_by_program[program.program_id] -
+                (obs_count_by_subprogram[(program.program_id, 
+                    program.subprogram_name)] -
                  program.program_observing_time_fraction * total_obs)
                  * program.subprogram_fraction)
 
@@ -111,11 +110,12 @@ class QueueManager(object):
             # how quickly do we want to take to reach equalization?
             CATCHUP_FACTOR = 0.20
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
-            self.requests_allowed[program.program_id] += n_requests
+            self.requests_allowed[(program.program_id, 
+                program.subprogram_name)] += n_requests
 
-        for id, n_requests in list(self.requests_allowed.items()):
+        for key, n_requests in self.requests_allowed.items():
             if n_requests < 0:
-                self.requests_allowed[id] = 0
+                self.requests_allowed[key] = 0
 
     def next_obs(self, current_state):
         """Given current state, return the parameters for the next request"""
@@ -446,7 +446,7 @@ class GurobiQueueManager(QueueManager):
 
         # TODO: some sort of monitoring of expected vs. block time vs. actual
 
-    def _remove_requests(self, request_set_id):
+    def _remove_requests(self, request_set_id, completed=False):
         """Remove a request from both the queue and the pool.
         
         Note that gurobi queue uses request_set_id to index."""
@@ -548,13 +548,17 @@ class GreedyQueueManager(QueueManager):
 
 
         # enforce program balance
-        # TODO: make this configurable for commissioning
         progid = row['program_id']
-        if ((self.requests_completed[progid] + 1) >= 
-                self.requests_allowed[progid]):
+        subprogram = row['subprogram_name']
+        # TODO: use obs_log to query for requests completed by this subprogram
+        # tonight
+        #if ((self.requests_completed[(progid, subprogram)] + 1) >= 
+        #        self.requests_allowed[(progid, subprogram)]):
+        if False:
             # this program has used up all its obs for tonight.
             # remove all requests for this program from the pool 
-            w = self.rp.pool.program_id == progid
+            w = ((self.rp.pool.program_id == progid) &
+                 (self.rp.pool.subprogram_name == subprogram))
             self.rp.remove_requests(self.rp.pool[w].index.tolist())
             # reset the queue
             self._update_queue(current_state)
@@ -711,10 +715,11 @@ class GreedyQueueManager(QueueManager):
 
         self.queue = df
 
-    def _remove_requests(self, request_id):
+    def _remove_requests(self, request_id)
         """Remove a request from both the queue and the request pool"""
 
         row = self.queue.loc[request_id]
+
         self.queue = self.queue.drop(request_id)
         self.rp.remove_request(row['request_set_id'], row['filter_id'])
 

@@ -41,7 +41,7 @@ class Scheduler(object):
             log_name = self.op_config.config['run_name']
 
         # initialize sqlite history
-        self.log = ObsLogger(log_name,
+        self.obs_log = ObsLogger(log_name,
                 clobber=self.run_config['scheduler'].getboolean('clobber_db')) 
 
 
