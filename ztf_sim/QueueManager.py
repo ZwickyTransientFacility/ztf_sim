@@ -446,7 +446,7 @@ class GurobiQueueManager(QueueManager):
 
         # TODO: some sort of monitoring of expected vs. block time vs. actual
 
-    def _remove_requests(self, request_set_id, completed=False):
+    def _remove_requests(self, request_set_id):
         """Remove a request from both the queue and the pool.
         
         Note that gurobi queue uses request_set_id to index."""
@@ -715,7 +715,7 @@ class GreedyQueueManager(QueueManager):
 
         self.queue = df
 
-    def _remove_requests(self, request_id)
+    def _remove_requests(self, request_id):
         """Remove a request from both the queue and the request pool"""
 
         row = self.queue.loc[request_id]
