@@ -212,30 +212,41 @@ class QueueManager(object):
         wmoon = df['moon_dist'] < 20
         df.loc[wmoon, 'limiting_mag'] = -99
 
+        # need to check the Hour Angle at both the start and the end of the
+        # block, since we don't know the exact time it will be observed
+
         ha_vals = RA_to_HA(df['ra'].values*u.degree, time)
         # for limits below, need ha-180-180
         ha_vals = ha_vals.wrap_at(180.*u.degree)
         ha = pd.Series(ha_vals.to(u.degree), index=df.index, name='ha')
+
+        ha_vals_end = RA_to_HA(df['ra'].values*u.degree, time + TIME_BLOCK_SIZE)
+        # for limits below, need ha-180-180
+        ha_vals_end = ha_vals_end.wrap_at(180.*u.degree)
+        ha_end = pd.Series(ha_vals_end.to(u.degree), index=df.index, name='ha')
 
         # lock out TCS limits
         
         # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
         # fields not hit by the airmass cut)
         whalimit = np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value
-        df.loc[whalimit, 'limiting_mag'] = -99
+        whalimit_end = np.abs(ha_end) >= (5.95 * u.hourangle).to(u.degree).value
+        df.loc[whalimit | whatlimit_end, 'limiting_mag'] = -99
         
         # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
-        
         w1 = (ha <= -17.6) & (df['dec'] <= -22)
-        df.loc[w1, 'limiting_mag'] = -99
+        w1_end = (ha_end <= -17.6) & (df['dec'] <= -22)
+        df.loc[w1 | w1_end, 'limiting_mag'] = -99
 
         # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.  
         w2 = (ha >= -17.6) & (df['dec'] <= -45)
-        df.loc[w2, 'limiting_mag'] = -99
+        w2_end = (ha_end >= -17.6) & (df['dec'] <= -45)
+        df.loc[w2 | w2_end, 'limiting_mag'] = -99
 
         # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".  
         w3 = (np.abs(ha) >= 3.) & (df['dec'] <= -46)
-        df.loc[w3, 'limiting_mag'] = -99
+        w3_end = (np.abs(ha_end) >= 3.) & (df['dec'] <= -46)
+        df.loc[w3 | w3_end, 'limiting_mag'] = -99
 
         return df['limiting_mag'], df['sky_brightness']
 
