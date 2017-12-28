@@ -231,7 +231,7 @@ class QueueManager(object):
         # fields not hit by the airmass cut)
         whalimit = np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value
         whalimit_end = np.abs(ha_end) >= (5.95 * u.hourangle).to(u.degree).value
-        df.loc[whalimit | whatlimit_end, 'limiting_mag'] = -99
+        df.loc[whalimit | whalimit_end, 'limiting_mag'] = -99
         
         # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
         w1 = (ha <= -17.6) & (df['dec'] <= -22)
