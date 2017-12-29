@@ -79,7 +79,7 @@ class QueueManager(object):
 
             request_sets = program.assign_nightly_requests(
                 current_state['current_time'], self.fields,
-                block_programs=self.block_programs)
+                obs_log, block_programs=self.block_programs)
             for rs in request_sets:
                 self.rp.add_request_sets(rs['program_id'], 
                             rs['subprogram_name'], rs['field_ids'],
@@ -94,7 +94,7 @@ class QueueManager(object):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
 
-        self.requests_allowed = defaultdict(int)
+        self.requests_allowed = {}
         
         obs_count_by_subprogram = obs_log.count_total_obs_by_subprogram()
         total_obs = np.sum(list(obs_count_by_subprogram.values()))
@@ -111,7 +111,7 @@ class QueueManager(object):
             CATCHUP_FACTOR = 0.20
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[(program.program_id, 
-                program.subprogram_name)] += n_requests
+                program.subprogram_name)] = n_requests
 
         for key, n_requests in self.requests_allowed.items():
             if n_requests < 0:

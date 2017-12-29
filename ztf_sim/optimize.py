@@ -71,7 +71,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
     metric_sum.name = 'metric_sum'
 
     # merge additional useful info
-    dfr = df[['program_id','total_requests_tonight']].join(n_usable).join(metric_sum)
+    dfr = df[['program_id','subprogram_name','total_requests_tonight']].join(n_usable).join(metric_sum)
 
     dfr['occupancy'] = dfr['total_requests_tonight']/dfr['n_usable']
     # zero out any unusable slots
@@ -100,14 +100,17 @@ def request_set_optimize(df_metric, df, requests_allowed):
 
     # program balance
     constr_balance = m.addConstrs(
-        ((np.sum(dfr.loc[dfr['program_id'] == p, 'Yr'] * 
-                 dfr.loc[dfr['program_id'] == p, 'total_requests_tonight']  )
-        <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
+        ((np.sum(dfr.loc[(dfr['program_id'] == p[0]) & 
+                (dfr['subprogram_name'] == p[1]), 'Yr'] * 
+            dfr.loc[(dfr['program_id'] == p[0]) & 
+                (dfr['subprogram_name'] == p[1]), 'total_requests_tonight'])
+        <= requests_allowed[p]) for p in requests_allowed.keys()), 
         "constr_balance")
 
     # Quick and dirty is okay!
     # TODO: tune this value
     m.Params.TimeLimit = 30.
+
 
     m.update()
 
@@ -146,7 +149,7 @@ def slot_optimize(df_metric, df, requests_allowed):
         value_name='metric')
     # get n_reqs by fid
     n_reqs_cols = ['n_reqs_{}'.format(fid) for fid in filter_ids]
-    n_reqs_cols.extend(['program_id','total_requests_tonight'])
+    n_reqs_cols.extend(['program_id','subprogram_name','total_requests_tonight'])
     dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
 
 
@@ -197,8 +200,9 @@ def slot_optimize(df_metric, df, requests_allowed):
 
     # program balance
     constr_balance = m.addConstrs(
-        ((np.sum(dft.loc[dft['program_id'] == p, 'Yrtf'])
-        <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
+        ((np.sum(dft.loc[(dft['program_id'] == p[0]) & 
+            (dft['subprogram_name'] == p[1]), 'Yrtf'])
+        <= requests_allowed[p]) for p in requests_allowed.keys()), 
         "constr_balance")
 
     # Quick and dirty is okay!

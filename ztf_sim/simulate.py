@@ -92,7 +92,8 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             # use the state machine to allow us to skip weathered out nights
             #if tel.check_if_ready():
             scheduler.obs_log.prev_obs = None
-            scheduler.Q.assign_nightly_requests(tel.current_state_dict())
+            scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
+                    scheduler.obs_log)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             tel.logger.info(calc_pool_stats(

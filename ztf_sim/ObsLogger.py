@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 
 from builtins import object
+from collections import defaultdict
+import uuid
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
@@ -28,7 +30,7 @@ class ObsLogger(object):
         self.create_fields_table(clobber=clobber)
         self.create_pointing_log(clobber=clobber)
 
-        self.history = pd.read_sql('Summary', engine)
+        self.history = pd.read_sql('Summary', self.engine)
 
     def create_fields_table(self, clobber=True):
 
@@ -218,14 +220,14 @@ class ObsLogger(object):
         record['subprogram'] = '\"' + \
             request['target_subprogram_name'] + '\"'
 
-        record_row = pd.from_dict(record)
+        record_row = pd.DataFrame(record,index=[uuid.uuid1().hex])
 
         # append to our local history DataFrame
         # note that the index here will change when reloaded from the db
         self.history = self.history.append(record_row)
 
         # write to the database
-        record_row.to_sql('Summary', self.conn, index=False)
+        record_row.to_sql('Summary', self.conn, index=False, if_exists='append')
 
 #        # convert nan to SQL NULL. might be smarter to just replace the
 #        # insertion method below with something smarter (pd.to_sql?)
@@ -257,5 +259,31 @@ class ObsLogger(object):
         # TODO: may need to allow for a date range to handle active months
         grp = self.history.groupby(['propID','subprogram'])
 
-        return grp['requestID'].agg(len).to_dict()
+        count = grp['requestID'].agg(len).to_dict()
 
+        # make this a defaultdict so we get zero values for new programs
+        return defaultdict(int, count)
+
+    def select_last_observed_time_by_field(self,
+            field_ids = None, filter_ids = None, 
+            program_ids = None, subprogram_names = None):
+
+            # start with "True" 
+            w = self.history['expMJD'] > 0
+
+            if field_ids is not None:
+                w &= self.history['fieldID'].apply(lambda x: x in field_ids)
+
+            if filter_ids is not None:
+                w &= self.history['filter'].apply(lambda x: 
+                        x in FILTER_ID_TO_NAME[filter_ids])
+
+            if program_ids is not None:
+                w &= self.history['propID'].apply(lambda x: 
+                        x in program_ids)
+
+
+            # note that this only returns fields that have previously 
+            # been observed under these constraints!
+            return self.history.loc[
+                    w,['fieldID','expMJD']].groupby('fieldID').agg(np.max)

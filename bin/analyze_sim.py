@@ -112,7 +112,7 @@ def calc_stats(sim_name):
     stats['Average Summed Figure of Merit per Science Hour'] = df.metricValue.sum() \
         / stats['Total Science Time (h)']
 
-    for k, v in stats.items():
+    for k, v in list(stats.items()):
         print('{}\t{}'.format(k, v))
     return stats
 

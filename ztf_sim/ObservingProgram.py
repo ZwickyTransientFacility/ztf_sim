@@ -5,7 +5,7 @@ import pdb
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
-from .constants import EXPOSURE_TIME, READOUT_TIME
+from .constants import EXPOSURE_TIME, READOUT_TIME, TIME_BLOCK_SIZE
 from .utils import approx_hours_of_darkness
 
 
@@ -34,8 +34,8 @@ class ObservingProgram(object):
         self.filter_choice = filter_choice
         self.active_months = 'all'
 
-    def assign_nightly_requests(self, time, fields, block_programs=False,
-                                **kwargs):
+    def assign_nightly_requests(self, time, fields, obs_log, 
+            block_programs=False, **kwargs):
 
         # need a way to make this flexible without coding a new class for
         # every single way we could pick which fields to observe
@@ -114,24 +114,35 @@ class ObservingProgram(object):
 
         # Choose which fields will be observed
 
-        obs_field_ids = fields.select_field_ids(
-            # we want an object observed at the end of the night N days ago
-            # to be observed at the start of the night now.
-            # Max night length is 12.2 hours
-            last_observed_range=[Time('2001-01-01').mjd,
-                                 (time - (self.internight_gap - 0.6 * u.day)).mjd],
-            program_id=self.program_id, filter_id=filter_ids_tonight,
-            # we want all filters to be in the observing window, hence
-            # reducefunc should be np.max
-            reducefunc=[np.max, np.max],  
-            # minimum time spacing for the observations
-            observable_hours_range=[(self.n_visits_per_night - 1) * \
-                                    (self.intranight_gap - self.intranight_half_width).to(u.hour).value, 24.])
+        # minimum time to observe N visits
+        # TODO: consider if we should set min_n_visits so high cadence fields
+        #       can degrade gracefully?
+        obs_field_ids = fields.select_field_ids(observable_hours_range=
+            [(self.n_visits_per_night*TIME_BLOCK_SIZE).to(u.hour).value, 24.])
 
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
 
-        request_fields = fields.fields.loc[pool_ids]
+        # get the times they were last observed:
+        # (note that fields *never* observed will not be included)
+        last_observed_times = obs_log.select_last_observed_time_by_field(
+                field_ids = pool_ids,
+                filter_ids = filter_ids_tonight,
+                program_ids = [self.program_id],
+                subprogram_names = [self.subprogram_name])
+
+        # we want an object observed at the end of the night N days ago
+        # to be observed at the start of the night now.
+        # Max night length is 12.2 hours
+        cutoff_time = (time - (self.internight_gap - 0.6 * u.day)).mjd
+
+        # find fields last observed more recently than that
+        recent_field_ids = (last_observed_times >= cutoff_time).index.tolist()
+
+        # reduce the list to only those not recently observed:
+        pool_ids_old = [idi for idi in pool_ids if idi not in recent_field_ids]
+
+        request_fields = fields.fields.loc[pool_ids_old]
 
 #        if n_fields > len(request_fields):
 #            # TODO: logging
@@ -140,12 +151,12 @@ class ObservingProgram(object):
         # sort request sets by chosen priority metric
 
         # first calculate oldest observations
-        last_obs_keys = ['last_observed_{}_{}'.format(self.program_id, k)
-                         for k in np.atleast_1d(filter_ids_tonight)]
-        # make a new joint column
-        oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
-        oldest_obs.name = 'oldest_obs'
-        request_fields = request_fields.join(oldest_obs)
+#        last_obs_keys = ['last_observed_{}_{}'.format(self.program_id, k)
+#                         for k in np.atleast_1d(filter_ids_tonight)]
+#        # make a new joint column
+#        oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
+#        oldest_obs.name = 'oldest_obs'
+#        request_fields = request_fields.join(oldest_obs)
 
         #pdb.set_trace()
 
