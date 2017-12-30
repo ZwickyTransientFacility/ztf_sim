@@ -86,10 +86,10 @@ class ObservingProgram(object):
             night_index_filters = np.floor(time.mjd % n_filters).astype(np.int)
             filter_ids_tonight = self.filter_ids[night_index_filters]
             filter_ids_last_night = self.filter_ids[night_index_filters - 1]
+            # make it a list
+            filter_ids_tonight = [filter_ids_tonight]
         else:
             filter_ids_tonight = list(set(self.filter_ids))
-            if len(filter_ids_tonight) == 1:
-                filter_ids_tonight = filter_ids_tonight[0]
 
         # maintain balance between programs
 #        if not block_programs:
