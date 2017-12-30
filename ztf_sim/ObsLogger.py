@@ -275,8 +275,9 @@ class ObsLogger(object):
                 w &= self.history['fieldID'].apply(lambda x: x in field_ids)
 
             if filter_ids is not None:
+                filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
                 w &= self.history['filter'].apply(lambda x: 
-                        x in FILTER_ID_TO_NAME[filter_ids])
+                        x in filter_names)
 
             if program_ids is not None:
                 w &= self.history['propID'].apply(lambda x: 
