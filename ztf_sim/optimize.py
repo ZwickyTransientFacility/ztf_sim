@@ -98,13 +98,20 @@ def request_set_optimize(df_metric, df, requests_allowed):
         ((np.sum(df_usable[t]*dfr['occupancy'] * dfr['Yr'])
         <= max_exps_per_slot) for t in slots), "constr_avg_slot_occupancy")
 
-    # program balance
+    # program balance.  To avoid key errors, only set constraints 
+    # for programs that are present
+    requests_needed = []
+    for p in requests_allowed.keys():
+        if np.sum((dfr['program_id'] == p[0]) &
+                (dfr['subprogram_name'] == p[1])) > 0:
+            requests_needed.append(p)
+
     constr_balance = m.addConstrs(
         ((np.sum(dfr.loc[(dfr['program_id'] == p[0]) & 
                 (dfr['subprogram_name'] == p[1]), 'Yr'] * 
             dfr.loc[(dfr['program_id'] == p[0]) & 
                 (dfr['subprogram_name'] == p[1]), 'total_requests_tonight'])
-        <= requests_allowed[p]) for p in requests_allowed.keys()), 
+        <= requests_allowed[p]) for p in requests_needed), 
         "constr_balance")
 
     # Quick and dirty is okay!
@@ -198,11 +205,18 @@ def slot_optimize(df_metric, df, requests_allowed):
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'])
         <= max_exps_per_slot) for t in slots), "constr_nperslot")
 
-    # program balance
+    # program balance.  To avoid key errors, only set constraints 
+    # for programs that are present
+    requests_needed = []
+    for p in requests_allowed.keys():
+        if np.sum((dft['program_id'] == p[0]) &
+                (dft['subprogram_name'] == p[1])) > 0:
+            requests_needed.append(p)
+
     constr_balance = m.addConstrs(
         ((np.sum(dft.loc[(dft['program_id'] == p[0]) & 
             (dft['subprogram_name'] == p[1]), 'Yrtf'])
-        <= requests_allowed[p]) for p in requests_allowed.keys()), 
+        <= requests_allowed[p]) for p in requests_needed), 
         "constr_balance")
 
     # Quick and dirty is okay!
