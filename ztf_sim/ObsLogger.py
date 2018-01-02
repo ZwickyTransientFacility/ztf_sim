@@ -139,8 +139,7 @@ class ObsLogger(object):
         record['fieldRA'] = np.radians(request['target_ra'])
         record['fieldDec'] = np.radians(request['target_dec'])
 
-        record['filter'] = '\"' + \
-            FILTER_ID_TO_NAME[request['target_filter_id']] + '\"'
+        record['filter'] = FILTER_ID_TO_NAME[request['target_filter_id']]
         # times are recorded at start of exposure
         exposure_start = state['current_time'] - \
             request['target_exposure_time']
@@ -217,8 +216,7 @@ class ObsLogger(object):
         record['totalRequestsTonight'] = \
             request['target_total_requests_tonight']
         record['metricValue'] = request['target_metric_value']
-        record['subprogram'] = '\"' + \
-            request['target_subprogram_name'] + '\"'
+        record['subprogram'] = request['target_subprogram_name'] 
 
         record_row = pd.DataFrame(record,index=[uuid.uuid1().hex])
 
