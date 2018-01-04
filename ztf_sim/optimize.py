@@ -201,6 +201,11 @@ def slot_optimize(df_metric, df, requests_allowed):
         <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
         "constr_balance")
 
+    # set a minimum metric value we'll allow, so that limiting metric values
+    # are locked out: 1e-5 is limiting mag ~13
+    constr_min_metric = m.addConstr(np.min(dft['Yrtf'] * dft['metric']) > 1.e-5,
+            "constr_min_metric")
+
     # Quick and dirty is okay!
     # TODO: tune this value
     m.Params.TimeLimit = 30.
