@@ -201,10 +201,20 @@ def slot_optimize(df_metric, df, requests_allowed):
         <= requests_allowed[p]) for p in list(requests_allowed.keys())), 
         "constr_balance")
 
-    # set a minimum metric value we'll allow, so that limiting metric values
-    # are locked out: 1e-5 is limiting mag ~13
-    constr_min_metric = m.addConstr(np.min(dft['Yrtf'] * dft['metric']) > 1.e-5,
-            "constr_min_metric")
+    # set a minimum metric value we'll allow, so that flagged limiting mags
+    # (-99) are locked out: 1e-5 is limiting mag ~13
+    # need to use generalized constraints 
+
+    # this ought to work but gurobi can't seem to parse the sense variable
+    # correctly
+    #constr_min_metric = m.addConstrs((((row['Yrtf'] == 1) >> (row['metric'] >= 1.e-5)) for (_, row) in dft.iterrows()), "constr_min_metric")
+    # so do the slow loop:
+#    for idx, row in dft.iterrows():
+#        m.addGenConstrIndicator(row['Yrtf'], True, row['metric'], 
+#                GRB.GREATER_EQUAL, 1.e-5)
+
+    # sadly above leads to infeasible models
+
 
     # Quick and dirty is okay!
     # TODO: tune this value
