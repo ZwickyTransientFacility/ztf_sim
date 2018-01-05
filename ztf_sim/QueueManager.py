@@ -124,7 +124,14 @@ class QueueManager(object):
         # don't store the telescope state locally!
 
         # define functions that actually do the work in subclasses
-        return self._next_obs(current_state)
+        next_obs = self._next_obs(current_state)
+
+        # check if we have a disallowed observation, and reject it:
+        if next_obs['target_limiting_mag'] < 0:
+            self.remove_requests(next_obs['request_id'])
+            next_obs = self.next_obs(current_state)
+
+        return next_obs
 
     def update_queue(self, current_state, **kwargs):
         """Recalculate queue"""
@@ -328,7 +335,10 @@ class GurobiQueueManager(QueueManager):
         due to atmospheric refraction, plus sky brightness from
         moon phase and distance
         == 1 for 21st mag."""
-        return 10.**(0.6 * (limiting_mag - 21)) 
+
+        metric = 10.**(0.6 * (limiting_mag - 21)) 
+        # lock out -99 limiting mags even more aggressively
+        return metric.where(limiting_mag > 0, -0.99)
 
     def _assign_slots(self, current_state):
         """Assign requests in the Pool to slots"""
