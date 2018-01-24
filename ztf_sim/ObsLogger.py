@@ -266,23 +266,51 @@ class ObsLogger(object):
             field_ids = None, filter_ids = None, 
             program_ids = None, subprogram_names = None):
 
-            # start with "True" 
-            w = self.history['expMJD'] > 0
+        # start with "True" 
+        w = self.history['expMJD'] > 0
 
-            if field_ids is not None:
-                w &= self.history['fieldID'].apply(lambda x: x in field_ids)
+        if field_ids is not None:
+            w &= self.history['fieldID'].apply(lambda x: x in field_ids)
 
-            if filter_ids is not None:
-                filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
-                w &= self.history['filter'].apply(lambda x: 
-                        x in filter_names)
+        if filter_ids is not None:
+            filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
+            w &= self.history['filter'].apply(lambda x: 
+                    x in filter_names)
 
-            if program_ids is not None:
-                w &= self.history['propID'].apply(lambda x: 
-                        x in program_ids)
+        if program_ids is not None:
+            w &= self.history['propID'].apply(lambda x: 
+                    x in program_ids)
 
 
-            # note that this only returns fields that have previously 
-            # been observed under these constraints!
-            return self.history.loc[
-                    w,['fieldID','expMJD']].groupby('fieldID').agg(np.max)
+        # note that this only returns fields that have previously 
+        # been observed under these constraints!
+        return self.history.loc[
+                w,['fieldID','expMJD']].groupby('fieldID').agg(np.max)
+
+    def select_n_obs_by_field(self,
+            field_ids = None, filter_ids = None, 
+            program_ids = None, subprogram_names = None):
+
+        # start with "True" 
+        w = self.history['expMJD'] > 0
+
+        if field_ids is not None:
+            w &= self.history['fieldID'].apply(lambda x: x in field_ids)
+
+        if filter_ids is not None:
+            filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
+            w &= self.history['filter'].apply(lambda x: 
+                    x in filter_names)
+
+        if program_ids is not None:
+            w &= self.history['propID'].apply(lambda x: 
+                    x in program_ids)
+
+        # note that this only returns fields that have previously 
+        # been observed!   
+        grp =  self.history.loc[
+                w,['fieldID','expMJD']].groupby('fieldID')
+        nobs = grp['expMJD'].agg(len)
+        nobs.name = 'n_obs'
+
+        return nobs
