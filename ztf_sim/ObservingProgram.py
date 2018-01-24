@@ -14,9 +14,8 @@ class ObservingProgram(object):
     def __init__(self, program_id, subprogram_name,
                  program_observing_time_fraction, subprogram_fraction,
                  field_ids, filter_ids, internight_gap, n_visits_per_night,
-                 intranight_gap, intranight_half_width,
                  nobs_range=None,
-                 nightly_priority='oldest', filter_choice='rotate', 
+                 filter_choice='rotate', 
                  active_months='all'):
 
         self.program_id = program_id
@@ -28,11 +27,8 @@ class ObservingProgram(object):
 
         self.internight_gap = internight_gap
         self.n_visits_per_night = n_visits_per_night
-        self.intranight_gap = intranight_gap
-        self.intranight_half_width = intranight_half_width
 
         self.nobs_range = nobs_range 
-        self.nightly_priority = nightly_priority
         self.filter_choice = filter_choice
         self.active_months = active_months
 
@@ -100,15 +96,15 @@ class ObservingProgram(object):
         request_fields = fields.fields.loc[pool_ids_old]
 
         # if we have an nobs_range argument (eg for reference building), use it
-        if nobs_range is not None:
-            if 'program_ids' not in nobs_range:
+        if self.nobs_range is not None:
+            if 'program_ids' not in self.nobs_range:
                 program_ids = None
-            if 'subprogram_names' not in nobs_range:
+            if 'subprogram_names' not in self.nobs_range:
                 subprogram_names = None
-            if 'filter_ids' not in nobs_range:
+            if 'filter_ids' not in self.nobs_range:
                 filter_ids = filter_ids_tonight
-            assert 'min_obs' in nobs_range
-            assert 'max_obs' in nobs_range
+            assert 'min_obs' in self.nobs_range
+            assert 'max_obs' in self.nobs_range
                 
             nobs = obs_log.select_n_obs_by_field(filter_ids = filter_ids,
                     program_ids = program_ids, 
@@ -116,9 +112,9 @@ class ObservingProgram(object):
             
             # function above only returns fields that have been observed at
             # least once.  use the intersection if min_obs > 0:
-            w = ((nobs >= nobs_range['min_obs']) & 
-                    (nobs <= nobs_range['max_obs']))
-            if nobs_range['min_obs'] > 0:
+            w = ((nobs >= self.nobs_range['min_obs']) & 
+                    (nobs <= self.nobs_range['max_obs']))
+            if self.nobs_range['min_obs'] > 0:
                 nobs_inrange = nobs.loc[w]
                 request_fields = request_fields.join(nobs_inrange,how='inner')
             else:

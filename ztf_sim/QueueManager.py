@@ -377,6 +377,9 @@ class GurobiQueueManager(QueueManager):
         self.request_sets_tonight = request_set_optimize(
             self.block_slot_metric, df, self.requests_allowed)
 
+        if len(self.request_sets_tonight) == 0:
+            raise QueueEmptyError("No request sets selected!")
+
         # optimize assignment into slots
         df_slots = slot_optimize(
             self.block_slot_metric.loc[self.request_sets_tonight], 
