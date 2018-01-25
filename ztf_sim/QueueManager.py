@@ -869,7 +869,12 @@ class RequestPool(object):
 
         n_fields = scalar_len(field_ids)
         if n_fields == 1:
-            field_ids = [field_ids]
+            # see if it's iterable or not
+            try:
+                iterator = iter(field_ids)
+            except TypeError:
+                # if not, assume it's a scalar and wrap in a list
+                field_ids = [field_ids]
 
         # build df as a list of dicts
         request_sets = []
