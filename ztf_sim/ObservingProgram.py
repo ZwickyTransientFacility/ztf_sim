@@ -137,10 +137,6 @@ class ObservingProgram(object):
                 request_fields = request_fields.drop(nobs_outofrange.index)
             
 
-        1/0
-
-
-
         # construct request sets: list of inputs to RequestPool.add_requests
         # scalar everything except field_ids
 
