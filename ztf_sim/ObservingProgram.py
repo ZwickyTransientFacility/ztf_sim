@@ -88,7 +88,8 @@ class ObservingProgram(object):
         cutoff_time = (time - (self.internight_gap - 0.6 * u.day)).mjd
 
         # find fields last observed more recently than that
-        recent_field_ids = (last_observed_times >= cutoff_time).index.tolist()
+        wrecent = (last_observed_times['expMJD'] >= cutoff_time)
+        recent_field_ids = last_observed_times.loc[wrecent].index.tolist()
 
         # reduce the list to only those not recently observed:
         pool_ids_old = [idi for idi in pool_ids if idi not in recent_field_ids]
@@ -99,10 +100,22 @@ class ObservingProgram(object):
         if self.nobs_range is not None:
             if 'program_ids' not in self.nobs_range:
                 program_ids = None
+            else:
+                program_ids = self.nobs_range['program_ids']
+
             if 'subprogram_names' not in self.nobs_range:
                 subprogram_names = None
+            else:
+                subprogram_names = self.nobs_range['subprogram_names']
+
+            if 'filter_id' in self.nobs_range:
+                self.nobs_range['filter_ids'] = [self.nobs_range['filter_id']]
             if 'filter_ids' not in self.nobs_range:
-                filter_ids = filter_ids_tonight
+                filter_ids = None
+            else:
+                filter_ids = self.nobs_range['filter_ids'] 
+                
+
             assert 'min_obs' in self.nobs_range
             assert 'max_obs' in self.nobs_range
                 
@@ -123,6 +136,8 @@ class ObservingProgram(object):
                 nobs_outofrange = nobs.loc[~w]
                 request_fields = request_fields.drop(nobs_outofrange.index)
             
+
+        1/0
 
 
 
