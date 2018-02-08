@@ -21,11 +21,60 @@ class Configuration(object):
         # TODO: construct and validate a schema
         self.config = config
 
-
-class ObservingProgramConfiguration(Configuration):
+class SchedulerConfiguration(Configuration):
 
     def __init__(self, config_file):
-        super(ObservingProgramConfiguration, self).__init__(config_file)
+        super().__init__(config_file)
+        self.check_configuration()
+
+    def check_configuration(self):
+        if 'queues' not in self.config:
+            raise ValueError("Scheduler configuration must give queues")
+        has_default = False
+        for queue_pars in self.config['queues']:
+            assert "queue_name" in queue_pars
+            if "queue_name" == "default":
+                has_default = True
+            assert "config_file" in queue_pars
+        if not has_default:
+            raise ValueError("Scheduler configuration must specify a default queue")
+
+    def build_queue_configs(self):
+
+        queue_configs = {}
+
+        for queue_pars in self.config['queues']:
+            queue_config = QueueConfiguration( queue_pars["config_file"])
+            queue_configs[queue_pars["queue_name"]] = queue_config
+
+        return queue_configs
+
+    def build_queues(self, queue_configs):
+        
+        queues = {}
+        for queue_name, queue_config in queue_configs:
+            
+            queue_manager = queue_config.config['queue_manager']
+            assert (queue_manager in ('list', 'greedy', 'gurobi'))
+
+            if queue_manager == 'list':
+                queues[queue_name] = ListQueueManager(queue_config)
+            elif queue_manager == 'greedy':
+                queues[queue_name] = GreedyQueueManager(queue_config)
+            elif queue_manager == 'gurobi':
+                queues[queue_name] GurobiQueueManager(queue_config)
+
+
+        return queues
+
+
+
+
+
+class QueueConfiguration(Configuration):
+
+    def __init__(self, config_file):
+        super().__init__(config_file)
         self.check_configuration()
 
     def check_configuration(self):

@@ -55,7 +55,6 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             observing_program_config_file_fullpath)
 
     run_name = op_config.config['run_name']
-    observing_programs = op_config.build_observing_programs()
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -103,7 +102,8 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             current_state = tel.current_state_dict()
             # get coords
             try:
-                next_obs = scheduler.Q.next_obs(current_state)
+                next_obs = scheduler.Q.next_obs(current_state, 
+                        scheduler.obs_log)
                 # TODO: debugging check...
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:

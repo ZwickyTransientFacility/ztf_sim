@@ -29,14 +29,19 @@ class QueueEmptyError(Exception):
 
 class QueueManager(object):
 
-    def __init__(self, observing_programs=[], rp=None, fields=None,
-                 block_programs=False, queue_name = 'default'):
+    #def __init__(self, observing_programs=[], rp=None, fields=None,
+    #             block_programs=False, queue_name = 'default'):
+    def __init__(self, queue_configuration,
+            rp=None, fields=None, queue_name = 'default'):
 
         # queue name (useful in Scheduler object when swapping queues)
-        self.queue_name = queue_name
+        self.queue_name = queue_configuration.config["queue_name"]
 
         # list of ObservingPrograms
-        self.observing_programs = observing_programs
+        self.observing_programs = queue_configuration.build_observing_programs()
+
+        # flag to check if assign_nightly_requests has been called tonight
+        self.queue_night = None
 
         # block on which the queue parameters were calculated
         self.queue_slot = None
@@ -49,8 +54,8 @@ class QueueManager(object):
         self.queue = pd.DataFrame()
 
         # should we only consider fields from one program in a given
-        # observing block?
-        self.block_programs = block_programs
+        # observing block?  TODO: NOT IMPLEMENTED.
+        self.block_programs = False
 
         if rp is None:
             # initialize an empty RequestPool
@@ -90,6 +95,10 @@ class QueueManager(object):
         # any specific tasks needed)
         self._assign_nightly_requests(current_state)
 
+        # mark that we've set up the pool for tonight
+        self.queue_night = np.floor(current_state['current_time'].mjd) 
+
+
     def determine_allowed_requests(self, time, obs_log):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
@@ -117,9 +126,13 @@ class QueueManager(object):
             if n_requests < 0:
                 self.requests_allowed[key] = 0
 
-    def next_obs(self, current_state):
+    def next_obs(self, current_state, obs_log):
         """Given current state, return the parameters for the next request"""
         # don't store the telescope state locally!
+
+        # check that assign_nightly_requests has been called tonight.
+        if np.floor(current_state['current_time'].mjd) != self.queue_night:
+            self.assign_nightly_requests(current_state, obs_log)
 
         # define functions that actually do the work in subclasses
         next_obs = self._next_obs(current_state)
@@ -272,7 +285,7 @@ class QueueManager(object):
 class GurobiQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
-        super(GurobiQueueManager, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.block_obs_number = 0
         self.queue_type = 'gurobi'
 
@@ -523,7 +536,7 @@ class GurobiQueueManager(QueueManager):
 class GreedyQueueManager(QueueManager):
 
     def __init__(self, **kwargs):
-        super(GreedyQueueManager, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
@@ -760,7 +773,7 @@ class ListQueueManager(QueueManager):
     """Simple Queue that returns observations in order."""
 
     def __init__(self, **kwargs):
-        super(ListQueueManager, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.queue_type = 'list'
 
     def _assign_nightly_requests(self, current_state):
