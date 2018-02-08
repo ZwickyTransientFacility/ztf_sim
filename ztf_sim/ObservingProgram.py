@@ -5,7 +5,7 @@ import pdb
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
-from .constants import EXPOSURE_TIME, READOUT_TIME
+from .constants import EXPOSURE_TIME, READOUT_TIME, TIME_BLOCK_SIZE
 from .utils import approx_hours_of_darkness
 
 
@@ -14,8 +14,8 @@ class ObservingProgram(object):
     def __init__(self, program_id, subprogram_name,
                  program_observing_time_fraction, subprogram_fraction,
                  field_ids, filter_ids, internight_gap, n_visits_per_night,
-                 intranight_gap, intranight_half_width,
-                 nightly_priority='oldest', filter_choice='rotate', 
+                 nobs_range=None,
+                 filter_choice='rotate', 
                  active_months='all'):
 
         self.program_id = program_id
@@ -27,41 +27,13 @@ class ObservingProgram(object):
 
         self.internight_gap = internight_gap
         self.n_visits_per_night = n_visits_per_night
-        self.intranight_gap = intranight_gap
-        self.intranight_half_width = intranight_half_width
 
-        self.nightly_priority = nightly_priority
+        self.nobs_range = nobs_range 
         self.filter_choice = filter_choice
-        self.active_months = 'all'
+        self.active_months = active_months
 
-    def assign_nightly_requests(self, time, fields, block_programs=False,
-                                **kwargs):
-
-        # need a way to make this flexible without coding a new class for
-        # every single way we could pick which fields to observe
-        # some kind of config files?
-        # or just instantiate with nightly_priority="", with
-        # analagous functions to cadence.py?
-        # selection functions:
-        # nightly_priority='oldest":
-        #    Prioritize fields for which it has been the longest
-        #    time since the revisit
-        # nightly_priority='radist':
-        #    Prioritize fields closest to ra0
-        # nightly_priority='decdist':
-        #    Prioritize fields closest to dec0.  Give list to rotate???
-        # nightly_priority='random'
-        #    Choose fields at random
-
-        # e.g.: fields assigned % n nights, rotate
-        #               -> could handle this with cadence pars directly!
-        #               but sensitive to state--get random initial set
-        #               of fields  baked in
-        #       observe oldest fields last observed
-        #       observe fields on a fixed rotation cadence
-        #       observe all fields
-        #       observe fields nearest to an RA or Dec line
-        #       observe randomly chosen fields
+    def assign_nightly_requests(self, time, fields, obs_log, 
+            block_programs=False, **kwargs):
 
         # filters are given in filter_ids:
         # either a set of filters, or a fixed sequence
@@ -86,116 +58,84 @@ class ObservingProgram(object):
             night_index_filters = np.floor(time.mjd % n_filters).astype(np.int)
             filter_ids_tonight = self.filter_ids[night_index_filters]
             filter_ids_last_night = self.filter_ids[night_index_filters - 1]
+            # make it a list
+            filter_ids_tonight = [filter_ids_tonight]
         else:
             filter_ids_tonight = list(set(self.filter_ids))
-            if len(filter_ids_tonight) == 1:
-                filter_ids_tonight = filter_ids_tonight[0]
-
-        # maintain balance between programs
-#        if not block_programs:
-#            obs_count_by_program = fields.count_total_obs_by_program()
-#            total_obs = np.sum(obs_count_by_program.values())
-#            # difference in expected obs from allowed program fraction,
-#            # scaled to this subprogram
-#            delta = np.round(
-#                (obs_count_by_program[self.program_id] -
-#                 self.program_observing_time_fraction * total_obs) 
-#                 * self.subprogram_fraction)
-#
-#            # TODO: tweak as needed
-#            # how quickly do we want to take to reach equalization?
-#            CATCHUP_FACTOR = 0.20
-#            n_fields -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
-#
-#            if n_fields <= 0:
-#                # TODO: logging
-#                print('No fields requested for program {} ({})'.format(self.program_id, self.subprogram_name))
-#                return {}
 
         # Choose which fields will be observed
 
-        obs_field_ids = fields.select_field_ids(
-            # we want an object observed at the end of the night N days ago
-            # to be observed at the start of the night now.
-            # Max night length is 12.2 hours
-            last_observed_range=[Time('2001-01-01').mjd,
-                                 (time - (self.internight_gap - 0.6 * u.day)).mjd],
-            program_id=self.program_id, filter_id=filter_ids_tonight,
-            # we want all filters to be in the observing window, hence
-            # reducefunc should be np.max
-            reducefunc=[np.max, np.max],  
-            # minimum time spacing for the observations
-            observable_hours_range=[(self.n_visits_per_night - 1) * \
-                                    (self.intranight_gap - self.intranight_half_width).to(u.hour).value, 24.])
+        # minimum time to observe N visits
+        # TODO: consider if we should set min_n_visits so high cadence fields
+        #       can degrade gracefully?
+        obs_field_ids = fields.select_field_ids(observable_hours_range=
+            [(self.n_visits_per_night*TIME_BLOCK_SIZE).to(u.hour).value, 24.])
 
         # now form the intersection of observable fields and the OP fields
         pool_ids = obs_field_ids.intersection(self.field_ids)
 
-        request_fields = fields.fields.loc[pool_ids]
+        # get the times they were last observed:
+        # (note that fields *never* observed will not be included)
+        last_observed_times = obs_log.select_last_observed_time_by_field(
+                field_ids = pool_ids,
+                filter_ids = filter_ids_tonight,
+                program_ids = [self.program_id],
+                subprogram_names = [self.subprogram_name])
 
-#        if n_fields > len(request_fields):
-#            # TODO: logging
-#            print('Not enough requests in program {} ({}) to fill available time!'.format(self.program_id, self.subprogram_name))
+        # we want an object observed at the end of the night N days ago
+        # to be observed at the start of the night now.
+        # Max night length is 12.2 hours
+        cutoff_time = (time - (self.internight_gap - 0.6 * u.day)).mjd
 
-        # sort request sets by chosen priority metric
+        # find fields last observed more recently than that
+        wrecent = (last_observed_times['expMJD'] >= cutoff_time)
+        recent_field_ids = last_observed_times.loc[wrecent].index.tolist()
 
-        # first calculate oldest observations
-        last_obs_keys = ['last_observed_{}_{}'.format(self.program_id, k)
-                         for k in np.atleast_1d(filter_ids_tonight)]
-        # make a new joint column
-        oldest_obs = request_fields[last_obs_keys].apply(np.min, axis=1)
-        oldest_obs.name = 'oldest_obs'
-        request_fields = request_fields.join(oldest_obs)
+        # reduce the list to only those not recently observed:
+        pool_ids_old = [idi for idi in pool_ids if idi not in recent_field_ids]
 
-        #pdb.set_trace()
+        request_fields = fields.fields.loc[pool_ids_old]
 
-# removing per-program priority for now...
+        # if we have an nobs_range argument (eg for reference building), use it
+        if self.nobs_range is not None:
+            if 'program_ids' not in self.nobs_range:
+                program_ids = None
+            else:
+                program_ids = self.nobs_range['program_ids']
 
-#        if self.nightly_priority == 'oldest':
-#            # now grab the top n_fields sorted by last observed date
-#            request_fields = request_fields.sort_values(
-#                by='oldest_obs').iloc[:n_fields]
-#
-#        elif self.nightly_priority == 'mean_observable_airmass':
-#            # now grab the top n_fields sorted by average airmass
-#            # above MAX_AIRMASS tonight.  (We already cut to only fields up
-#            # long enough to get n_visits_per_night)
-#            # TODO: make this a smarter, SNR-based calculation
-#
-#            request_fields = request_fields.join(
-#                fields.mean_observable_airmass)
-#
-#            request_fields = request_fields.sort_values(
-#                by='mean_observable_airmass').iloc[:n_fields]
-#
-#        elif self.nightly_priority == 'rotate':
-#            field_rotation_nights = np.floor(len(request_fields) // n_fields)
-#            # nightly rotation by ra strips
-#            night_index_fields = np.floor(
-#                time.mjd % field_rotation_nights).astype(np.int)
-#            request_fields['ra_rotation_index'] = \
-#                np.floor(request_fields['ra'] %
-#                         field_rotation_nights).astype(np.int)
-#            # drop "off" strips
-#            wonstrip = request_fields[
-#                'ra_rotation_index'] == night_index_fields
-#            request_fields = request_fields[wonstrip]
-#            # and take fields with last observed date
-#            request_fields = request_fields.sort_values(
-#                by='oldest_obs').iloc[:n_fields]
-#
-#        elif self.nightly_priority == 'radist':
-#            assert ('ra0' in kwargs)
-#            # TODO: do I want spherical distance rather than ra distance?
-#            raise NotImplementedError
-#        elif self.nightly_priority == 'decdist':
-#            assert ('dec0' in kwargs)
-#            raise NotImplementedError
-#        elif self.nightly_priority == 'random':
-#            request_fields = request_fields.reindex(
-#                np.random.permutation(request_fields.index))[:n_fields]
-#        else:
-#            raise ValueError('requested prioritization scheme not found')
+            if 'subprogram_names' not in self.nobs_range:
+                subprogram_names = None
+            else:
+                subprogram_names = self.nobs_range['subprogram_names']
+
+            if 'filter_id' in self.nobs_range:
+                self.nobs_range['filter_ids'] = [self.nobs_range['filter_id']]
+            if 'filter_ids' not in self.nobs_range:
+                filter_ids = None
+            else:
+                filter_ids = self.nobs_range['filter_ids'] 
+                
+
+            assert 'min_obs' in self.nobs_range
+            assert 'max_obs' in self.nobs_range
+                
+            nobs = obs_log.select_n_obs_by_field(filter_ids = filter_ids,
+                    program_ids = program_ids, 
+                    subprogram_names = subprogram_names)
+            
+            # function above only returns fields that have been observed at
+            # least once.  use the intersection if min_obs > 0:
+            w = ((nobs >= self.nobs_range['min_obs']) & 
+                    (nobs <= self.nobs_range['max_obs']))
+            if self.nobs_range['min_obs'] > 0:
+                nobs_inrange = nobs.loc[w]
+                request_fields = request_fields.join(nobs_inrange,how='inner')
+            else:
+                # drop rows out of range (which here means only those with 
+                # nobs > max_obs
+                nobs_outofrange = nobs.loc[~w]
+                request_fields = request_fields.drop(nobs_outofrange.index)
+            
 
         # construct request sets: list of inputs to RequestPool.add_requests
         # scalar everything except field_ids

@@ -77,7 +77,8 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             run_config_file_fullpath)
 
     # initialize nightly field requests (Tom Barlow function)
-    scheduler.Q.assign_nightly_requests(tel.current_state_dict()) 
+    scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
+            scheduler.obs_log) 
     # log pool stats
     tel.logger.info(calc_pool_stats(
         scheduler.Q.rp.pool, intro="Nightly requests initialized"))
@@ -90,8 +91,9 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         if np.floor(tel.current_time.mjd) > current_night_mjd:
             # use the state machine to allow us to skip weathered out nights
             #if tel.check_if_ready():
-            scheduler.log.prev_obs = None
-            scheduler.Q.assign_nightly_requests(tel.current_state_dict())
+            scheduler.obs_log.prev_obs = None
+            scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
+                    scheduler.obs_log)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             tel.logger.info(calc_pool_stats(
@@ -107,7 +109,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             except QueueEmptyError:
                 if not raise_queue_empty:
                     tel.logger.info("Queue empty!  Waiting...")
-                    scheduler.log.prev_obs = None
+                    scheduler.obs_log.prev_obs = None
                     tel.wait()
                     continue
                 else:
@@ -124,7 +126,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
                 if not tel.start_filter_change(next_obs['target_filter_id']):
                     tel.logger.info("Filter change failure!  Waiting...")
-                    scheduler.log.prev_obs = None
+                    scheduler.obs_log.prev_obs = None
                     tel.wait()
                     continue
 
@@ -136,7 +138,7 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
-                scheduler.log.prev_obs = None
+                scheduler.obs_log.prev_obs = None
                 tel.wait()
                 continue
 
@@ -144,24 +146,21 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
             if not tel.start_exposing():
                 tel.set_cant_observe()
                 tel.logger.info("Exposure failure!  Waiting...")
-                scheduler.log.prev_obs = None
+                scheduler.obs_log.prev_obs = None
                 tel.wait()
                 continue
             else:
                 # exposure completed successfully.  now
                 # a) store exposure information in pointing history sqlite db
                 current_state = tel.current_state_dict()
-                scheduler.log.log_pointing(current_state, next_obs)
-                # b) update Fields
-                scheduler.Q.fields.mark_field_observed(next_obs, 
-                        current_state['current_time'])
-                # c) remove completed request_id from the pool and the queue
+                scheduler.obs_log.log_pointing(current_state, next_obs)
+                # b) remove completed request_id from the pool and the queue
                 # TODO: debugging check
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
                 # TODO: check this with request sets...
-                scheduler.Q.remove_requests(next_obs['request_id'])
+                scheduler.Q.remove_requests(next_obs['request_id']) 
         else:
-            scheduler.log.prev_obs = None
+            scheduler.obs_log.prev_obs = None
             tel.set_cant_observe()
             tel.wait()
 

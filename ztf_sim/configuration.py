@@ -55,6 +55,8 @@ class ObservingProgramConfiguration(Configuration):
                         raise ValueError(f'Input field_id {field_id} is not valid')
             else: 
                 field_ids = f.select_field_ids(**prog['field_selections'])
+            if 'nobs_range' not in prog:
+                prog['nobs_range'] = None
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
                                   prog['subprogram_name'], 
                                   prog['program_observing_fraction'],
@@ -62,9 +64,7 @@ class ObservingProgramConfiguration(Configuration):
                                   field_ids, prog['filter_ids'],
                                   prog['internight_gap_days'] * u.day,
                                   prog['n_visits_per_night'],
-                                  prog['intranight_gap_min'] * u.min,
-                                  prog['intranight_half_width_min'] * u.min,
-                                  nightly_priority=prog['nightly_priority'],
+                                  nobs_range = prog['nobs_range'],
                                   filter_choice=prog['filter_choice'],
                                   active_months=prog['active_months'])
             OPs.append(OP)

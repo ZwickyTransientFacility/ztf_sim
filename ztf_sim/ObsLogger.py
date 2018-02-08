@@ -1,9 +1,11 @@
 from __future__ import absolute_import
 
 from builtins import object
+from collections import defaultdict
+import uuid
 import numpy as np
+import pandas as pd
 from sqlalchemy import create_engine
-import sqlite3
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
@@ -28,6 +30,8 @@ class ObsLogger(object):
         self.create_fields_table(clobber=clobber)
         self.create_pointing_log(clobber=clobber)
 
+        self.history = pd.read_sql('Summary', self.engine)
+
     def create_fields_table(self, clobber=True):
 
         if clobber:
@@ -37,7 +41,9 @@ class ObsLogger(object):
             except:
                 pass
 
-            # create table
+        # If the table doesn't exist, create it
+        if not self.engine.dialect.has_table(self.engine, 'Field'): 
+
             self.conn.execute("""
             CREATE TABLE Field(
             fieldID   INTEGER PRIMARY KEY,
@@ -77,6 +83,9 @@ class ObsLogger(object):
             # TODO: better error handling
             except:
                 pass
+
+        # If the table doesn't exist, create it
+        if not self.engine.dialect.has_table(self.engine, 'Summary'): 
 
             # create table
             self.conn.execute("""
@@ -130,8 +139,7 @@ class ObsLogger(object):
         record['fieldRA'] = np.radians(request['target_ra'])
         record['fieldDec'] = np.radians(request['target_dec'])
 
-        record['filter'] = '\"' + \
-            FILTER_ID_TO_NAME[request['target_filter_id']] + '\"'
+        record['filter'] = FILTER_ID_TO_NAME[request['target_filter_id']]
         # times are recorded at start of exposure
         exposure_start = state['current_time'] - \
             request['target_exposure_time']
@@ -208,27 +216,101 @@ class ObsLogger(object):
         record['totalRequestsTonight'] = \
             request['target_total_requests_tonight']
         record['metricValue'] = request['target_metric_value']
-        record['subprogram'] = '\"' + \
-            request['target_subprogram_name'] + '\"'
+        record['subprogram'] = request['target_subprogram_name'] 
 
-        # convert nan to SQL NULL. might be smarter to just replace the
-        # insertion method below with something smarter (pd.to_sql?)
-        for k,v in record.items():
-            try:
-                if np.isnan(v):
-                    record[k] = 'NULL'
-            except TypeError:
-                continue
+        record_row = pd.DataFrame(record,index=[uuid.uuid1().hex])
 
-        # use placeholders to create the INSERT query
-        columns = ', '.join(list(record.keys()))
-        placeholders = '{' + '}, {'.join(list(record.keys())) + '}'
-        query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
-            columns, placeholders)
-        query_filled = query.format(**record)
-        self.conn.execute(query_filled)
+        # append to our local history DataFrame
+        # note that the index here will change when reloaded from the db
+        self.history = self.history.append(record_row)
+
+        # write to the database
+        record_row.to_sql('Summary', self.conn, index=False, if_exists='append')
+
+#        # convert nan to SQL NULL. might be smarter to just replace the
+#        # insertion method below with something smarter (pd.to_sql?)
+#        for k,v in record.items():
+#            try:
+#                if np.isnan(v):
+#                    record[k] = 'NULL'
+#            except TypeError:
+#                continue
+#
+#        # use placeholders to create the INSERT query
+#        columns = ', '.join(list(record.keys()))
+#        placeholders = '{' + '}, {'.join(list(record.keys())) + '}'
+#        query = 'INSERT INTO Summary ({}) VALUES ({})'.format(
+#            columns, placeholders)
+#        query_filled = query.format(**record)
+#        self.conn.execute(query_filled)
+
 
         # save record for next obs
         self.prev_obs = record
 
-        pass
+
+    def count_total_obs_by_subprogram(self):
+        """Count of observations by program and subprogram.
+        
+        Returns a dict with keys (program_id, subprogram_name)"""
+
+        # TODO: may need to allow for a date range to handle active months
+        grp = self.history.groupby(['propID','subprogram'])
+
+        count = grp['requestID'].agg(len).to_dict()
+
+        # make this a defaultdict so we get zero values for new programs
+        return defaultdict(int, count)
+
+    def select_last_observed_time_by_field(self,
+            field_ids = None, filter_ids = None, 
+            program_ids = None, subprogram_names = None):
+
+        # start with "True" 
+        w = self.history['expMJD'] > 0
+
+        if field_ids is not None:
+            w &= self.history['fieldID'].apply(lambda x: x in field_ids)
+
+        if filter_ids is not None:
+            filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
+            w &= self.history['filter'].apply(lambda x: 
+                    x in filter_names)
+
+        if program_ids is not None:
+            w &= self.history['propID'].apply(lambda x: 
+                    x in program_ids)
+
+
+        # note that this only returns fields that have previously 
+        # been observed under these constraints!
+        return self.history.loc[
+                w,['fieldID','expMJD']].groupby('fieldID').agg(np.max)
+
+    def select_n_obs_by_field(self,
+            field_ids = None, filter_ids = None, 
+            program_ids = None, subprogram_names = None):
+
+        # start with "True" 
+        w = self.history['expMJD'] > 0
+
+        if field_ids is not None:
+            w &= self.history['fieldID'].apply(lambda x: x in field_ids)
+
+        if filter_ids is not None:
+            filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
+            w &= self.history['filter'].apply(lambda x: 
+                    x in filter_names)
+
+        if program_ids is not None:
+            w &= self.history['propID'].apply(lambda x: 
+                    x in program_ids)
+
+        # note that this only returns fields that have previously 
+        # been observed!   
+        grp =  self.history.loc[
+                w,['fieldID','expMJD']].groupby('fieldID')
+        nobs = grp['expMJD'].agg(len)
+        nobs.name = 'n_obs'
+
+        return nobs
