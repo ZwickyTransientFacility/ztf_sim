@@ -12,56 +12,43 @@ from .constants import BASE_DIR
 
 class Scheduler(object):
 
-    def __init__(self, observing_program_config_file_fullpath, 
-            run_config_file_fullpath):
+    def __init__(self, scheduler_config_file_fullpath, 
+            run_config_file_fullpath, other_queue_configs = None):
 
-        self.op_config = ObservingProgramConfiguration(
-            observing_program_config_file_fullpath)
-        self.observing_programs = self.op_config.build_observing_programs()
+        self.scheduler_config = SchedulerConfiguration(
+            scheduler_config_file_fullpath)
+        self.queue_configs = self.scheduler_config.build_queue_configs()
+        self.queues = self.scheduler_config.build_queues(self.queue_configs)
 
+        self.set_queue('default')
+        
         self.run_config = configparser.ConfigParser()
         self.run_config.read(run_config_file_fullpath)
-
-
-        self.Q = None
-        # use for swapping queues in the night, e.g. for TOOs
-        self.other_queues = {}
-
-        self.set_queue_manager(queue_name = 'default',
-            queue_manager = self.run_config['scheduler']['queue_manager'])
-
-        for op in self.observing_programs:
-            self.Q.add_observing_program(op)
-
-        
 
         if 'log_name' in self.run_config['scheduler']:
             log_name = self.run_config['scheduler']['log_name']
         else:
-            log_name = self.op_config.config['run_name']
+            log_name = self.scheduler_config.config['run_name']
 
         # initialize sqlite history
         self.obs_log = ObsLogger(log_name,
                 clobber=self.run_config['scheduler'].getboolean('clobber_db')) 
 
 
-    def set_queue_manager(self, queue_name = 'default', 
-            queue_manager = 'gurobi', clobber=False):
+    def set_queue(self, queue_name): 
 
         # TODO: log the switch
+        
+        if queue_name not in self.queues:
+            raise ValueError(f'Requested queue {queue_name} not available!')
 
-        assert (queue_manager in ('list', 'greedy', 'gurobi'))
+        self.Q = self.queues['queue_name']
+        
 
-        # store previous queue
-        if self.Q is not None:
-            self.other_queues[self.Q.queue_name] = self.Q
 
-        if clobber or (queue_name not in self.other_queues):
-            if queue_manager == 'list':
-                self.Q = ListQueueManager(queue_name=queue_name)
-            elif queue_manager == 'greedy':
-                self.Q = GreedyQueueManager(queue_name=queue_name)
-            elif queue_manager == 'gurobi':
-                self.Q = GurobiQueueManager(queue_name=queue_name)
+    def add_queue(self,  queue_name, queue, clobber=True):
+
+        if clobber or (queue_name not in self.queues):
+            self.queues[queue_name] = queue 
         else:
-            self.Q = self.other_queues.pop(queue_name)
+            raise ValueError(f"Queue {queue_name} already exists!")
