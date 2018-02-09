@@ -3,7 +3,7 @@ from builtins import object
 import configparser
 from .QueueManager import ListQueueManager, GreedyQueueManager, GurobiQueueManager
 from .ObsLogger import ObsLogger
-from .configuration import ObservingProgramConfiguration
+from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR
 
 
@@ -42,7 +42,7 @@ class Scheduler(object):
         if queue_name not in self.queues:
             raise ValueError(f'Requested queue {queue_name} not available!')
 
-        self.Q = self.queues['queue_name']
+        self.Q = self.queues[queue_name]
         
 
 

@@ -31,8 +31,7 @@ class QueueManager(object):
 
     #def __init__(self, observing_programs=[], rp=None, fields=None,
     #             block_programs=False, queue_name = 'default'):
-    def __init__(self, queue_configuration,
-            rp=None, fields=None, queue_name = 'default'):
+    def __init__(self, queue_configuration, rp=None, fields=None):
 
         # queue name (useful in Scheduler object when swapping queues)
         self.queue_name = queue_configuration.config["queue_name"]
@@ -284,8 +283,8 @@ class QueueManager(object):
 
 class GurobiQueueManager(QueueManager):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, queue_configuration, **kwargs):
+        super().__init__(queue_configuration, **kwargs)
         self.block_obs_number = 0
         self.queue_type = 'gurobi'
 
@@ -535,8 +534,8 @@ class GurobiQueueManager(QueueManager):
 
 class GreedyQueueManager(QueueManager):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, queue_configuration, **kwargs):
+        super().__init__(queue_configuration, **kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
@@ -772,8 +771,8 @@ class GreedyQueueManager(QueueManager):
 class ListQueueManager(QueueManager):
     """Simple Queue that returns observations in order."""
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, queue_configuration, **kwargs):
+        super().__init__(queue_configuration, **kwargs)
         self.queue_type = 'list'
 
     def _assign_nightly_requests(self, current_state):

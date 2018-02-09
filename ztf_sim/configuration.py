@@ -1,12 +1,14 @@
 from __future__ import absolute_import
 
 from builtins import object
+import pathlib
 import json
 import numpy as np
 import astropy.units as u
 from .ObservingProgram import ObservingProgram
 from .Fields import Fields
 from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID
+from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 
 
 class Configuration(object):
@@ -25,6 +27,7 @@ class SchedulerConfiguration(Configuration):
 
     def __init__(self, config_file):
         super().__init__(config_file)
+        self.scheduler_config_file = pathlib.PurePosixPath(config_file)
         self.check_configuration()
 
     def check_configuration(self):
@@ -33,7 +36,7 @@ class SchedulerConfiguration(Configuration):
         has_default = False
         for queue_pars in self.config['queues']:
             assert "queue_name" in queue_pars
-            if "queue_name" == "default":
+            if queue_pars["queue_name"] == "default":
                 has_default = True
             assert "config_file" in queue_pars
         if not has_default:
@@ -44,7 +47,8 @@ class SchedulerConfiguration(Configuration):
         queue_configs = {}
 
         for queue_pars in self.config['queues']:
-            queue_config = QueueConfiguration( queue_pars["config_file"])
+            queue_config = QueueConfiguration(
+                    self.scheduler_config_file.with_name(queue_pars["config_file"]))
             queue_configs[queue_pars["queue_name"]] = queue_config
 
         return queue_configs
@@ -52,7 +56,7 @@ class SchedulerConfiguration(Configuration):
     def build_queues(self, queue_configs):
         
         queues = {}
-        for queue_name, queue_config in queue_configs:
+        for queue_name, queue_config in queue_configs.items():
             
             queue_manager = queue_config.config['queue_manager']
             assert (queue_manager in ('list', 'greedy', 'gurobi'))
@@ -62,7 +66,7 @@ class SchedulerConfiguration(Configuration):
             elif queue_manager == 'greedy':
                 queues[queue_name] = GreedyQueueManager(queue_config)
             elif queue_manager == 'gurobi':
-                queues[queue_name] GurobiQueueManager(queue_config)
+                queues[queue_name] = GurobiQueueManager(queue_config)
 
 
         return queues

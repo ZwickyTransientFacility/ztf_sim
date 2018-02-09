@@ -10,7 +10,7 @@ from .Scheduler import Scheduler
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from .QueueManager import calc_pool_stats, calc_queue_stats
 from .ObsLogger import ObsLogger
-from .configuration import ObservingProgramConfiguration
+from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR, P48_loc
 
 
