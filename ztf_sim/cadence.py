@@ -13,59 +13,27 @@ def no_cadence(*args):
     return True
 
 
-def enough_gap_since_last_obs(request_row, current_state):
+def enough_gap_since_last_obs(request_row, current_state, obs_log):
     """
     Determine if a sufficient time has passed since the last observation
-    in this program (in any filter):
-        'filter_id'
-            which filter to observe in
-        'program_id'
-            program requesting the observation
+    in this subprogram (in any filter):
     """
 
     now = current_state['current_time'].mjd
-    pars = {'prev_filter':'any','ref_obs':'last_observed',
-            'min_gap':TIME_BLOCK_SIZE}
+    min_gap = TIME_BLOCK_SIZE
 
-    ref_obs = get_ref_obs_time(request_row, current_state, pars)
+    ref_obs = obs_log.select_last_observed_time_by_field(
+            field_ids = [request_row['field_id']], 
+            program_ids = [request_row['program_id']],
+            subprogram_names = [request_row['subprogram_name']])
 
-    if np.isnan(ref_obs):
-        # for first_obs_tonight scheduling (currently unimplemented), 
-        # have to wait until first obs is taken
-        return False
+    if len(ref_obs) == 0:
+        # field has never been observed in this subprogram, 
+        # it's okay by definition
+        return True
 
-    return now >= (ref_obs + pars['min_gap'].to(u.day).value)
+    assert( (len(ref_obs) == 1) )
 
-def get_ref_obs_time(request_row, current_state, pars):
-    """Determine which past observation should be used to make the cadence window reference time."""
+    ref_obs = ref_obs.expMJD.values[0]
 
-    if pars['prev_filter'] == 'any':
-        ref_obses = []
-        for filter_id in FILTER_IDS:
-            ref_obses.append(request_row['{}_{}_{}'.format(
-                pars['ref_obs'],
-                request_row['program_id'], filter_id)])
-        ref_obses = np.array(ref_obses)
-        if np.sum(np.isfinite(ref_obses)):
-            ref_obs = np.max(ref_obses[np.isfinite(ref_obses)])
-        else:
-            # no previous observations
-            ref_obs = np.nan
-    else:
-        if pars['prev_filter'] == 'same':
-            ref_obs_filter = request_row['filter_id']
-        elif pars['prev_filter'] == 'other':
-            assert(len(FILTER_IDS) == 2)
-            raise NotImplementedError
-        elif pars['prev_filter'] in FILTER_IDS:
-            ref_obs_filter = pars['prev_filter']
-
-        ref_obs = request_row['{}_{}_{}'.format(
-            pars['ref_obs'],
-            request_row['program_id'], ref_obs_filter)]
-
-    return ref_obs
-
-def absolute_time_window(request_row, current_state):
-    """stub for assigning fields specific UTC slots"""
-    raise NotImplementedError
+    return now >= (ref_obs + min_gap.to(u.day).value)

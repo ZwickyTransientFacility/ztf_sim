@@ -134,20 +134,22 @@ class QueueManager(object):
             self.assign_nightly_requests(current_state, obs_log)
 
         # define functions that actually do the work in subclasses
-        next_obs = self._next_obs(current_state)
+        next_obs = self._next_obs(current_state, obs_log)
 
         # check if we have a disallowed observation, and reject it:
         if next_obs['target_limiting_mag'] < 0:
             self.remove_requests(next_obs['request_id'])
             next_obs = self.next_obs(current_state)
 
+        next_obs['queue_name'] = self.queue_name
+
         return next_obs
 
-    def update_queue(self, current_state, **kwargs):
+    def update_queue(self, current_state, obs_log, **kwargs):
         """Recalculate queue"""
 
         # define functions that actually do the work in subclasses
-        return self._update_queue(current_state)
+        return self._update_queue(current_state, obs_log)
 
     def remove_requests(self, request_id):
         """Remove a request from both the queue and the request set pool"""
@@ -291,7 +293,7 @@ class GurobiQueueManager(QueueManager):
     def _assign_nightly_requests(self, current_state):
         self._assign_slots(current_state)
 
-    def _next_obs(self, current_state):
+    def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
 
         # do the slot assignment at the beginning of the night 
@@ -545,7 +547,7 @@ class GreedyQueueManager(QueueManager):
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
 
-    def _next_obs(self, current_state):
+    def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
 
         # since this is a greedy queue, we update the queue after each obs
@@ -559,7 +561,7 @@ class GreedyQueueManager(QueueManager):
 
         # to get the "on the fly" cadence windows to work I have to 
         # run the whole queue every time right now...
-        self._update_queue(current_state)
+        self._update_queue(current_state, obs_log)
 
         # in case this wasn't initialized by assign_nightly_requests
         if self.time_of_last_filter_change is None:
@@ -597,9 +599,9 @@ class GreedyQueueManager(QueueManager):
                  (self.rp.pool.subprogram_name == subprogram))
             self.rp.remove_requests(self.rp.pool[w].index.tolist())
             # reset the queue
-            self._update_queue(current_state)
+            self._update_queue(current_state, obs_log)
             # and request a new next_obs
-            next_obs = self._next_obs(current_state)
+            next_obs = self._next_obs(current_state, obs_log)
         else:
             next_obs = {'target_field_id': row['field_id'],
                 'target_ra': row['ra'],
@@ -659,7 +661,7 @@ class GreedyQueueManager(QueueManager):
 
         return df
 
-    def _update_queue(self, current_state):
+    def _update_queue(self, current_state, obs_log):
         """Calculate greedy weighting of requests in the Pool using current
         telescope state only"""
 
@@ -718,8 +720,10 @@ class GreedyQueueManager(QueueManager):
         #        '{}(row, current_state)'.format(row['cadence_func']))
         #cadence_cuts = pd.Series(in_window)
 
+        # TODO: this could be vectorized much better, possible with a loop over 
+        # the subprograms in df
         cadence_cuts  = df.apply(enough_gap_since_last_obs, 
-            args=(current_state,),axis=1)
+            args=(current_state,obs_log),axis=1)
         
 
         # TODO: handle if cadence cuts returns no fields
@@ -778,7 +782,7 @@ class ListQueueManager(QueueManager):
     def _assign_nightly_requests(self, current_state):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
-    def _update_queue(self, current_state):
+    def _update_queue(self, current_state, obs_log):
         pass
 
     def load_list_queue(self, queue_dict_list, append=False):
@@ -823,7 +827,7 @@ class ListQueueManager(QueueManager):
 
 
 
-    def _next_obs(self, current_state):
+    def _next_obs(self, current_state, obs_log):
         """Return the next observation in the time ordered queue unless it has expired."""
 
         

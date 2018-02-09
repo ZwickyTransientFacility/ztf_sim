@@ -163,9 +163,9 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 scheduler.obs_log.log_pointing(current_state, next_obs)
                 # b) remove completed request_id from the pool and the queue
                 # TODO: debugging check
-                assert(next_obs['request_id'] in scheduler.Q.queue.index)
+                assert(next_obs['request_id'] in scheduler.queues[next_obs['queue_name']].queue.index)
                 # TODO: check this with request sets...
-                scheduler.Q.remove_requests(next_obs['request_id']) 
+                scheduler.queues[next_obs['queue_name']].remove_requests(next_obs['request_id']) 
         else:
             scheduler.obs_log.prev_obs = None
             tel.set_cant_observe()

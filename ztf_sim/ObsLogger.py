@@ -281,6 +281,9 @@ class ObsLogger(object):
             w &= self.history['propID'].apply(lambda x: 
                     x in program_ids)
 
+        if subprogram_names is not None:
+            w &= self.history['subprogram'].apply(lambda x: 
+                    x in subprogram_names)
 
         # note that this only returns fields that have previously 
         # been observed under these constraints!
@@ -305,6 +308,10 @@ class ObsLogger(object):
         if program_ids is not None:
             w &= self.history['propID'].apply(lambda x: 
                     x in program_ids)
+
+        if subprogram_names is not None:
+            w &= self.history['subprogram'].apply(lambda x: 
+                    x in subprogram_names)
 
         # note that this only returns fields that have previously 
         # been observed!   
