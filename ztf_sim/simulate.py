@@ -21,8 +21,8 @@ pd.options.mode.chained_assignment = 'raise'  # default='warn'
 # TODO: tag database with commit hash
 
 
-def simulate(observing_program_config_file, run_config_file = 'default.cfg',
-        profile=False, raise_queue_empty=True):
+def simulate(scheduler_config_file, run_config_file = 'default.cfg',
+        profile=False, raise_queue_empty=False, fallback=True):
 
     if profile:
         try:
@@ -47,14 +47,13 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         weather_year = int(weather_year)
     survey_duration = \
         run_config['simulation'].getfloat('survey_duration_days') * u.day
-    block_programs = run_config['simulation'].getboolean('block_programs')
 
-    observing_program_config_file_fullpath = \
-            BASE_DIR + '../sims/{}'.format(observing_program_config_file)
-    op_config = ObservingProgramConfiguration(
-            observing_program_config_file_fullpath)
-
-    run_name = op_config.config['run_name']
+    # set up Scheduler
+    scheduler_config_file_fullpath = \
+            BASE_DIR + '../sims/{}'.format(scheduler_config_file)
+    scheduler = Scheduler(scheduler_config_file_fullpath,
+            run_config_file_fullpath)
+    run_name = scheduler.scheduler_config.config['run_name']
 
     if profile:
         if survey_duration > 1. * u.day:
@@ -70,10 +69,6 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
         current_time=survey_start_time,
         historical_observability_year=weather_year,
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
-
-    # set up Scheduler
-    scheduler = Scheduler(observing_program_config_file_fullpath,
-            run_config_file_fullpath)
 
     # initialize nightly field requests (Tom Barlow function)
     scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
@@ -108,10 +103,22 @@ def simulate(observing_program_config_file, run_config_file = 'default.cfg',
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
                 if not raise_queue_empty:
-                    tel.logger.info("Queue empty!  Waiting...")
-                    scheduler.obs_log.prev_obs = None
-                    tel.wait()
-                    continue
+                    if fallback:
+                        tel.logger.info("Queue empty!  Trying fallback queue...")
+                        if 'fallback' in scheduler.queues:
+                            next_obs = scheduler.queues['fallback'].next_obs(
+                                    current_state, scheduler.obs_log)
+                        else:
+                            tel.logger.info("No fallback queue defined!")
+                            scheduler.obs_log.prev_obs = None
+                            tel.wait()
+                            continue
+
+                    else:
+                        tel.logger.info("Queue empty!  Waiting...")
+                        scheduler.obs_log.prev_obs = None
+                        tel.wait()
+                        continue
                 else:
                     tel.logger.info(calc_queue_stats(
                         scheduler.Q.queue, current_state,
