@@ -134,6 +134,9 @@ class ObservingProgram(object):
                 # drop rows out of range (which here means only those with 
                 # nobs > max_obs
                 nobs_outofrange = nobs.loc[~w]
+                # find fields that are in request_fields but out of range
+                nobs_outofrange = request_fields.join(nobs_outofrange,how='inner')
+                # now drop them
                 request_fields = request_fields.drop(nobs_outofrange.index)
             
 
