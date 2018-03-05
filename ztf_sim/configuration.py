@@ -112,6 +112,7 @@ class QueueConfiguration(Configuration):
                 prog['nobs_range'] = None
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
                                   prog['subprogram_name'], 
+                                  prog['program_pi'], 
                                   prog['program_observing_fraction'],
                                   prog['subprogram_fraction'],
                                   field_ids, prog['filter_ids'],

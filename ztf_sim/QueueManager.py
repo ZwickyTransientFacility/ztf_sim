@@ -323,6 +323,7 @@ class GurobiQueueManager(QueueManager):
             'target_filter_id': filter_id,
             'target_program_id': int(row['program_id']),
             'target_subprogram_name': row['subprogram_name'],
+            'target_program_pi': row['program_pi'],
             'target_exposure_time': EXPOSURE_TIME,
             'target_sky_brightness': 
                     self.block_sky_brightness.loc[idx,self.queue_slot][filter_id],
@@ -613,6 +614,7 @@ class GreedyQueueManager(QueueManager):
                 'target_filter_id': row['filter_id'],
                 'target_program_id': row['program_id'],
                 'target_subprogram_name': row['subprogram_name'],
+                'target_program_pi': row['program_pi'],
                 'target_exposure_time': EXPOSURE_TIME,
                 'target_sky_brightness': row['sky_brightness'],
                 'target_limiting_mag': row['limiting_mag'],
@@ -867,6 +869,7 @@ class ListQueueManager(QueueManager):
             'target_filter_id': self.queue.iloc[idx].filter_id,
             'target_program_id': int(self.queue.iloc[idx].program_id),
             'target_subprogram_name': self.queue.iloc[idx].subprogram_name,
+            'target_program_pi': self.queue.iloc[idx].program_pi,
             'target_exposure_time': self.queue.iloc[idx].exposure_time,
             'target_sky_brightness': 0.,
             'target_limiting_mag': 0.,
