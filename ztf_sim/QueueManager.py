@@ -470,6 +470,10 @@ class GurobiQueueManager(QueueManager):
 
         maxradec = np.maximum(slews_by_axis['ra'], slews_by_axis['dec'])
         maxslews = np.maximum(slews_by_axis['dome'], maxradec)
+        # impose a penalty on zero-length slews (which by construction
+        # in this mode are from different programs)
+        wnoslew = maxslews == 0
+        maxslews[wnoslew] = READOUT_TIME * 10.
         overhead_time = np.maximum(maxslews, READOUT_TIME)
 
         tsp_order, tsp_overhead_time = tsp_optimize(overhead_time.value)
