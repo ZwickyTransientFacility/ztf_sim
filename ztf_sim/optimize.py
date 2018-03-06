@@ -67,7 +67,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
     # sum df_metric down to one column
     # TODO: would be nice to restrict the sum to the n_usable slots, but
     # this is a small nicety
-    metric_sum = grpr.agg(np.sum)
+    metric_sum = grpr.agg(lambda x: np.sum(np.where(x > 0, x, 0)))
     metric_sum.name = 'metric_sum'
 
     # merge additional useful info
