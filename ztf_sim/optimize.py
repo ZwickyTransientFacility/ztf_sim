@@ -130,7 +130,7 @@ def request_set_optimize(df_metric, df, requests_allowed):
     # now get the decision variables
     dfr['Yr_val'] = dfr['Yr'].apply(lambda x: x.getAttr('x') > 0.1)
 
-    return dfr.loc[dfr['Yr_val'],'program_id'].index
+    return dfr.loc[dfr['Yr_val'],'program_id'].index, dft
 
 
 def slot_optimize(df_metric, df, requests_allowed):

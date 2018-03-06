@@ -410,7 +410,7 @@ class GurobiQueueManager(QueueManager):
         #s.close()
 
         # select request_sets for the night
-        self.request_sets_tonight = request_set_optimize(
+        self.request_sets_tonight, dft = request_set_optimize(
             self.block_slot_metric, df, self.requests_allowed)
 
         if len(self.request_sets_tonight) == 0:
@@ -427,6 +427,19 @@ class GurobiQueueManager(QueueManager):
         self.filter_by_slot = \
             grp['metric_filter_id'].apply(lambda x: np.unique(x)[0])
 
+        # rework to dump output
+        df_slots['scheduled'] = True
+        dft.set_index(['request_id','slot','metric_filter_id'],inplace=True)
+        df_slots.set_index(['request_id','slot','metric_filter_id'],inplace=True)
+        dft = dft.join(df_slots,how='outer')
+        dft['scheduled'] = dft['scheduled'].fillna(False)
+        dft.reset_index(inplace=True)
+
+        dft = pd.merge(dft,df[['field_id','program_id','subprogram_name']],
+            left_on='request_id', right_index=True)
+
+        # TODO: put this in a better spot
+        dft.to_csv('gurobi_solution.csv')
 
 
     def _sequence_requests_in_block(self, current_state):
