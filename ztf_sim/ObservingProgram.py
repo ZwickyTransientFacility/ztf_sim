@@ -155,6 +155,7 @@ class ObservingProgram(object):
         request_set.append(
             {'program_id': self.program_id,
              'subprogram_name': self.subprogram_name,
+             'program_pi': self.program_pi,
              'field_ids': request_fields.index.values,
              'filter_ids': filter_sequence,
              'total_requests_tonight': self.n_visits_per_night})
