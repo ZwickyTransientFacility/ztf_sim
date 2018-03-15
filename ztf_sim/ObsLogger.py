@@ -12,7 +12,7 @@ import astropy.units as u
 import astroplan.moon
 from .Fields import Fields
 from .utils import *
-from .constants import BASE_DIR, FILTER_ID_TO_NAME
+from .constants import BASE_DIR, FILTER_ID_TO_NAME, EXPOSURE_TIME, READOUT_TIME
 
 
 class ObsLogger(object):
@@ -248,6 +248,24 @@ class ObsLogger(object):
         # save record for next obs
         self.prev_obs = record
 
+
+    def count_equivalent_obs_by_subprogram(self):
+        """Count of number of equivalent standard exposures by program and subprogram.
+        
+        Returns a dict with keys (program_id, subprogram_name)"""
+
+        # TODO: may need to allow for a date range to handle active months
+        grp = self.history.groupby(['propID','subprogram'])
+
+        total_exposure_time =  grp['visitExpTime'].agg(np.sum)
+        count_nobs = grp['requestID'].agg(len)
+
+        # add readout overhead (but not slew)
+        total_time = total_exposure_time + count_nobs * READOUT_TIME.to(u.second).value
+        count_equivalent = np.round(total_time/(EXPOSURE_TIME + READOUT_TIME).to(u.second).value).astype(int).to_dict()
+
+        # make this a defaultdict so we get zero values for new programs
+        return defaultdict(int, count_equivalent)
 
     def count_total_obs_by_subprogram(self):
         """Count of observations by program and subprogram.

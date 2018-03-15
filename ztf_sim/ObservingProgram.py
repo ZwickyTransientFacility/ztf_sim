@@ -14,6 +14,7 @@ class ObservingProgram(object):
     def __init__(self, program_id, subprogram_name, program_pi,
                  program_observing_time_fraction, subprogram_fraction,
                  field_ids, filter_ids, internight_gap, n_visits_per_night,
+                 exposure_time = EXPOSURE_TIME,
                  nobs_range=None,
                  filter_choice='rotate', 
                  active_months='all'):
@@ -28,6 +29,7 @@ class ObservingProgram(object):
 
         self.internight_gap = internight_gap
         self.n_visits_per_night = n_visits_per_night
+        self.exposure_time = exposure_time # a Quantity
 
         self.nobs_range = nobs_range 
         self.filter_choice = filter_choice
@@ -176,7 +178,7 @@ class ObservingProgram(object):
             time) * self.program_observing_time_fraction * self.subprogram_fraction
 
         n_requests = (obs_time.to(u.min) /
-                      (EXPOSURE_TIME + READOUT_TIME).to(u.min)).value[0]  \
+                      (self.exposure_time + READOUT_TIME).to(u.min)).value[0]  \
             * FUDGE_FACTOR
         return np.round(n_requests).astype(np.int)
 

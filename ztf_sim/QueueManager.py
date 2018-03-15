@@ -104,10 +104,14 @@ class QueueManager(object):
         to determine number of allowed requests tonight."""
 
         self.requests_allowed = {}
+
+        # TODO: rather than using equivalent obs, might be easier to work in 
+        # exposure time directly?
         
-        obs_count_by_subprogram = obs_log.count_total_obs_by_subprogram()
+        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram()
         total_obs = np.sum(list(obs_count_by_subprogram.values()))
         for program in self.observing_programs:
+            # number_of_allowed_requests() accounts for variable exposure time
             n_requests = program.number_of_allowed_requests(time)
             delta = np.round(
                 (obs_count_by_subprogram[(program.program_id, 
@@ -325,7 +329,7 @@ class GurobiQueueManager(QueueManager):
             'target_program_id': int(row['program_id']),
             'target_subprogram_name': row['subprogram_name'],
             'target_program_pi': row['program_pi'],
-            'target_exposure_time': EXPOSURE_TIME,
+            'target_exposure_time': row['exposure_time'],
             'target_sky_brightness': 
                     self.block_sky_brightness.loc[idx,self.queue_slot][filter_id],
             'target_limiting_mag': 
@@ -498,6 +502,8 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = df.index.values[tsp_order]
         self.queue = df
 
+        # TODO: fix for variable exposure time
+        # TODO: make use of this value
         scheduled_time = len(tsp_order) * EXPOSURE_TIME + \
             tsp_overhead_time*u.second
 
@@ -629,7 +635,7 @@ class GreedyQueueManager(QueueManager):
                 'target_program_id': row['program_id'],
                 'target_subprogram_name': row['subprogram_name'],
                 'target_program_pi': row['program_pi'],
-                'target_exposure_time': EXPOSURE_TIME,
+                'target_exposure_time': row['exposure_time'],
                 'target_sky_brightness': row['sky_brightness'],
                 'target_limiting_mag': row['limiting_mag'],
                 'target_metric_value':  row['value'],
@@ -646,6 +652,7 @@ class GreedyQueueManager(QueueManager):
         moon phase and distance, overhead time
         == 1 for 21st mag, 15 sec overhead."""
         # df.loc[:, 'value'] =
+        # TODO: consider using variable exposure time 
         return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
              (EXPOSURE_TIME.value + 15.))

@@ -110,6 +110,11 @@ class QueueConfiguration(Configuration):
                 field_ids = f.select_field_ids(**prog['field_selections'])
             if 'nobs_range' not in prog:
                 prog['nobs_range'] = None
+            if 'exposure_time' not in prog:
+                prog['exposure_time'] = EXPOSURE_TIME
+            else:
+                # make it a quantity
+                prog['exposure_time'] = prog['exposure_time'] * u.second
             OP = ObservingProgram(PROGRAM_NAME_TO_ID[prog['program_name']],
                                   prog['subprogram_name'], 
                                   prog['program_pi'], 
@@ -118,6 +123,7 @@ class QueueConfiguration(Configuration):
                                   field_ids, prog['filter_ids'],
                                   prog['internight_gap_days'] * u.day,
                                   prog['n_visits_per_night'],
+                                  exposure_time = prog['exposure_time'],
                                   nobs_range = prog['nobs_range'],
                                   filter_choice=prog['filter_choice'],
                                   active_months=prog['active_months'])
