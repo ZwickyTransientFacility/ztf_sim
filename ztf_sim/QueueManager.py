@@ -88,6 +88,7 @@ class QueueManager(object):
                 self.rp.add_request_sets(rs['program_id'], 
                             rs['subprogram_name'], rs['program_pi'],
                             rs['field_ids'], rs['filter_ids'], 
+                            rs['exposure_time'],
                             rs['total_requests_tonight'])
 
         assert(len(self.rp.pool) > 0)
@@ -926,7 +927,8 @@ class RequestPool(object):
         pass
 
     def add_request_sets(self, program_id, subprogram_name, program_pi,
-                field_ids, filter_ids, total_requests_tonight, priority=1):
+                field_ids, filter_ids, exposure_time, 
+                total_requests_tonight, priority=1):
         """program_ids must be scalar"""
 
         assert (scalar_len(program_id) == 1) 
@@ -950,6 +952,7 @@ class RequestPool(object):
                 'program_pi': program_pi,
                 'field_id': field_id,
                 'filter_ids': filter_ids.copy(),
+                'exposure_time': exposure_time,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 

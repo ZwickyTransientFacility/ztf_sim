@@ -160,6 +160,7 @@ class ObservingProgram(object):
              'program_pi': self.program_pi,
              'field_ids': request_fields.index.values,
              'filter_ids': filter_sequence,
+             'exposure_time': self.exposure_time,
              'total_requests_tonight': self.n_visits_per_night})
 
         return request_set

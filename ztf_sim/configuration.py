@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from .ObservingProgram import ObservingProgram
 from .Fields import Fields
-from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID
+from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID, EXPOSURE_TIME
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 
 
