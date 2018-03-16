@@ -330,7 +330,7 @@ class GurobiQueueManager(QueueManager):
             'target_program_id': int(row['program_id']),
             'target_subprogram_name': row['subprogram_name'],
             'target_program_pi': row['program_pi'],
-            'target_exposure_time': row['exposure_time'],
+            'target_exposure_time': row['exposure_time'] * u.second,
             'target_sky_brightness': 
                     self.block_sky_brightness.loc[idx,self.queue_slot][filter_id],
             'target_limiting_mag': 
@@ -952,7 +952,9 @@ class RequestPool(object):
                 'program_pi': program_pi,
                 'field_id': field_id,
                 'filter_ids': filter_ids.copy(),
-                'exposure_time': exposure_time,
+                # pandas doesn't play well with astropy quantities, so change
+                # back to seconds
+                'exposure_time': exposure_time.to(u.second).value,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
