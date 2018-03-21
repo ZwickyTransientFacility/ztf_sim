@@ -87,7 +87,7 @@ class QueueConfiguration(Configuration):
             if (np.sum(
                 [prog['program_observing_fraction']*prog['subprogram_fraction'] 
                 for prog in self.config['observing_programs']
-                if ((prog['active_months'] == 'all']) or 
+                if ((prog['active_months'] == 'all') or 
                 (month in np.atleast_1d(prog['active_months'])))
                 ]) != 1.0):
                 raise ValueError('Observing fractions must sum to 1')
