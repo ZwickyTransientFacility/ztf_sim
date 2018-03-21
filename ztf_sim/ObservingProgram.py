@@ -33,7 +33,11 @@ class ObservingProgram(object):
 
         self.nobs_range = nobs_range 
         self.filter_choice = filter_choice
-        self.active_months = active_months
+        if active_months != 'all':
+            # allow scalar or list input
+            self.active_months = np.atleast_1d(active_months)
+        else:
+            self.active_months = 'all'
 
     def assign_nightly_requests(self, time, fields, obs_log, 
             block_programs=False, **kwargs):
