@@ -154,9 +154,9 @@ def slot_optimize(df_metric, df, requests_allowed):
         value_name='metric')
     # get n_reqs by fid
     n_reqs_cols = ['n_reqs_{}'.format(fid) for fid in filter_ids]
-    n_reqs_cols.extend(['program_id','subprogram_name','total_requests_tonight'])
+    n_reqs_cols.extend(['program_id','subprogram_name',
+        'total_requests_tonight','exposure_time'])
     dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
-
 
     # Create an empty model
     m = Model('slots')
@@ -196,12 +196,15 @@ def slot_optimize(df_metric, df, requests_allowed):
         (ytf.sum(t,'*') == 1 for t in slots), 'constr_onefilter')
     
 
-    # no more than nobs per slot
+    # total exposure time constraint 
     # TODO: tune this so it's closer to the average performance so we don't
     # drop too many...
     constr_nperslot = m.addConstrs(
-        ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'])
-        <= max_exps_per_slot) for t in slots), "constr_nperslot")
+        ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'] * 
+            (dft.loc[dft['slot'] == t, 'exposure_time'] + 
+                READOUT_TIME.to(u.second).value))
+            <= TIME_BLOCK_SIZE.to(u.second).value) 
+            for t in slots), "constr_nperslot")
 
     # program balance.  To avoid key errors, only set constraints 
     # for programs that are present

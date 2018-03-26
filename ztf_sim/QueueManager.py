@@ -19,7 +19,7 @@ from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, seeing_at_pointing
-from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA
+from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
 
 class QueueEmptyError(Exception):
@@ -471,6 +471,16 @@ class GurobiQueueManager(QueueManager):
         az = self.fields.block_az[self.queue_slot]
         df = df.join(az, on='field_id')
 
+        # now prepend the North Celestial pole so we can minimize slew from
+        # filter exchanges at CALSTOW.
+        # TODO: instead, use current state if we're not changing filters
+        # Need to use current HA=0 since the ra slew time doesn't 
+        # care that it's at the pole
+        df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
+            current_state['current_time']).to(u.degree).value,
+            'dec':90.,'azimuth':0},index=[0])
+        df = pd.concat([df_blockstart,df])
+
         # compute overhead time between all request pairs
         
         # compute pairwise slew times by axis for all pointings
@@ -497,6 +507,11 @@ class GurobiQueueManager(QueueManager):
         overhead_time = np.maximum(maxslews, READOUT_TIME)
 
         tsp_order, tsp_overhead_time = tsp_optimize(overhead_time.value)
+
+        # remove the fake starting point.  tsp_optimize always starts with
+        # the first observation in df, which by construction is our fake point,
+        # so we can simply cut it off.
+        tsp_order = tsp_order[1:]
 
         # tsp_order is 0-indexed from overhead time, so I need to
         # reconstruct the request_id
