@@ -471,6 +471,12 @@ class GurobiQueueManager(QueueManager):
         az = self.fields.block_az[self.queue_slot]
         df = df.join(az, on='field_id')
 
+        # now prepend the North Celestial pole so we can minimize slew from
+        # filter exchanges at CALSTOW
+        # TODO: instead, use current state if we're not changing filters
+        df_blockstart = pd.DataFrame({'ra':0,'dec':90.,'azimuth':0},index=[0])
+        df = pd.concat([df_blockstart,df])
+
         # compute overhead time between all request pairs
         
         # compute pairwise slew times by axis for all pointings
@@ -497,6 +503,11 @@ class GurobiQueueManager(QueueManager):
         overhead_time = np.maximum(maxslews, READOUT_TIME)
 
         tsp_order, tsp_overhead_time = tsp_optimize(overhead_time.value)
+
+        # remove the fake starting point.  tsp_optimize always starts with
+        # the first observation in df, which by construction is our fake point,
+        # so we can simply cut it off.
+        tsp_order = tsp_order[1:]
 
         # tsp_order is 0-indexed from overhead time, so I need to
         # reconstruct the request_id
