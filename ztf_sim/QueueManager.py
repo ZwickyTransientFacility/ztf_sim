@@ -19,7 +19,7 @@ from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
 from .utils import skycoord_to_altaz, seeing_at_pointing
-from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA
+from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
 
 class QueueEmptyError(Exception):
@@ -472,9 +472,13 @@ class GurobiQueueManager(QueueManager):
         df = df.join(az, on='field_id')
 
         # now prepend the North Celestial pole so we can minimize slew from
-        # filter exchanges at CALSTOW
+        # filter exchanges at CALSTOW.
         # TODO: instead, use current state if we're not changing filters
-        df_blockstart = pd.DataFrame({'ra':0,'dec':90.,'azimuth':0},index=[0])
+        # Need to use current HA=0 since the ra slew time doesn't 
+        # care that it's at the pole
+        df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
+            current_state['current_time']).to(u.degree).value,
+            'dec':90.,'azimuth':0},index=[0])
         df = pd.concat([df_blockstart,df])
 
         # compute overhead time between all request pairs
