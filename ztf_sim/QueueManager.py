@@ -479,7 +479,7 @@ class GurobiQueueManager(QueueManager):
         df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
             current_state['current_time']).to(u.degree).value,
             'dec':90.,'azimuth':0},index=[0])
-        df = pd.concat([df_blockstart,df])
+        df_fakestart = pd.concat([df_blockstart,df])
 
         # compute overhead time between all request pairs
         
@@ -492,11 +492,11 @@ class GurobiQueueManager(QueueManager):
             return slew_time(axis, angle * u.deg)
 
         slews_by_axis['dome'] = coord_to_slewtime(
-            df['azimuth'], axis='dome')
+            df_fakestart['azimuth'], axis='dome')
         slews_by_axis['dec'] = coord_to_slewtime(
-            df['dec'], axis='dec')
+            df_fakestart['dec'], axis='dec')
         slews_by_axis['ra'] = coord_to_slewtime(
-            df['ra'], axis='ha')
+            df_fakestart['ra'], axis='ha')
 
         maxradec = np.maximum(slews_by_axis['ra'], slews_by_axis['dec'])
         maxslews = np.maximum(slews_by_axis['dome'], maxradec)
@@ -512,10 +512,11 @@ class GurobiQueueManager(QueueManager):
         # the first observation in df, which by construction is our fake point,
         # so we can simply cut it off.
         tsp_order = tsp_order[1:]
+        assert(0 not in tsp_order)
 
         # tsp_order is 0-indexed from overhead time, so I need to
         # reconstruct the request_id
-        self.queue_order = df.index.values[tsp_order]
+        self.queue_order = df_fakestart.index.values[tsp_order]
         self.queue = df
 
         # TODO: fix for variable exposure time
