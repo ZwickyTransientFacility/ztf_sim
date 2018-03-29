@@ -169,7 +169,10 @@ def slot_optimize(df_metric, df, requests_allowed):
     yrtf_series = pd.Series(yrtf_dict,name='Yrtf')
     dft = dft.join(yrtf_series)
 
-    m.setObjective(np.sum(dft['Yrtf'] * dft['metric']), 
+    # scale by number of standard exposures so long exposures aren't
+    # penalized
+    m.setObjective(np.sum(dft['Yrtf'] * dft['metric'] * 
+        dft['exposure_time']/EXPOSURE_TIME.to(u.second).value), 
         GRB.MAXIMIZE)
 
 
