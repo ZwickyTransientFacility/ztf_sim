@@ -62,11 +62,11 @@ class SchedulerConfiguration(Configuration):
             assert (queue_manager in ('list', 'greedy', 'gurobi'))
 
             if queue_manager == 'list':
-                queues[queue_name] = ListQueueManager(queue_config)
+                queues[queue_name] = ListQueueManager(queue_name, queue_config)
             elif queue_manager == 'greedy':
-                queues[queue_name] = GreedyQueueManager(queue_config)
+                queues[queue_name] = GreedyQueueManager(queue_name, queue_config)
             elif queue_manager == 'gurobi':
-                queues[queue_name] = GurobiQueueManager(queue_config)
+                queues[queue_name] = GurobiQueueManager(queue_name, queue_config)
 
 
         return queues
