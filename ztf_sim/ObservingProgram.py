@@ -83,11 +83,16 @@ class ObservingProgram(object):
 
         # get the times they were last observed:
         # (note that fields *never* observed will not be included)
+        # since this is function is for determining requests
+        # at the start of the night, exclude observations taken tonight
+        # this lets us restart the scheduler without breaking things
         last_observed_times = obs_log.select_last_observed_time_by_field(
                 field_ids = pool_ids,
                 filter_ids = filter_ids_tonight,
                 program_ids = [self.program_id],
-                subprogram_names = [self.subprogram_name])
+                subprogram_names = [self.subprogram_name],
+                # arbitrary early date; start of night tonight
+                mjd_range = [Time('2001-01-01').mjd,np.floor(time.mjd)])
 
         # we want an object observed at the end of the night N days ago
         # to be observed at the start of the night now.
@@ -171,8 +176,6 @@ class ObservingProgram(object):
 
     def number_of_allowed_requests(self, time):
         """ Count the (maximal) number of requests allowed for this program tonight."""
-
-        # TODO: implement balancing of program observing time
 
         # "fudge factor" to provide ~15% extra requests for all programs
         # to minimize QueueEmptyErrors...
