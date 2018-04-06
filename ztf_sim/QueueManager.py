@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 from collections import defaultdict
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -109,7 +110,13 @@ class QueueManager(object):
         # TODO: rather than using equivalent obs, might be easier to work in 
         # exposure time directly?
         
-        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram()
+        # enforce program balance on a monthly basis
+        dtnow = time.to_datetime()
+        month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
+                scale='utc').mjd
+        
+        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
+                mjd_range = [month_start_mjd, time.mjd])
         total_obs = np.sum(list(obs_count_by_subprogram.values()))
         for program in self.observing_programs:
             # number_of_allowed_requests() accounts for variable exposure time
