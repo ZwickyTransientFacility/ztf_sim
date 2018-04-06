@@ -471,14 +471,13 @@ class GurobiQueueManager(QueueManager):
         az = self.fields.block_az[self.queue_slot]
         df = df.join(az, on='field_id')
 
-        # now prepend the North Celestial pole so we can minimize slew from
-        # filter exchanges at CALSTOW.
+        # now prepend the CALSTOW positoin so we can minimize slew from
+        # filter exchanges 
         # TODO: instead, use current state if we're not changing filters
-        # Need to use current HA=0 since the ra slew time doesn't 
-        # care that it's at the pole
+        # Need to use current HA=0
         df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
             current_state['current_time']).to(u.degree).value,
-            'dec':90.,'azimuth':0},index=[0])
+            'dec':-48.,'azimuth':180.},index=[0])
         df_fakestart = pd.concat([df_blockstart,df])
 
         # compute overhead time between all request pairs
