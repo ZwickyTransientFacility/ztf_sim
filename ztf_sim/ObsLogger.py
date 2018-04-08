@@ -255,7 +255,7 @@ class ObsLogger(object):
         Returns a dict with keys (program_id, subprogram_name)"""
 
         if mjd_range is not None:
-            assert mjd_range[0] < mjd_range[1]
+            assert mjd_range[0] <= mjd_range[1]
             w = ((self.history['expMJD'] >= mjd_range[0]) & 
                   (self.history['expMJD'] <= mjd_range[1])) 
             hist = self.history[w]
@@ -280,7 +280,7 @@ class ObsLogger(object):
         Returns a dict with keys (program_id, subprogram_name)"""
 
         if mjd_range is not None:
-            assert mjd_range[0] < mjd_range[1]
+            assert mjd_range[0] <= mjd_range[1]
             w = ((self.history['expMJD'] >= mjd_range[0]) & 
                   (self.history['expMJD'] <= mjd_range[1])) 
             hist = self.history[w]
@@ -319,7 +319,7 @@ class ObsLogger(object):
                     x in subprogram_names)
 
         if mjd_range is not None:
-            assert mjd_range[0] < mjd_range[1]
+            assert mjd_range[0] <= mjd_range[1]
             w &= ((self.history['expMJD'] >= mjd_range[0]) & 
                   (self.history['expMJD'] <= mjd_range[1])) 
 
@@ -353,7 +353,7 @@ class ObsLogger(object):
                     x in subprogram_names)
 
         if mjd_range is not None:
-            assert mjd_range[0] < mjd_range[1]
+            assert mjd_range[0] <= mjd_range[1]
             w &= ((self.history['expMJD'] >= mjd_range[0]) & 
                   (self.history['expMJD'] <= mjd_range[1])) 
 
