@@ -73,7 +73,8 @@ class QueueManager(object):
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
-    def assign_nightly_requests(self, current_state, obs_log):
+    def assign_nightly_requests(self, current_state, obs_log, 
+            time_limit = 30 * u.second):
         # clear previous request pool
         self.rp.clear_all_request_sets()
         # set number of allowed requests by program.
@@ -95,7 +96,7 @@ class QueueManager(object):
         assert(len(self.rp.pool) > 0)
 
         # any specific tasks needed)
-        self._assign_nightly_requests(current_state)
+        self._assign_nightly_requests(current_state, time_limit = time_limit)
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
@@ -303,8 +304,9 @@ class GurobiQueueManager(QueueManager):
         self.block_obs_number = 0
         self.queue_type = 'gurobi'
 
-    def _assign_nightly_requests(self, current_state):
-        self._assign_slots(current_state)
+    def _assign_nightly_requests(self, current_state, 
+            time_limit = 30.*u.second.):
+        self._assign_slots(current_state, time_limit = time_limit)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -366,7 +368,7 @@ class GurobiQueueManager(QueueManager):
         # lock out -99 limiting mags even more aggressively
         return metric.where(limiting_mag > 0, -0.99)
 
-    def _assign_slots(self, current_state):
+    def _assign_slots(self, current_state, time_limit = 30*u.second):
         """Assign requests in the Pool to slots"""
 
         # check that the pool has fields in it
@@ -424,7 +426,8 @@ class GurobiQueueManager(QueueManager):
 
         # select request_sets for the night
         self.request_sets_tonight, dft = request_set_optimize(
-            self.block_slot_metric, df, self.requests_allowed)
+            self.block_slot_metric, df, self.requests_allowed,
+            time_limit = time_limit)
 
         if len(self.request_sets_tonight) == 0:
             raise QueueEmptyError("No request sets selected!")
@@ -432,7 +435,8 @@ class GurobiQueueManager(QueueManager):
         # optimize assignment into slots
         df_slots = slot_optimize(
             self.block_slot_metric.loc[self.request_sets_tonight], 
-            df.loc[self.request_sets_tonight], self.requests_allowed)
+            df.loc[self.request_sets_tonight], self.requests_allowed,
+            time_limit = time_limit)
 
         grp = df_slots.groupby('slot')
 
@@ -590,7 +594,8 @@ class GreedyQueueManager(QueueManager):
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
 
-    def _assign_nightly_requests(self, current_state):
+    def _assign_nightly_requests(self, current_state,
+            time_limit = 30.*u.second.):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -829,7 +834,8 @@ class ListQueueManager(QueueManager):
         super().__init__(queue_name, queue_configuration, **kwargs)
         self.queue_type = 'list'
 
-    def _assign_nightly_requests(self, current_state):
+    def _assign_nightly_requests(self, current_state,
+            time_limit = 30.*u.second.):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
     def _update_queue(self, current_state, obs_log):
