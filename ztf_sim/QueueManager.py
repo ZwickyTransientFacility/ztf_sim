@@ -305,7 +305,7 @@ class GurobiQueueManager(QueueManager):
         self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state, 
-            time_limit = 30.*u.second.):
+            time_limit = 30.*u.second):
         self._assign_slots(current_state, time_limit = time_limit)
 
     def _next_obs(self, current_state, obs_log):
@@ -595,7 +595,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second.):
+            time_limit = 30.*u.second):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -835,7 +835,7 @@ class ListQueueManager(QueueManager):
         self.queue_type = 'list'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second.):
+            time_limit = 30.*u.second):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
     def _update_queue(self, current_state, obs_log):
