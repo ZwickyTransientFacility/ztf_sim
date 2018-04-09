@@ -10,7 +10,7 @@ import shelve
 import astropy.units as u
 import pandas as pd
 from collections import defaultdict
-from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME
+from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME
 
 #s = shelve.open('tmp_vars.shelf',flag='r')
 #df_metric = s['block_slot_metric']
@@ -169,12 +169,6 @@ def slot_optimize(df_metric, df, requests_allowed):
     yrtf_series = pd.Series(yrtf_dict,name='Yrtf')
     dft = dft.join(yrtf_series)
 
-    # scale by number of standard exposures so long exposures aren't
-    # penalized
-    m.setObjective(np.sum(dft['Yrtf'] * dft['metric'] * 
-        dft['exposure_time']/EXPOSURE_TIME.to(u.second).value), 
-        GRB.MAXIMIZE)
-
 
     # no more than nreqs_{fid} slots assigned per request set
     # TODO: this constructor is pretty slow
@@ -197,6 +191,16 @@ def slot_optimize(df_metric, df, requests_allowed):
     # now constrain ourselves to one and only one filter per slot.  
     constr_onefilter = m.addConstrs(
         (ytf.sum(t,'*') == 1 for t in slots), 'constr_onefilter')
+
+    # create filter change resultant variable: Ydfds = 1 if
+    # filter changes between slot s and s+1
+    ydfds = m.addVars(slots[:-1], vtype=GRB.BINARY)
+    # use indicator constraints to set the value
+    for i,t in enumerate(slots[:-1]):
+        for f in filter_ids:
+            m.addGenConstrIndicator(ydfds[t], False,
+                ytf[slots[i],f] - ytf[slots[i+1], f], GRB.EQUAL, 0,
+                        "filt_change_indicator_{}_{}".format(t,f))
     
 
     # total exposure time constraint 
@@ -222,6 +226,17 @@ def slot_optimize(df_metric, df, requests_allowed):
             (dft['subprogram_name'] == p[1]), 'Yrtf'])
         <= requests_allowed[p]) for p in requests_needed), 
         "constr_balance")
+
+
+    # scale by number of standard exposures so long exposures aren't
+    # penalized
+    m.setObjective(
+        np.sum(dft['Yrtf'] * dft['metric'] * 
+        dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
+        - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
+            READOUT_TIME) * 2.5).value,
+        GRB.MAXIMIZE)
+
 
     # set a minimum metric value we'll allow, so that flagged limiting mags
     # (-99) are locked out: 1e-5 is limiting mag ~13
@@ -273,6 +288,19 @@ def slot_optimize(df_metric, df, requests_allowed):
         df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
 
 
+
+    # this doesn't work in the objective function but is a useful check
+    def num_filter_changes(ytf):
+
+        n_changes = 0
+        for i, slot in enumerate(slots[:-1]):
+            for fid in filter_ids:
+                if ytf[(slot,fid)].getAttr('x') == 1:
+                    if not (ytf[(slots[i+1], fid)].getAttr('x') == 1):
+                        n_changes+=1
+        return n_changes
+
+    print(f'Number of filter changes: {num_filter_changes(ytf)}')
 
     return df_schedule
 
