@@ -13,7 +13,7 @@ def no_cadence(*args):
     return True
 
 
-def enough_gap_since_last_obs(request_row, current_state, obs_log):
+def enough_gap_since_last_obs(df, current_state, obs_log):
     """
     Determine if a sufficient time has passed since the last observation
     in this subprogram (in any filter):
@@ -22,18 +22,25 @@ def enough_gap_since_last_obs(request_row, current_state, obs_log):
     now = current_state['current_time'].mjd
     min_gap = TIME_BLOCK_SIZE
 
-    ref_obs = obs_log.select_last_observed_time_by_field(
-            field_ids = [request_row['field_id']], 
-            program_ids = [request_row['program_id']],
-            subprogram_names = [request_row['subprogram_name']])
+    # don't mess up with the upstream data structure
+    df = df.copy()
 
-    if len(ref_obs) == 0:
-        # field has never been observed in this subprogram, 
-        # it's okay by definition
-        return True
+    grp = df.groupby(['program_id','subprogram_name'])
 
-    assert( (len(ref_obs) == 1) )
+    df['ref_obs_mjd'] = np.nan
+    for grpi, dfi in grp:
+        ref_obs = obs_log.select_last_observed_time_by_field(
+                field_ids = dfi['field_id'], 
+                program_ids = [grpi[0]],
+                subprogram_names = [grpi[1]])
+        if len(ref_obs) > 0:
+            df.loc[ref_obs.index, 'ref_obs_mjd'] = ref_obs.expMJD.values
 
-    ref_obs = ref_obs.expMJD.values[0]
 
-    return now >= (ref_obs + min_gap.to(u.day).value)
+    # give a fake value for fields unobserved
+    df.loc[df['ref_obs_mjd'].isnull(), 'ref_obs_mjd'] = 58119.0
+
+    # calculate dt
+    df['dt'] = now - df['ref_obs_mjd']
+
+    return df['dt'] >=  min_gap.to(u.day).value

@@ -777,9 +777,8 @@ class GreedyQueueManager(QueueManager):
 
         # TODO: this could be vectorized much better, possible with a loop over 
         # the subprograms in df
-        cadence_cuts  = df.apply(enough_gap_since_last_obs, 
-            args=(current_state,obs_log),axis=1)
-        
+        cadence_cuts = enough_gap_since_last_obs(df,
+            current_state,obs_log)
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
