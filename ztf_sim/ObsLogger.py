@@ -365,3 +365,15 @@ class ObsLogger(object):
         nobs.name = 'n_obs'
 
         return nobs
+
+    def return_obs_history(self, time):
+        """Return one night's observation history"""
+
+        mjd_range = [np.floor(time.mjd), np.floor(time.mjd)+1.]
+        w = ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
+        return self.history.loc[w, 
+                ['requestID', 'propID', 'fieldID', 
+                    'fieldRA', 'fieldDec', 'filter', 'expMJD', 'visitExpTime',
+                    'airmass', 'subprogram']]
+
