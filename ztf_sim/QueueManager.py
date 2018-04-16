@@ -820,7 +820,11 @@ class GreedyQueueManager(QueueManager):
 
     def _return_queue(self):
 
-        queue = self.queue.sort_values('value',ascending=False).copy()
+        if 'value' in self.queue.columns:
+            queue = self.queue.sort_values('value',ascending=False).copy()
+        else:
+            queue = self.queue.copy()
+
         # we have put these in value order but the sequence can change
         queue['ordered'] = False
         return queue
