@@ -249,13 +249,20 @@ class ObsLogger(object):
         self.prev_obs = record
 
 
-    def count_equivalent_obs_by_subprogram(self):
+    def count_equivalent_obs_by_subprogram(self, mjd_range = None):
         """Count of number of equivalent standard exposures by program and subprogram.
         
         Returns a dict with keys (program_id, subprogram_name)"""
 
-        # TODO: may need to allow for a date range to handle active months
-        grp = self.history.groupby(['propID','subprogram'])
+        if mjd_range is not None:
+            assert mjd_range[0] <= mjd_range[1]
+            w = ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
+            hist = self.history[w]
+        else:
+            hist = self.history
+
+        grp = hist.groupby(['propID','subprogram'])
 
         total_exposure_time =  grp['visitExpTime'].agg(np.sum)
         count_nobs = grp['requestID'].agg(len)
@@ -267,13 +274,20 @@ class ObsLogger(object):
         # make this a defaultdict so we get zero values for new programs
         return defaultdict(int, count_equivalent)
 
-    def count_total_obs_by_subprogram(self):
+    def count_total_obs_by_subprogram(self, mjd_range = None):
         """Count of observations by program and subprogram.
         
         Returns a dict with keys (program_id, subprogram_name)"""
 
-        # TODO: may need to allow for a date range to handle active months
-        grp = self.history.groupby(['propID','subprogram'])
+        if mjd_range is not None:
+            assert mjd_range[0] <= mjd_range[1]
+            w = ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
+            hist = self.history[w]
+        else:
+            hist = self.history
+
+        grp = hist.groupby(['propID','subprogram'])
 
         count = grp['requestID'].agg(len).to_dict()
 
@@ -282,7 +296,8 @@ class ObsLogger(object):
 
     def select_last_observed_time_by_field(self,
             field_ids = None, filter_ids = None, 
-            program_ids = None, subprogram_names = None):
+            program_ids = None, subprogram_names = None, 
+            mjd_range = None):
 
         # start with "True" 
         w = self.history['expMJD'] > 0
@@ -302,6 +317,11 @@ class ObsLogger(object):
         if subprogram_names is not None:
             w &= self.history['subprogram'].apply(lambda x: 
                     x in subprogram_names)
+
+        if mjd_range is not None:
+            assert mjd_range[0] <= mjd_range[1]
+            w &= ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
 
         # note that this only returns fields that have previously 
         # been observed under these constraints!
@@ -310,7 +330,8 @@ class ObsLogger(object):
 
     def select_n_obs_by_field(self,
             field_ids = None, filter_ids = None, 
-            program_ids = None, subprogram_names = None):
+            program_ids = None, subprogram_names = None, 
+            mjd_range = None):
 
         # start with "True" 
         w = self.history['expMJD'] > 0
@@ -330,6 +351,11 @@ class ObsLogger(object):
         if subprogram_names is not None:
             w &= self.history['subprogram'].apply(lambda x: 
                     x in subprogram_names)
+
+        if mjd_range is not None:
+            assert mjd_range[0] <= mjd_range[1]
+            w &= ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
 
         # note that this only returns fields that have previously 
         # been observed!   
@@ -339,3 +365,15 @@ class ObsLogger(object):
         nobs.name = 'n_obs'
 
         return nobs
+
+    def return_obs_history(self, time):
+        """Return one night's observation history"""
+
+        mjd_range = [np.floor(time.mjd), np.floor(time.mjd)+1.]
+        w = ((self.history['expMJD'] >= mjd_range[0]) & 
+                  (self.history['expMJD'] <= mjd_range[1])) 
+        return self.history.loc[w, 
+                ['requestID', 'propID', 'fieldID', 
+                    'fieldRA', 'fieldDec', 'filter', 'expMJD', 'visitExpTime',
+                    'airmass', 'subprogram']]
+

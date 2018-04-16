@@ -4,6 +4,7 @@ from __future__ import absolute_import
 from builtins import zip
 from builtins import object
 from collections import defaultdict
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -72,7 +73,8 @@ class QueueManager(object):
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
-    def assign_nightly_requests(self, current_state, obs_log):
+    def assign_nightly_requests(self, current_state, obs_log, 
+            time_limit = 30 * u.second):
         # clear previous request pool
         self.rp.clear_all_request_sets()
         # set number of allowed requests by program.
@@ -94,7 +96,7 @@ class QueueManager(object):
         assert(len(self.rp.pool) > 0)
 
         # any specific tasks needed)
-        self._assign_nightly_requests(current_state)
+        self._assign_nightly_requests(current_state, time_limit = time_limit)
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
@@ -109,7 +111,13 @@ class QueueManager(object):
         # TODO: rather than using equivalent obs, might be easier to work in 
         # exposure time directly?
         
-        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram()
+        # enforce program balance on a monthly basis
+        dtnow = time.to_datetime()
+        month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
+                scale='utc').mjd
+        
+        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
+                mjd_range = [month_start_mjd, time.mjd])
         total_obs = np.sum(list(obs_count_by_subprogram.values()))
         for program in self.observing_programs:
             # number_of_allowed_requests() accounts for variable exposure time
@@ -296,8 +304,9 @@ class GurobiQueueManager(QueueManager):
         self.block_obs_number = 0
         self.queue_type = 'gurobi'
 
-    def _assign_nightly_requests(self, current_state):
-        self._assign_slots(current_state)
+    def _assign_nightly_requests(self, current_state, 
+            time_limit = 30.*u.second):
+        self._assign_slots(current_state, time_limit = time_limit)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -359,7 +368,7 @@ class GurobiQueueManager(QueueManager):
         # lock out -99 limiting mags even more aggressively
         return metric.where(limiting_mag > 0, -0.99)
 
-    def _assign_slots(self, current_state):
+    def _assign_slots(self, current_state, time_limit = 30*u.second):
         """Assign requests in the Pool to slots"""
 
         # check that the pool has fields in it
@@ -417,7 +426,8 @@ class GurobiQueueManager(QueueManager):
 
         # select request_sets for the night
         self.request_sets_tonight, dft = request_set_optimize(
-            self.block_slot_metric, df, self.requests_allowed)
+            self.block_slot_metric, df, self.requests_allowed,
+            time_limit = time_limit)
 
         if len(self.request_sets_tonight) == 0:
             raise QueueEmptyError("No request sets selected!")
@@ -425,7 +435,8 @@ class GurobiQueueManager(QueueManager):
         # optimize assignment into slots
         df_slots = slot_optimize(
             self.block_slot_metric.loc[self.request_sets_tonight], 
-            df.loc[self.request_sets_tonight], self.requests_allowed)
+            df.loc[self.request_sets_tonight], self.requests_allowed,
+            time_limit = time_limit)
 
         grp = df_slots.groupby('slot')
 
@@ -471,14 +482,13 @@ class GurobiQueueManager(QueueManager):
         az = self.fields.block_az[self.queue_slot]
         df = df.join(az, on='field_id')
 
-        # now prepend the North Celestial pole so we can minimize slew from
-        # filter exchanges at CALSTOW.
+        # now prepend the CALSTOW positoin so we can minimize slew from
+        # filter exchanges 
         # TODO: instead, use current state if we're not changing filters
-        # Need to use current HA=0 since the ra slew time doesn't 
-        # care that it's at the pole
+        # Need to use current HA=0
         df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
             current_state['current_time']).to(u.degree).value,
-            'dec':90.,'azimuth':0},index=[0])
+            'dec':-48.,'azimuth':180.},index=[0])
         df_fakestart = pd.concat([df_blockstart,df])
 
         # compute overhead time between all request pairs
@@ -584,7 +594,8 @@ class GreedyQueueManager(QueueManager):
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
 
-    def _assign_nightly_requests(self, current_state):
+    def _assign_nightly_requests(self, current_state,
+            time_limit = 30.*u.second):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -766,9 +777,8 @@ class GreedyQueueManager(QueueManager):
 
         # TODO: this could be vectorized much better, possible with a loop over 
         # the subprograms in df
-        cadence_cuts  = df.apply(enough_gap_since_last_obs, 
-            args=(current_state,obs_log),axis=1)
-        
+        cadence_cuts = enough_gap_since_last_obs(df,
+            current_state,obs_log)
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
@@ -809,7 +819,11 @@ class GreedyQueueManager(QueueManager):
 
     def _return_queue(self):
 
-        queue = self.queue.sort_values('value',ascending=False).copy()
+        if 'value' in self.queue.columns:
+            queue = self.queue.sort_values('value',ascending=False).copy()
+        else:
+            queue = self.queue.copy()
+
         # we have put these in value order but the sequence can change
         queue['ordered'] = False
         return queue
@@ -823,7 +837,8 @@ class ListQueueManager(QueueManager):
         super().__init__(queue_name, queue_configuration, **kwargs)
         self.queue_type = 'list'
 
-    def _assign_nightly_requests(self, current_state):
+    def _assign_nightly_requests(self, current_state,
+            time_limit = 30.*u.second):
         raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
 
     def _update_queue(self, current_state, obs_log):
