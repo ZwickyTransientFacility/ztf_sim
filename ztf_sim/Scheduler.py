@@ -52,3 +52,10 @@ class Scheduler(object):
             self.queues[queue_name] = queue 
         else:
             raise ValueError(f"Queue {queue_name} already exists!")
+
+    def delete_queue(self, queue_name):
+
+        if (queue_name in self.queues):
+            del self.queues[queue_name] 
+        else:
+            raise ValueError(f"Queue {queue_name} does not exist!")
