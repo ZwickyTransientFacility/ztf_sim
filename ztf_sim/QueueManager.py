@@ -248,12 +248,16 @@ class QueueManager(object):
         # need to check the Hour Angle at both the start and the end of the
         # block, since we don't know the exact time it will be observed
 
-        ha_vals = RA_to_HA(df['ra'].values*u.degree, time)
+        # time is provided at the block midpoint
+
+        ha_vals = RA_to_HA(df['ra'].values*u.degree, 
+                time - TIME_BLOCK_SIZE/2.)
         # for limits below, need ha-180-180
         ha_vals = ha_vals.wrap_at(180.*u.degree)
         ha = pd.Series(ha_vals.to(u.degree), index=df.index, name='ha')
 
-        ha_vals_end = RA_to_HA(df['ra'].values*u.degree, time + TIME_BLOCK_SIZE)
+        ha_vals_end = RA_to_HA(df['ra'].values*u.degree, 
+                time + TIME_BLOCK_SIZE/2.)
         # for limits below, need ha-180-180
         ha_vals_end = ha_vals_end.wrap_at(180.*u.degree)
         ha_end = pd.Series(ha_vals_end.to(u.degree), index=df.index, name='ha')
@@ -265,7 +269,7 @@ class QueueManager(object):
         whalimit = np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value
         whalimit_end = np.abs(ha_end) >= (5.95 * u.hourangle).to(u.degree).value
         df.loc[whalimit | whalimit_end, 'limiting_mag'] = -99
-        
+
         # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
         w1 = (ha <= -17.6) & (df['dec'] <= -22)
         w1_end = (ha_end <= -17.6) & (df['dec'] <= -22)
@@ -379,7 +383,7 @@ class GurobiQueueManager(QueueManager):
         # make a copy so rp.pool and self.queue are not linked
         df = self.rp.pool.join(self.fields.fields, on='field_id').copy()
 
-        # calculate limiting mag by block 
+        # calculate limiting mag by block.  uses the block midpoint time
         # TODO: and by filter
         blocks, times = nightly_blocks(current_state['current_time'], 
             time_block_size=TIME_BLOCK_SIZE)

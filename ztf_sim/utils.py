@@ -247,7 +247,7 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
                             time_block_size=time_block_size)
 
     blocks = np.arange(block_start, block_end + 1, 1)
-    times = block_index_to_time(blocks, time)
+    times = block_index_to_time(blocks, time, where='mid')
 
     return blocks, times
 
