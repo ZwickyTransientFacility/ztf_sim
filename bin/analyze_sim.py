@@ -80,7 +80,7 @@ def calc_stats(sim_name):
 
     # program breakdown
     pgrp = df.groupby('propID')
-    stats['Program Fraction'] = (pgrp['fieldID'].agg(len) / len(df)).to_dict()
+    stats['Program Fraction'] = (pgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
 
     # filter breakdown
     fgrp = df.groupby('filter')
