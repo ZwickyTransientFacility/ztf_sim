@@ -8,7 +8,7 @@ import astropy.units as u
 from .ObservingProgram import ObservingProgram
 from .Fields import Fields
 from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID, EXPOSURE_TIME
-from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
+from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager, ListQueueManager
 
 
 class Configuration(object):
@@ -83,20 +83,21 @@ class QueueConfiguration(Configuration):
 
     def check_configuration(self):
 
-        for month in range(1,13):
-            if (np.sum(
-                [prog['program_observing_fraction']*prog['subprogram_fraction'] 
-                for prog in self.config['observing_programs']
-                if ((prog['active_months'] == 'all') or 
-                (month in np.atleast_1d(prog['active_months'])))
-                ]) != 1.0):
-                raise ValueError('Observing fractions must sum to 1')
+        if self.config['queue_manager'] != 'list':
+            for month in range(1,13):
+                if (np.sum(
+                    [prog['program_observing_fraction']*prog['subprogram_fraction'] 
+                    for prog in self.config['observing_programs']
+                    if ((prog['active_months'] == 'all') or 
+                    (month in np.atleast_1d(prog['active_months'])))
+                    ]) != 1.0):
+                    raise ValueError('Observing fractions must sum to 1')
 
-        # could do this via schema validation
-        for prog in self.config['observing_programs']:
-            if prog['program_name'] not in PROGRAM_NAMES:
-                raise ValueError('{} not in known programs'.format(
-                    prog['program_name']))
+            # could do this via schema validation
+            for prog in self.config['observing_programs']:
+                if prog['program_name'] not in PROGRAM_NAMES:
+                    raise ValueError('{} not in known programs'.format(
+                        prog['program_name']))
 
     def build_observing_programs(self):
 

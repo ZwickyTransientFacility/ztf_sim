@@ -30,8 +30,6 @@ class QueueEmptyError(Exception):
 
 class QueueManager(object):
 
-    #def __init__(self, observing_programs=[], rp=None, fields=None,
-    #             block_programs=False, queue_name = 'default'):
     def __init__(self, queue_name, queue_configuration, rp=None, fields=None):
 
         # queue name (useful in Scheduler object when swapping queues)
@@ -39,6 +37,10 @@ class QueueManager(object):
 
         # list of ObservingPrograms
         self.observing_programs = queue_configuration.build_observing_programs()
+
+        # defaults to handle time-windowed queues
+        self.is_TOO = False
+        self.validity_window_mjd = None
 
         # flag to check if assign_nightly_requests has been called tonight
         self.queue_night = None
@@ -837,13 +839,31 @@ class GreedyQueueManager(QueueManager):
 class ListQueueManager(QueueManager):
     """Simple Queue that returns observations in order."""
 
-    def __init__(self, queue_name, queue_configuration, **kwargs):
-        super().__init__(queue_name, queue_configuration, **kwargs)
+    def __init__(self, queue_name, queue_configuration, fields=None, **kwargs):
         self.queue_type = 'list'
+
+        # queue name (useful in Scheduler object when swapping queues)
+        self.queue_name = queue_name
+
+        if fields is None:
+            self.fields = Fields()
+        else:
+            self.fields = fields
+
+        # the queue itself
+        self.queue = self.load_list_queue(queue_configuration.config['targets'])
+
+        if 'validity_window_mjd' in queue_configuration.config:
+            window = queue_configuration.config['validity_window_mjd']
+            assert(len(window) == 2)
+            assert(window[1] > window[0])
+            self.validity_window_mjd = window
+            
+        self.is_TOO = queue_configuration.config['targets'][0]['subprogram_name'].startswith('ToO')
 
     def _assign_nightly_requests(self, current_state,
             time_limit = 30.*u.second):
-        raise NotImplementedError("ListQueueManager should be loaded by load_queue()")
+        pass
 
     def _update_queue(self, current_state, obs_log):
         pass
@@ -876,12 +896,11 @@ class ListQueueManager(QueueManager):
 
         # add standard keywords if not present
         if 'exposure_time' not in queue.columns:
-            queue['exposure_time'] = EXPOSURE_TIME
+            queue['exposure_time'] = EXPOSURE_TIME.to(u.second).value
         if 'max_airmass' not in queue.columns:
             queue['max_airmass'] = MAX_AIRMASS
         if 'n_repeats' not in queue.columns:
             queue['n_repeats'] = 1
-
 
         if append:
             self.queue = self.queue.append(queue, ignore_index=True)
