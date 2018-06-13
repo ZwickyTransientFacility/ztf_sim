@@ -72,6 +72,15 @@ class QueueManager(object):
 
         self.Sky = SkyBrightness()
 
+    def is_valid(self, time):
+        if self.validity_window_mjd is None:
+            return True
+
+        window_start = self.validity_window_mjd[0]
+        window_stop = self.validity_window_mjd[0]
+
+        return window_start <= time.mjd <= window_stop
+
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
