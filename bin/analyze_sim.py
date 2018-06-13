@@ -82,6 +82,9 @@ def calc_stats(sim_name):
     pgrp = df.groupby('propID')
     stats['Program Fraction'] = (pgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
 
+    spgrp = df.groupby('subprogram')
+    stats['Subprogram Fraction'] = (spgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
+
     # filter breakdown
     fgrp = df.groupby('filter')
     stats['Filter Fraction'] = (fgrp['fieldID'].agg(len) / len(df)).to_dict()
