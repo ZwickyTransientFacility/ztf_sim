@@ -82,23 +82,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             #if tel.check_if_ready():
             scheduler.obs_log.prev_obs = None
 
-
-            # Look for timed queues that will be valid tonight,
-            # to exclude from the nightly solution
-            scheduler.timed_queues_tonight = []
-            block_start = block_index(tel.current_time)
-            block_stop = block_index(Time(tel.current_time.mjd+ 1, format='mjd'))
-            exclude_blocks = []
-            for qq_name, qq in scheduler.queues.items():
-                if qq.queue_name in ['default', 'fallback']:
-                    continue
-                if qq.validity_window is not None:
-                    valid_blocks = qq.valid_blocks(complete_only=True)
-                    valid_blocks_tonight = [b for b in valid_blocks if
-                            (block_start <= b <= block_stop)]
-                    if len(valid_blocks_tonight):
-                        scheduler.timed_queues_tonight.append(qq_name)
-                    exclude_blocks.extend(valid_blocks_tonight)
+            exclude_blocks = scheduler.find_excluded_blocks_tonight(
+                              tel.current_time)
 
             scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
                     scheduler.obs_log, exclude_blocks = exclude_blocks)
@@ -110,21 +95,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
 
-            # drop out of a timed queue if it's no longer valid
-            if scheduler.Q.queue_name != 'default':
-                if not scheduler.Q.is_valid(current_state['current_time']):
-                    scheduler.set_queue('default')
-
-
-            # check if a timed queue is now valid
-            for qq_name in scheduler.timed_queues_tonight:
-                qq = scheduler.queues[qq_name]
-                if qq.is_valid(current_state['current_time']):
-                    # only switch if we are in the default or fallback queue
-                    if scheduler.Q.queue_name in ['default', 'fallback']:
-                        scheduler.set_queue(qq_name)
-
-            1/0 
+            #scheduler.check_for_TOO_queue_and_switch(current_state['current_time'])
+            scheduler.check_for_timed_queue_and_switch(current_state['current_time'])
 
             # get coords
             try:
