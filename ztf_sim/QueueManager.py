@@ -860,7 +860,7 @@ class ListQueueManager(QueueManager):
             self.fields = fields
 
         # the queue itself
-        self.queue = self.load_list_queue(queue_configuration.config['targets'])
+        self.load_list_queue(queue_configuration.config['targets'])
 
         if 'validity_window_mjd' in queue_configuration.config:
             window = queue_configuration.config['validity_window_mjd']
