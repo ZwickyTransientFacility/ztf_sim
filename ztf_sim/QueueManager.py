@@ -196,8 +196,9 @@ class QueueManager(object):
         # don't store the telescope state locally!
 
         # check that assign_nightly_requests has been called tonight.
-        if np.floor(current_state['current_time'].mjd) != self.queue_night:
-            self.assign_nightly_requests(current_state, obs_log)
+        if self.queue_type != 'list':
+            if np.floor(current_state['current_time'].mjd) != self.queue_night:
+                self.assign_nightly_requests(current_state, obs_log)
 
         # define functions that actually do the work in subclasses
         next_obs = self._next_obs(current_state, obs_log)

@@ -94,8 +94,8 @@ class Scheduler(object):
             if qq.is_TOO:
                 if qq.is_valid(time_now):
                     # only switch if we don't have an active TOO queue
-                    if not self.Q.is_TOO:
-                        self.set_queue(qq.queue_name)
+                    if not self.Q.is_TOO and len(qq.queue):
+                        self.set_queue(qq_name)
 
     def check_for_timed_queue_and_switch(self, time_now):
             # drop out of a timed queue if it's no longer valid
@@ -106,7 +106,7 @@ class Scheduler(object):
             # check if a timed queue is now valid
             for qq_name in self.timed_queues_tonight:
                 qq = self.queues[qq_name]
-                if qq.is_valid(time_now):
+                if qq.is_valid(time_now) and len(qq.queue):
                     # only switch if we are in the default or fallback queue
                     if self.Q.queue_name in ['default', 'fallback']:
                         self.set_queue(qq_name)
