@@ -174,7 +174,7 @@ class ObservingProgram(object):
 
         return request_set
 
-    def number_of_allowed_requests(self, time):
+    def number_of_allowed_requests(self, time, exclude_blocks = []):
         """ Count the (maximal) number of requests allowed for this program tonight."""
 
         # "fudge factor" to provide ~15% extra requests for all programs
@@ -184,6 +184,11 @@ class ObservingProgram(object):
 
         obs_time = approx_hours_of_darkness(
             time) * self.program_observing_time_fraction * self.subprogram_fraction
+        
+        # if we know some time tonight will be used up by timed queues, remove
+        # it
+        if len(exclude_blocks):
+            obs_time -= len(exclude_blocks) * TIME_BLOCK_SIZE 
 
         n_requests = (obs_time.to(u.min) /
                       (self.exposure_time + READOUT_TIME).to(u.min)).value[0]  \
