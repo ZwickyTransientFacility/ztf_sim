@@ -86,7 +86,19 @@ class QueueManager(object):
             raise ValueError('All blocks are valid')
 
         start_block = block_index(self.validity_window[0])
-        stop_block = block_index(self.validity_window[1])
+
+        # with no weather, we start at the start of the window 
+        if 'n_repeats' in self.queue.columns:
+            n_obs = np.sum(self.queue.n_repeats)
+            exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
+        else:
+            n_obs = len(self.queue)
+            exp_time = np.sum(self.queue.exposure_time)
+        obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
+
+        stop_block = block_index(self.validity_window[0] + obs_time)
+        # below breaks if the window is longer than the observations
+        #stop_block = block_index(self.validity_window[1])
 
         if complete_only:
             # only give blocks that are completely used by this queue
@@ -908,7 +920,7 @@ class ListQueueManager(QueueManager):
             assert(len(window) == 2)
             assert(window[1] > window[0])
             self.validity_window = [Time(window[0],format='mjd'),
-                Time(window[0],format='mjd')]
+                Time(window[1],format='mjd')]
             
         self.is_TOO = queue_configuration.config['targets'][0]['subprogram_name'].startswith('ToO')
 

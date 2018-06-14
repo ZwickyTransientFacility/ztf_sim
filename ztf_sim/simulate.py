@@ -97,7 +97,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                     valid_blocks_tonight = [b for b in valid_blocks if
                             (block_start <= b <= block_stop)]
                     if len(valid_blocks_tonight):
-                        scheduler.timed_queues_tonight.extend(qq.name)
+                        scheduler.timed_queues_tonight.append(qq_name)
                     exclude_blocks.extend(valid_blocks_tonight)
 
             scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
@@ -110,13 +110,21 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
 
+            # drop out of a timed queue if it's no longer valid
+            if scheduler.Q.queue_name != 'default':
+                if not scheduler.Q.is_valid(current_state['current_time']):
+                    scheduler.set_queue('default')
+
+
             # check if a timed queue is now valid
             for qq_name in scheduler.timed_queues_tonight:
                 qq = scheduler.queues[qq_name]
-                if qq.is_valid(time_now):
+                if qq.is_valid(current_state['current_time']):
                     # only switch if we are in the default or fallback queue
-                    if not scheduler.Q.queue_name in ['default', 'fallback']:
-                        scheduler.set_queue(qq.queue_name)
+                    if scheduler.Q.queue_name in ['default', 'fallback']:
+                        scheduler.set_queue(qq_name)
+
+            1/0 
 
             # get coords
             try:
@@ -130,6 +138,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                     try:
                         next_obs = scheduler.Q.next_obs(current_state, 
                                 scheduler.obs_log)
+                        assert(next_obs['request_id'] in scheduler.Q.queue.index)
+                        continue
                     except QueueEmptyError:
                         tel.logger.info("Queue empty!  Trying fallback queue...")
                         if 'fallback' in scheduler.queues:
@@ -138,20 +148,22 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                         else:
                             tel.logger.info("No fallback queue defined!")
 
-                            if not raise_queue_empty:
-                                    tel.logger.info("Queue empty!  Waiting...")
-                                    scheduler.obs_log.prev_obs = None
-                                    tel.wait()
-                                    continue
-                            else:
-                                tel.logger.info(calc_queue_stats(
-                                    scheduler.Q.queue, current_state,
-                                    intro="Queue returned no next_obs. Current queue status:"))
-                                tel.logger.info(calc_pool_stats(
-                                    scheduler.Q.rp.pool, intro="Current pool status:"))
+                else:
+                    if not raise_queue_empty:
+                            tel.logger.info("Queue empty!  Waiting...")
+                            scheduler.obs_log.prev_obs = None
+                            tel.wait()
+                            continue
+                    else:
+                        tel.logger.info(calc_queue_stats(
+                            scheduler.Q.queue, current_state,
+                            intro="Queue returned no next_obs. Current queue status:"))
+                        tel.logger.info(calc_pool_stats(
+                            scheduler.Q.rp.pool, intro="Current pool status:"))
 
-                                # TODO: in py3, chained exceptions come for free
-                                raise QueueEmptyError
+                        # TODO: in py3, chained exceptions come for free
+                        raise QueueEmptyError
+
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
