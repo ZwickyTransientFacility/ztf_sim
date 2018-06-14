@@ -89,7 +89,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             block_start = block_index(tel.current_time)
             block_stop = block_index(Time(tel.current_time.mjd+ 1, format='mjd'))
             exclude_blocks = []
-            for qq in scheduler.queues:
+            for qq_name, qq in scheduler.queues.items():
                 if qq.queue_name in ['default', 'fallback']:
                     continue
                 if qq.validity_window is not None:

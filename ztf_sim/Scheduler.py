@@ -19,6 +19,7 @@ class Scheduler(object):
             scheduler_config_file_fullpath)
         self.queue_configs = self.scheduler_config.build_queue_configs()
         self.queues = self.scheduler_config.build_queues(self.queue_configs)
+        self.timed_queues_tonight = []
 
         self.set_queue('default')
         

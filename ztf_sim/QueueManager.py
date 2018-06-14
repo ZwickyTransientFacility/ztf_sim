@@ -96,10 +96,11 @@ class QueueManager(object):
             dt = TimeDelta(1*u.minute)
             
             if (self.validity_window[0] - 
-                    block_index_to_time(start_block, where='start')) > dt:
+                    block_index_to_time(start_block, self.validity_window[0], 
+                        where='start')) > dt:
                 start_block += 1
-            if (block_index_to_time(stop_block, where='end') -
-                    self.validity_window[1]) > dt:
+            if (block_index_to_time(stop_block, self.validity_window[1], 
+                where='end') - self.validity_window[1]) > dt:
                 stop_block -= 1
 
         # np.arange returns an empty list if stop_block <= start block
