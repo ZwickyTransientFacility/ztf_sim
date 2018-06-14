@@ -169,7 +169,7 @@ class QueueManager(object):
 
             # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
-            CATCHUP_FACTOR = 0.20
+            CATCHUP_FACTOR = 0.40
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[(program.program_id, 
                 program.subprogram_name)] = n_requests
