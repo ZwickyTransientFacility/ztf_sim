@@ -12,6 +12,7 @@ from .QueueManager import calc_pool_stats, calc_queue_stats
 from .ObsLogger import ObsLogger
 from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR, P48_loc
+from .utils import block_index
 
 
 # check aggressively for setting with copy
@@ -70,14 +71,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
         historical_observability_year=weather_year,
         logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
 
-    # initialize nightly field requests (Tom Barlow function)
-    scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
-            scheduler.obs_log) 
-    # log pool stats
-    tel.logger.info(calc_pool_stats(
-        scheduler.Q.rp.pool, intro="Nightly requests initialized"))
-
-    current_night_mjd = np.floor(tel.current_time.mjd)
+    # initialize to a low value so we start by assigning nightly requests
+    current_night_mjd = 0
 
     while tel.current_time < (survey_start_time + survey_duration):
 
@@ -86,8 +81,27 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             # use the state machine to allow us to skip weathered out nights
             #if tel.check_if_ready():
             scheduler.obs_log.prev_obs = None
+
+
+            # Look for timed queues that will be valid tonight,
+            # to exclude from the nightly solution
+            scheduler.timed_queues_tonight = []
+            block_start = block_index(tel.current_time)
+            block_stop = block_index(Time(tel.current_time.mjd+ 1, format='mjd'))
+            exclude_blocks = []
+            for qq in scheduler.queues:
+                if qq.queue_name in ['default', 'fallback']:
+                    continue
+                if qq.validity_window is not None:
+                    valid_blocks = qq.valid_blocks(complete_only=True)
+                    valid_blocks_tonight = [b for b in valid_blocks if
+                            (block_start <= b <= block_stop)]
+                    if len(valid_blocks_tonight):
+                        scheduler.timed_queues_tonight.extend(qq.name)
+                    exclude_blocks.extend(valid_blocks_tonight)
+
             scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
-                    scheduler.obs_log)
+                    scheduler.obs_log, exclude_blocks = exclude_blocks)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             tel.logger.info(calc_pool_stats(
@@ -95,6 +109,15 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
+
+            # check if a timed queue is now valid
+            for qq_name in scheduler.timed_queues_tonight:
+                qq = scheduler.queues[qq_name]
+                if qq.is_valid(time_now):
+                    # only switch if we are in the default or fallback queue
+                    if not scheduler.Q.queue_name in ['default', 'fallback']:
+                        scheduler.set_queue(qq.queue_name)
+
             # get coords
             try:
                 next_obs = scheduler.Q.next_obs(current_state, 
@@ -102,32 +125,33 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 # TODO: debugging check...
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
-                if not raise_queue_empty:
-                    if fallback:
+                if scheduler.Q.queue_name != 'default':
+                    scheduler.set_queue('default')
+                    try:
+                        next_obs = scheduler.Q.next_obs(current_state, 
+                                scheduler.obs_log)
+                    except QueueEmptyError:
                         tel.logger.info("Queue empty!  Trying fallback queue...")
                         if 'fallback' in scheduler.queues:
                             next_obs = scheduler.queues['fallback'].next_obs(
                                     current_state, scheduler.obs_log)
                         else:
                             tel.logger.info("No fallback queue defined!")
-                            scheduler.obs_log.prev_obs = None
-                            tel.wait()
-                            continue
 
-                    else:
-                        tel.logger.info("Queue empty!  Waiting...")
-                        scheduler.obs_log.prev_obs = None
-                        tel.wait()
-                        continue
-                else:
-                    tel.logger.info(calc_queue_stats(
-                        scheduler.Q.queue, current_state,
-                        intro="Queue returned no next_obs. Current queue status:"))
-                    tel.logger.info(calc_pool_stats(
-                        scheduler.Q.rp.pool, intro="Current pool status:"))
+                            if not raise_queue_empty:
+                                    tel.logger.info("Queue empty!  Waiting...")
+                                    scheduler.obs_log.prev_obs = None
+                                    tel.wait()
+                                    continue
+                            else:
+                                tel.logger.info(calc_queue_stats(
+                                    scheduler.Q.queue, current_state,
+                                    intro="Queue returned no next_obs. Current queue status:"))
+                                tel.logger.info(calc_pool_stats(
+                                    scheduler.Q.rp.pool, intro="Current pool status:"))
 
-                    # TODO: in py3, chained exceptions come for free
-                    raise QueueEmptyError
+                                # TODO: in py3, chained exceptions come for free
+                                raise QueueEmptyError
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
