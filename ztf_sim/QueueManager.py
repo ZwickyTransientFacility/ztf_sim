@@ -95,8 +95,9 @@ class QueueManager(object):
             n_obs = len(self.queue)
             exp_time = np.sum(self.queue.exposure_time)
         obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
+        obs_end_time = self.validity_window[0] + obs_time
 
-        stop_block = block_index(self.validity_window[0] + obs_time)
+        stop_block = block_index(obs_end_time)
         # below breaks if the window is longer than the observations
         #stop_block = block_index(self.validity_window[1])
 
@@ -111,8 +112,8 @@ class QueueManager(object):
                     block_index_to_time(start_block, self.validity_window[0], 
                         where='start')) > dt:
                 start_block += 1
-            if (block_index_to_time(stop_block, self.validity_window[1], 
-                where='end') - self.validity_window[1]) > dt:
+            if (block_index_to_time(stop_block, obs_end_time, 
+                where='end') - obs_end_time) > dt:
                 stop_block -= 1
 
         # np.arange returns an empty list if stop_block <= start block
