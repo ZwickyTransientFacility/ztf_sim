@@ -180,7 +180,7 @@ class ObservingProgram(object):
         # "fudge factor" to provide ~15% extra requests for all programs
         # to minimize QueueEmptyErrors...
         # TODO: test how much we need this...
-        FUDGE_FACTOR = 1.20
+        FUDGE_FACTOR = 1.25
 
         dark_time = approx_hours_of_darkness(time)
         
