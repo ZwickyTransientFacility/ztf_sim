@@ -48,7 +48,7 @@ class SchedulerConfiguration(Configuration):
 
         for queue_pars in self.config['queues']:
             queue_config = QueueConfiguration(
-                    self.scheduler_config_file.with_name(queue_pars["config_file"]))
+                    self.scheduler_config_file.parent / queue_pars["config_file"])
             queue_configs[queue_pars["queue_name"]] = queue_config
 
         return queue_configs

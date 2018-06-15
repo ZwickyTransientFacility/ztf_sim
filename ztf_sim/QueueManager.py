@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
 import astropy.units as u
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
@@ -40,7 +40,7 @@ class QueueManager(object):
 
         # defaults to handle time-windowed queues
         self.is_TOO = False
-        self.validity_window_mjd = None
+        self.validity_window = None
 
         # flag to check if assign_nightly_requests has been called tonight
         self.queue_night = None
@@ -72,16 +72,65 @@ class QueueManager(object):
 
         self.Sky = SkyBrightness()
 
+    def is_valid(self, time):
+        if self.validity_window is None:
+            return True
+
+        window_start = self.validity_window[0]
+        window_stop = self.validity_window[1]
+
+        return window_start <= time <= window_stop
+
+    def valid_blocks(self, complete_only = True):
+        if self.validity_window is None:
+            raise ValueError('All blocks are valid')
+
+        start_block = block_index(self.validity_window[0])
+
+        # with no weather, we start at the start of the window 
+        if 'n_repeats' in self.queue.columns:
+            n_obs = np.sum(self.queue.n_repeats)
+            exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
+        else:
+            n_obs = len(self.queue)
+            exp_time = np.sum(self.queue.exposure_time)
+        obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
+        obs_end_time = self.validity_window[0] + obs_time
+
+        stop_block = block_index(obs_end_time)
+        # below breaks if the window is longer than the observations
+        #stop_block = block_index(self.validity_window[1])
+
+        if complete_only:
+            # only give blocks that are completely used by this queue
+            # (if the validity range starts within a block we need to 
+            # have observations scheduled for it)
+            
+            dt = TimeDelta(1*u.minute)
+            
+            if (self.validity_window[0] - 
+                    block_index_to_time(start_block, self.validity_window[0], 
+                        where='start')) > dt:
+                start_block += 1
+            if (block_index_to_time(stop_block, obs_end_time, 
+                where='end') - obs_end_time) > dt:
+                stop_block -= 1
+
+        # np.arange returns an empty list if stop_block <= start block
+        return np.arange(start_block, stop_block+1).tolist()
+                
+
+
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state, obs_log, 
-            time_limit = 30 * u.second):
+            time_limit = 30 * u.second, exclude_blocks = []):
         # clear previous request pool
         self.rp.clear_all_request_sets()
         # set number of allowed requests by program.
         self.determine_allowed_requests(current_state['current_time'],
-                obs_log)
+                obs_log, exclude_blocks = exclude_blocks)
 
         for program in self.observing_programs:
 
@@ -98,13 +147,14 @@ class QueueManager(object):
         assert(len(self.rp.pool) > 0)
 
         # any specific tasks needed)
-        self._assign_nightly_requests(current_state, time_limit = time_limit)
+        self._assign_nightly_requests(current_state, 
+                time_limit = time_limit, exclude_blocks = exclude_blocks)
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
 
 
-    def determine_allowed_requests(self, time, obs_log):
+    def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
 
@@ -123,7 +173,8 @@ class QueueManager(object):
         total_obs = np.sum(list(obs_count_by_subprogram.values()))
         for program in self.observing_programs:
             # number_of_allowed_requests() accounts for variable exposure time
-            n_requests = program.number_of_allowed_requests(time)
+            n_requests = program.number_of_allowed_requests(time, 
+                    exclude_blocks = exclude_blocks)
             delta = np.round(
                 (obs_count_by_subprogram[(program.program_id, 
                     program.subprogram_name)] -
@@ -132,7 +183,7 @@ class QueueManager(object):
 
             # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
-            CATCHUP_FACTOR = 0.20
+            CATCHUP_FACTOR = 0.40
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[(program.program_id, 
                 program.subprogram_name)] = n_requests
@@ -146,8 +197,9 @@ class QueueManager(object):
         # don't store the telescope state locally!
 
         # check that assign_nightly_requests has been called tonight.
-        if np.floor(current_state['current_time'].mjd) != self.queue_night:
-            self.assign_nightly_requests(current_state, obs_log)
+        if self.queue_type != 'list':
+            if np.floor(current_state['current_time'].mjd) != self.queue_night:
+                self.assign_nightly_requests(current_state, obs_log)
 
         # define functions that actually do the work in subclasses
         next_obs = self._next_obs(current_state, obs_log)
@@ -311,8 +363,9 @@ class GurobiQueueManager(QueueManager):
         self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state, 
-            time_limit = 30.*u.second):
-        self._assign_slots(current_state, time_limit = time_limit)
+            time_limit = 30.*u.second, exclude_blocks = []):
+        self._assign_slots(current_state, time_limit = time_limit, 
+                exclude_blocks = exclude_blocks)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -374,7 +427,8 @@ class GurobiQueueManager(QueueManager):
         # lock out -99 limiting mags even more aggressively
         return metric.where(limiting_mag > 0, -0.99)
 
-    def _assign_slots(self, current_state, time_limit = 30*u.second):
+    def _assign_slots(self, current_state, time_limit = 30*u.second, 
+            exclude_blocks = []):
         """Assign requests in the Pool to slots"""
 
         # check that the pool has fields in it
@@ -389,6 +443,13 @@ class GurobiQueueManager(QueueManager):
         # TODO: and by filter
         blocks, times = nightly_blocks(current_state['current_time'], 
             time_block_size=TIME_BLOCK_SIZE)
+
+        # remove the excluded blocks, if any
+        if len(exclude_blocks):
+            cut_blocks = np.setdiff1d(blocks, exclude_blocks)
+            cut_times = block_index_to_time(cut_blocks, 
+                    current_state['current_time'], where='mid')
+            blocks, times = cut_blocks, cut_times
 
         lim_mags = {}
         sky_brightnesses = {}
@@ -470,7 +531,10 @@ class GurobiQueueManager(QueueManager):
 
         self.queue_slot = block_index(current_state['current_time'])[0]
 
-        assert(self.queue_slot in self.queued_requests_by_slot.index)
+        # raise an error if there are missing blocks--potentially due to
+        # excluded blocks
+        if self.queue_slot not in self.queued_requests_by_slot.index:
+            raise QueueEmptyError(f"Current block {self.queue_slot} is not stored")
 
         # retrieve requests to be observed in this block
         req_list = self.queued_requests_by_slot.loc[self.queue_slot]
@@ -601,7 +665,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second):
+            time_limit = 30.*u.second, exclude_blocks = []):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -851,18 +915,19 @@ class ListQueueManager(QueueManager):
             self.fields = fields
 
         # the queue itself
-        self.queue = self.load_list_queue(queue_configuration.config['targets'])
+        self.load_list_queue(queue_configuration.config['targets'])
 
         if 'validity_window_mjd' in queue_configuration.config:
             window = queue_configuration.config['validity_window_mjd']
             assert(len(window) == 2)
             assert(window[1] > window[0])
-            self.validity_window_mjd = window
+            self.validity_window = [Time(window[0],format='mjd'),
+                Time(window[1],format='mjd')]
             
         self.is_TOO = queue_configuration.config['targets'][0]['subprogram_name'].startswith('ToO')
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second):
+            **kwargs):
         pass
 
     def _update_queue(self, current_state, obs_log):
