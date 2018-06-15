@@ -23,7 +23,8 @@ pd.options.mode.chained_assignment = 'raise'  # default='warn'
 
 
 def simulate(scheduler_config_file, run_config_file = 'default.cfg',
-        profile=False, raise_queue_empty=False, fallback=True):
+        profile=False, raise_queue_empty=False, fallback=True, 
+        time_limit = 30*u.second):
 
     if profile:
         try:
@@ -86,7 +87,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                               tel.current_time)
 
             scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
-                    scheduler.obs_log, exclude_blocks = exclude_blocks)
+                    scheduler.obs_log, exclude_blocks = exclude_blocks,
+                    time_limit = time_limit)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             tel.logger.info(calc_pool_stats(
