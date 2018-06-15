@@ -665,7 +665,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second):
+            time_limit = 30.*u.second, exclude_blocks = []):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -927,7 +927,7 @@ class ListQueueManager(QueueManager):
         self.is_TOO = queue_configuration.config['targets'][0]['subprogram_name'].startswith('ToO')
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second):
+            **kwargs):
         pass
 
     def _update_queue(self, current_state, obs_log):

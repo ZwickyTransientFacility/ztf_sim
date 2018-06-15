@@ -113,17 +113,21 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                         next_obs = scheduler.Q.next_obs(current_state, 
                                 scheduler.obs_log)
                         assert(next_obs['request_id'] in scheduler.Q.queue.index)
-                        continue
                     except QueueEmptyError:
                         tel.logger.info("Queue empty!  Trying fallback queue...")
-                        if 'fallback' in scheduler.queues:
+                        if fallback and 'fallback' in scheduler.queues:
                             next_obs = scheduler.queues['fallback'].next_obs(
                                     current_state, scheduler.obs_log)
+                            continue
                         else:
                             tel.logger.info("No fallback queue defined!")
 
                 else:
-                    if not raise_queue_empty:
+                    if fallback and 'fallback' in scheduler.queues:
+                        tel.logger.info("Queue empty!  Trying fallback queue...")
+                        next_obs = scheduler.queues['fallback'].next_obs(
+                                    current_state, scheduler.obs_log)
+                    elif not raise_queue_empty:
                             tel.logger.info("Queue empty!  Waiting...")
                             scheduler.obs_log.prev_obs = None
                             tel.wait()
