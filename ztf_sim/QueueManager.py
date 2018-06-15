@@ -919,10 +919,15 @@ class ListQueueManager(QueueManager):
 
         if 'validity_window_mjd' in queue_configuration.config:
             window = queue_configuration.config['validity_window_mjd']
-            assert(len(window) == 2)
-            assert(window[1] > window[0])
-            self.validity_window = [Time(window[0],format='mjd'),
-                Time(window[1],format='mjd')]
+            if window is not None:
+                assert(len(window) == 2)
+                assert(window[1] > window[0])
+                self.validity_window = [Time(window[0],format='mjd'),
+                    Time(window[1],format='mjd')]
+            else:
+                self.validity_window = None
+        else:
+            self.validity_window = None
             
         self.is_TOO = queue_configuration.config['targets'][0]['subprogram_name'].startswith('ToO')
 
@@ -953,6 +958,8 @@ class ListQueueManager(QueueManager):
         # but allow manual ra/dec if needed
         if ('ra' not in df.columns) and ('dec' not in df.columns):
             queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
+        else:
+            queue = df
 
         # if some of the field ids are bad, there will be missing rows
         if len(queue) != len(df):

@@ -15,7 +15,8 @@ class Configuration(object):
 
     def __init__(self, config_file):
 
-        self.load_configuration(config_file)
+        if config_file is not None:
+            self.load_configuration(config_file)
 
     def load_configuration(self, config_file):
         with open(config_file, 'r') as f:
