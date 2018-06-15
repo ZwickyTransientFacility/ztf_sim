@@ -365,7 +365,7 @@ class GurobiQueueManager(QueueManager):
     def _assign_nightly_requests(self, current_state, 
             time_limit = 30.*u.second, exclude_blocks = []):
         self._assign_slots(current_state, time_limit = time_limit, 
-                exclude_blocks = [])
+                exclude_blocks = exclude_blocks)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
