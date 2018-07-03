@@ -388,7 +388,10 @@ class GurobiQueueManager(QueueManager):
         
         idx = self.queue_order[0]
         row = self.queue.loc[idx]
-        filter_id = int(self.filter_by_slot[self.queue_slot])
+        if self.queue_slot in self.filter_by_slot:
+            filter_id = int(self.filter_by_slot[self.queue_slot])
+        else:
+            raise QueueEmptyError("No requests in this slot!")
 
         # TODO: make the queue have the right datatypes
         next_obs = {'target_field_id': int(row['field_id']),
