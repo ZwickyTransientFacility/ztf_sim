@@ -1167,11 +1167,5 @@ def calc_queue_stats(df, current_state, intro=""):
 #        wfirst = walt & (df.loc[walt, 'request_number_tonight'] == 1)
 #        stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
 #            np.sum(wfirst))
-        ref_obs = df.apply(get_ref_obs_time, args=(current_state,), axis=1)
-        dt = current_state['current_time'].mjd - ref_obs
-        stats_str += "\t\tMax time to ref_obs for first obs: {}\n".format(
-            dt[wfirst].max())
-        stats_str += "\t\tMax time to ref_obs for all obs: {}\n".format(
-            dt[walt].max())
 
     return stats_str
