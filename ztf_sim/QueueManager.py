@@ -998,7 +998,8 @@ class ListQueueManager(QueueManager):
             if idx == len(self.queue):
                 raise QueueEmptyError("No valid observations in queue!")
             ra = self.queue.iloc[idx].ra
-            ha = RA_to_HA(ra, current_state['current_time']).to(u.degree).value
+            ha = RA_to_HA(ra * u.degree, 
+                    current_state['current_time']).to(u.degree).value
             dec = self.queue.iloc[idx].dec
             sc = coord.SkyCoord(ra,dec, unit=u.deg)
             airmass = altitude_to_airmass(
