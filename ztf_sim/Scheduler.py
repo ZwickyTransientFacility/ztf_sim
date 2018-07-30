@@ -60,6 +60,8 @@ class Scheduler(object):
     def delete_queue(self, queue_name):
 
         if (queue_name in self.queues):
+            if self.Q.queue_name == queue_name:
+                self.set_queue('default')
             del self.queues[queue_name] 
         else:
             raise ValueError(f"Queue {queue_name} does not exist!")
@@ -111,3 +113,16 @@ class Scheduler(object):
                     if self.Q.queue_name in ['default', 'fallback']:
                         self.set_queue(qq_name)
 
+    def remove_empty_and_expired_queues(self, time_now):
+        queues_for_deletion = []
+        for qq_name, qq in self.queues.items():
+            if qq.queue_name in ['default', 'fallback']:
+                continue
+            if qq.validity_window is not None:
+                if qq.validity_window[1] < time_now:
+                    queues_for_deletion.append(qq_name)
+            if len(qq.queue) == 0:
+                    queues_for_deletion.append(qq_name)
+
+        for qq_name in queues_for_deletion:
+                self.delete_queue(qq_name)

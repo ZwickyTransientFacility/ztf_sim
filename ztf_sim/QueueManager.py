@@ -950,7 +950,7 @@ class ListQueueManager(QueueManager):
 
         # check that major columns are included
         required_columns = ['field_id','program_id', 'subprogram_name',
-                'filter_id']
+                'filter_id', 'program_pi']
 
         for col in required_columns:
             if col not in df.columns:
@@ -994,26 +994,41 @@ class ListQueueManager(QueueManager):
         # take the next observation in line
         idx = 0
 
-        # TODO: check if it's past the max airmass
         while True:
-            if len(self.queue) == 0:
-                raise QueueEmptyError("No more observations in queue!")
+            if idx == len(self.queue):
+                raise QueueEmptyError("No valid observations in queue!")
             ra = self.queue.iloc[idx].ra
+            ha = RA_to_HA(ra * u.degree, 
+                    current_state['current_time']).to(u.degree).value
             dec = self.queue.iloc[idx].dec
             sc = coord.SkyCoord(ra,dec, unit=u.deg)
             airmass = altitude_to_airmass(
                     skycoord_to_altaz(sc, 
                         current_state['current_time']).alt.to(u.deg).value)
-            if airmass <= self.queue.iloc[idx].max_airmass:
-                break
-            else:
-                print('Above max airmass, removing from queue!')
-                self._remove_requests(self.queue.index[idx])
-                # this effectively pops off iloc=0, so we can keep idx=0.  
+            if airmass >= self.queue.iloc[idx].max_airmass:
+                idx += 1
+                continue
+            # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
+            # fields not hit by the airmass cut)
+            if np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value:
+                idx += 1
+                continue
+            # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
+            if (ha <= -17.6) & (dec <= -22):
+                idx += 1
+                continue
+             # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.
+            if (ha >= -17.6) & (dec <= -45):
+                idx += 1
+                continue
+             # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".
+            if (np.abs(ha) >= 3.) & (dec <= -46):
+                idx += 1
+                continue
+
+            break
 
         
-        # TODO: think if we want a time-based expiration as well
-
         next_obs = {'target_field_id': int(self.queue.iloc[idx].field_id),
             'target_ra': self.queue.iloc[idx].ra,
             'target_dec': self.queue.iloc[idx].dec,
@@ -1167,11 +1182,5 @@ def calc_queue_stats(df, current_state, intro=""):
 #        wfirst = walt & (df.loc[walt, 'request_number_tonight'] == 1)
 #        stats_str += "\t\t{} requests awaiting first obs tonight\n".format(
 #            np.sum(wfirst))
-        ref_obs = df.apply(get_ref_obs_time, args=(current_state,), axis=1)
-        dt = current_state['current_time'].mjd - ref_obs
-        stats_str += "\t\tMax time to ref_obs for first obs: {}\n".format(
-            dt[wfirst].max())
-        stats_str += "\t\tMax time to ref_obs for all obs: {}\n".format(
-            dt[walt].max())
 
     return stats_str
