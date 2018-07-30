@@ -113,3 +113,12 @@ class Scheduler(object):
                     if self.Q.queue_name in ['default', 'fallback']:
                         self.set_queue(qq_name)
 
+    def remove_empty_and_expired_queues(self, time_now):
+        for qq_name, qq in self.queues.items():
+            if qq.queue_name in ['default', 'fallback']:
+                continue
+            if qq.validity_window is not None:
+                if qq.validity_window[1] < time_now.mjd:
+                    self.delete_queue(qq_name)
+            if len(qq.queue) == 0:
+                self.delete_queue(qq_name)
