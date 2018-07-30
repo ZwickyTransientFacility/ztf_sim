@@ -118,7 +118,7 @@ class Scheduler(object):
             if qq.queue_name in ['default', 'fallback']:
                 continue
             if qq.validity_window is not None:
-                if qq.validity_window[1] < time_now.mjd:
+                if qq.validity_window[1] < time_now:
                     self.delete_queue(qq_name)
             if len(qq.queue) == 0:
                 self.delete_queue(qq_name)
