@@ -946,7 +946,7 @@ class ListQueueManager(QueueManager):
 
         queue_dict_list is a list of dicts, one per observation"""
         
-        df = pd.DataFrame(queue_dict_list)
+        df = pd.DataFrame.from_dict(queue_dict_list)
 
         # check that major columns are included
         required_columns = ['field_id','program_id', 'subprogram_name',
@@ -981,8 +981,6 @@ class ListQueueManager(QueueManager):
             self.queue = self.queue.append(queue, ignore_index=True)
         else:
             self.queue = queue
-
-
 
     def _next_obs(self, current_state, obs_log):
         """Return the next observation in the time ordered queue unless it has expired."""
