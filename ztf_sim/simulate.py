@@ -52,7 +52,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
 
     # set up Scheduler
     scheduler_config_file_fullpath = \
-            BASE_DIR + '../sims/{}'.format(scheduler_config_file)
+            BASE_DIR + '../../ztf_survey_configuration/{}'.format(scheduler_config_file)
     scheduler = Scheduler(scheduler_config_file_fullpath,
             run_config_file_fullpath)
     run_name = scheduler.scheduler_config.config['run_name']
@@ -121,6 +121,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                             continue
                         else:
                             tel.logger.info("No fallback queue defined!")
+                            raise QueueEmptyError
 
                 else:
                     if fallback and 'fallback' in scheduler.queues:
@@ -141,7 +142,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
 
                         # TODO: in py3, chained exceptions come for free
                         raise QueueEmptyError
-
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
