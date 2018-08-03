@@ -946,7 +946,7 @@ class ListQueueManager(QueueManager):
 
         queue_dict_list is a list of dicts, one per observation"""
         
-        df = pd.DataFrame.from_dict(queue_dict_list)
+        df = pd.DataFrame(queue_dict_list)
 
         # check that major columns are included
         required_columns = ['field_id','program_id', 'subprogram_name',
@@ -960,7 +960,7 @@ class ListQueueManager(QueueManager):
         # by default use field ids alone to specify pointings, 
         # but allow manual ra/dec if needed
         if ('ra' not in df.columns) and ('dec' not in df.columns):
-            queue = df.join(self.fields.fields, on='field_id', how='inner').copy()
+            queue = df.join(self.fields.fields, on='field_id', how='inner').sort_index().copy()
         else:
             queue = df
 
