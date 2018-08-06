@@ -121,8 +121,12 @@ class Scheduler(object):
             if qq.validity_window is not None:
                 if qq.validity_window[1] < time_now:
                     queues_for_deletion.append(qq_name)
+                    continue
             if len(qq.queue) == 0:
                     queues_for_deletion.append(qq_name)
 
+        # ensure we don't have duplicate values
+        queues_for_deletion = set(queues_for_deletion)
+
         for qq_name in queues_for_deletion:
-                self.delete_queue(qq_name)
+            self.delete_queue(qq_name)
