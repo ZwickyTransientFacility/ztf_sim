@@ -81,6 +81,13 @@ class QueueManager(object):
 
         return window_start <= time <= window_stop
 
+    def validity_window_mjd(self):
+        if self.validity_window is None:
+            return None
+
+        return [self.validity_window[0].mjd, self.validity_window[1].mjd]
+
+
     def valid_blocks(self, complete_only = True):
         if self.validity_window is None:
             raise ValueError('All blocks are valid')
