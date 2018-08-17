@@ -70,7 +70,7 @@ def calc_stats(sim_name):
     stats['Open Shutter Fraction'] = df[w].visitExpTime.sum() / \
         (df[w].visitExpTime.sum() + df[w].slewTime.sum())
 
-    stats['Mean Time Between Exposures (s)'] = df[w].slewTime.mean()
+    stats['Mean Time Between Exposures (s)'] = df[w & wrealslew].slewTime.mean()
     stats['Mean Slew Distance (deg)'] = np.degrees(df[w].slewDist.mean())
 
     stats['90% Time Between Exposures (s)'] = np.percentile(df[w].slewTime, 90)
