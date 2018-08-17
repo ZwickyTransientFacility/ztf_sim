@@ -48,8 +48,10 @@ def calc_stats(sim_name):
     stats['Average Hours of Darkness'] = np.mean(hours_of_darkness)
 
     # TODO: use missed visits so we can catch time lost
+    wrealslew = df.slewTime < 300.
     stats['Total Science Time (h)'] = \
-        (df.visitExpTime.sum() + df.slewTime.sum()) / 3600.
+        (df.loc[wrealslew,'visitExpTime'].sum() + 
+                df.loc[wrealslew,'slewTime'].sum()) / 3600.
 
     stats['Average Science Time per night (h)'] = \
         stats['Total Science Time (h)'] / stats['Number of Nights']
