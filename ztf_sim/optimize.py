@@ -311,7 +311,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     with an additional decision variable on which filter to use in which slot
     and another for which request sets are observed at all."""
 
-    request_sets = df_metric.index.values
     # these are fragile when columns get appended
     slots = np.unique(df_metric.columns.get_level_values(0).values)
     filter_ids = np.unique(df_metric.columns.get_level_values(1).values)
@@ -361,8 +360,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
  
     # restrict to only the observable requests
     dfr = dfr[dfr['observable_tonight']]
-    dft = pd.merge(dft,dfr,left_on='request_id',right_index=True)
-
+    dft = pd.merge(dft,dfr[['n_usable','observable_tonight']],
+            left_on='request_id',right_index=True)
+    request_sets = dfr.index.values
+    df_metric = df_metric.loc[dfr.index]
 
     # Create an empty model
     m = Model('slots')
@@ -393,7 +394,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     constr_nreqs = m.addConstrs(
         ((np.sum(dft.loc[(dft['request_id'] == r) & 
                         (dft['metric_filter_id'] == f), 'Yrtf']) 
-                        == (df.loc[r,'n_reqs_{}'.format(f)] * dfr.loc[r,'Yr'])
+                        == (df.loc[r,'n_reqs_{}'.format(f)] * dfr.loc[r,'Yr']))
                         for f in filter_ids for r in request_sets), 
                         "constr_nreqs")
 
