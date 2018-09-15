@@ -14,7 +14,7 @@ import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
-from .optimize import request_set_optimize, slot_optimize, tsp_optimize
+from .optimize import request_set_optimize, slot_optimize, tsp_optimize, night_optimize
 from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
@@ -502,17 +502,21 @@ class GurobiQueueManager(QueueManager):
         #s.close()
 
         # select request_sets for the night
-        self.request_sets_tonight, dft = request_set_optimize(
+#        self.request_sets_tonight, dft = request_set_optimize(
+#            self.block_slot_metric, df, self.requests_allowed,
+#            time_limit = time_limit)
+#
+#        if len(self.request_sets_tonight) == 0:
+#           raise QueueEmptyError("No request sets selected!")
+#
+#        # optimize assignment into slots
+#        df_slots = slot_optimize(
+#            self.block_slot_metric.loc[self.request_sets_tonight], 
+#            df.loc[self.request_sets_tonight], self.requests_allowed,
+#            time_limit = time_limit)
+
+        self.request_sets_tonight, df_slots, dft = night_optimize(
             self.block_slot_metric, df, self.requests_allowed,
-            time_limit = time_limit)
-
-        if len(self.request_sets_tonight) == 0:
-            raise QueueEmptyError("No request sets selected!")
-
-        # optimize assignment into slots
-        df_slots = slot_optimize(
-            self.block_slot_metric.loc[self.request_sets_tonight], 
-            df.loc[self.request_sets_tonight], self.requests_allowed,
             time_limit = time_limit)
 
         grp = df_slots.groupby('slot')
@@ -529,11 +533,22 @@ class GurobiQueueManager(QueueManager):
         dft['scheduled'] = dft['scheduled'].fillna(False)
         dft.reset_index(inplace=True)
 
-        dft = pd.merge(dft,df[['field_id','program_id','subprogram_name']],
+        dft = pd.merge(dft,df[['field_id']],
             left_on='request_id', right_index=True)
+
+        n_requests_scheduled = np.sum(dft['scheduled'])
+        total_metric_value = np.sum(dft['scheduled']*dft['metric'])
+        avg_metric_value = total_metric_value / n_requests_scheduled
+
+        print(f'{n_requests_scheduled} requests scheduled')
+        print(f'{total_metric_value} total metric value; {avg_metric_value} average per request')
+
+
 
         # TODO: put this in a better spot
         dft.to_csv('gurobi_solution.csv')
+
+        1/0
 
 
     def _sequence_requests_in_block(self, current_state):

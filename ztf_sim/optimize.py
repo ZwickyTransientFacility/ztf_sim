@@ -507,7 +507,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
         dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1)
         df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
 
-
+    # get the request set decision variables
+    dfr['Yr_val'] = dfr['Yr'].apply(lambda x: x.getAttr('x') > 0.1)
 
     # this doesn't work in the objective function but is a useful check
     def num_filter_changes(ytf):
@@ -522,7 +523,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
 
     print(f'Number of filter changes: {num_filter_changes(ytf)}')
 
-    return df_schedule
+    return dfr.loc[dfr['Yr_val'],'program_id'].index, df_schedule, dft
 
 def tsp_optimize(pairwise_distances):
     # core algorithmic code from
