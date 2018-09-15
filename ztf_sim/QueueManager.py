@@ -541,7 +541,8 @@ class GurobiQueueManager(QueueManager):
         avg_metric_value = total_metric_value / n_requests_scheduled
 
         print(f'{n_requests_scheduled} requests scheduled')
-        print(f'{total_metric_value} total metric value; {avg_metric_value} average per request')
+        print(f'{total_metric_value:.2f} total metric value; ' 
+               f'{avg_metric_value:.2f} average per request')
 
 
 
