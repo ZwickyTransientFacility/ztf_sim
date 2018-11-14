@@ -640,7 +640,6 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = self.queue_order[1:]
         row = self.queue.loc[request_set_id]
         self.queue = self.queue.drop(request_set_id)
-        1/0
         # (past slot assignments are still in self.queued_requests_by_slot)
         # (we will only reuse the RequestPool if we do recomputes)
         self.rp.remove_request(request_set_id, 
