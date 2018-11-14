@@ -549,8 +549,6 @@ class GurobiQueueManager(QueueManager):
         # TODO: put this in a better spot
         dft.to_csv('gurobi_solution.csv')
 
-        1/0
-
 
     def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
@@ -642,6 +640,7 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = self.queue_order[1:]
         row = self.queue.loc[request_set_id]
         self.queue = self.queue.drop(request_set_id)
+        1/0
         # (past slot assignments are still in self.queued_requests_by_slot)
         # (we will only reuse the RequestPool if we do recomputes)
         self.rp.remove_request(request_set_id, 
@@ -688,6 +687,10 @@ class GreedyQueueManager(QueueManager):
         super().__init__(queue_name, queue_configuration, **kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
+        if 'intranight_gap_min' in queue_configuration.config:
+            self.min_gap_since_last_obs = queue_configuration.config['intranight_gap_min'] * u.minute
+        else:
+            self.min_gap_since_last_obs = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
@@ -874,7 +877,7 @@ class GreedyQueueManager(QueueManager):
         # TODO: this could be vectorized much better, possible with a loop over 
         # the subprograms in df
         cadence_cuts = enough_gap_since_last_obs(df,
-            current_state,obs_log)
+            current_state,obs_log, min_gap=self.min_gap_since_last_obs)
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
