@@ -82,9 +82,17 @@ def previous_12deg_evening_twilight(time):
 def next_12deg_evening_twilight(time):
     return P48_Observer.twilight_evening_nautical(time, which='next')
 
-
 def next_12deg_morning_twilight(time):
     return P48_Observer.twilight_morning_nautical(time, which='next')
+
+def next_18deg_morning_twilight(time):
+    return P48_Observer.twilight_morning_astronomical(time, which='next')
+
+def previous_18deg_evening_twilight(time):
+    return P48_Observer.twilight_evening_astronomical(time, which='previous')
+
+def next_18deg_evening_twilight(time):
+    return P48_Observer.twilight_evening_astronomical(time, which='next')
 
 
 def skycoord_to_altaz(skycoord, time):
