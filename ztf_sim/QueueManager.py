@@ -42,6 +42,18 @@ class QueueManager(object):
         self.is_TOO = False
         self.validity_window = None
 
+        if 'validity_window_mjd' in queue_configuration.config:
+            window = queue_configuration.config['validity_window_mjd']
+            if window is not None:
+                assert(len(window) == 2)
+                assert(window[1] > window[0])
+                self.validity_window = [Time(window[0],format='mjd'),
+                    Time(window[1],format='mjd')]
+            else:
+                self.validity_window = None
+        else:
+            self.validity_window = None
+
         # flag to check if assign_nightly_requests has been called tonight
         self.queue_night = None
 
@@ -94,19 +106,26 @@ class QueueManager(object):
 
         start_block = block_index(self.validity_window[0])
 
-        # with no weather, we start at the start of the window 
-        if 'n_repeats' in self.queue.columns:
-            n_obs = np.sum(self.queue.n_repeats)
-            exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
-        else:
-            n_obs = len(self.queue)
-            exp_time = np.sum(self.queue.exposure_time)
-        obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
-        obs_end_time = self.validity_window[0] + obs_time
+        # greedy queues have no len until they have assingments made, so 
+        # just use the validity window
+        if len(self.queue) == 0:
+            stop_block = block_index(self.validity_window[1])
+            obs_end_time = self.validity_window[1]
 
-        stop_block = block_index(obs_end_time)
-        # below breaks if the window is longer than the observations
-        #stop_block = block_index(self.validity_window[1])
+        else:
+            # with no weather, we start at the start of the window 
+            if 'n_repeats' in self.queue.columns:
+                n_obs = np.sum(self.queue.n_repeats)
+                exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
+            else:
+                n_obs = len(self.queue)
+                exp_time = np.sum(self.queue.exposure_time)
+            obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
+            obs_end_time = self.validity_window[0] + obs_time
+
+            stop_block = block_index(obs_end_time)
+            # below breaks if the window is longer than the observations
+            #stop_block = block_index(self.validity_window[1])
 
         if complete_only:
             # only give blocks that are completely used by this queue
