@@ -14,7 +14,7 @@ import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
-from .optimize import request_set_optimize, slot_optimize, tsp_optimize
+from .optimize import request_set_optimize, slot_optimize, tsp_optimize, night_optimize
 from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
@@ -41,6 +41,18 @@ class QueueManager(object):
         # defaults to handle time-windowed queues
         self.is_TOO = False
         self.validity_window = None
+
+        if 'validity_window_mjd' in queue_configuration.config:
+            window = queue_configuration.config['validity_window_mjd']
+            if window is not None:
+                assert(len(window) == 2)
+                assert(window[1] > window[0])
+                self.validity_window = [Time(window[0],format='mjd'),
+                    Time(window[1],format='mjd')]
+            else:
+                self.validity_window = None
+        else:
+            self.validity_window = None
 
         # flag to check if assign_nightly_requests has been called tonight
         self.queue_night = None
@@ -94,19 +106,26 @@ class QueueManager(object):
 
         start_block = block_index(self.validity_window[0])
 
-        # with no weather, we start at the start of the window 
-        if 'n_repeats' in self.queue.columns:
-            n_obs = np.sum(self.queue.n_repeats)
-            exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
-        else:
-            n_obs = len(self.queue)
-            exp_time = np.sum(self.queue.exposure_time)
-        obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
-        obs_end_time = self.validity_window[0] + obs_time
+        # greedy queues have no len until they have assignments made, so 
+        # just use the validity window
+        if len(self.queue) == 0:
+            stop_block = block_index(self.validity_window[1])
+            obs_end_time = self.validity_window[1]
 
-        stop_block = block_index(obs_end_time)
-        # below breaks if the window is longer than the observations
-        #stop_block = block_index(self.validity_window[1])
+        else:
+            # with no weather, we start at the start of the window 
+            if 'n_repeats' in self.queue.columns:
+                n_obs = np.sum(self.queue.n_repeats)
+                exp_time = np.sum(self.queue.exposure_time * self.queue.n_repeats)
+            else:
+                n_obs = len(self.queue)
+                exp_time = np.sum(self.queue.exposure_time)
+            obs_time = (exp_time * u.second) + n_obs * READOUT_TIME
+            obs_end_time = self.validity_window[0] + obs_time
+
+            stop_block = block_index(obs_end_time)
+            # below breaks if the window is longer than the observations
+            #stop_block = block_index(self.validity_window[1])
 
         if complete_only:
             # only give blocks that are completely used by this queue
@@ -502,17 +521,21 @@ class GurobiQueueManager(QueueManager):
         #s.close()
 
         # select request_sets for the night
-        self.request_sets_tonight, dft = request_set_optimize(
+#        self.request_sets_tonight, dft = request_set_optimize(
+#            self.block_slot_metric, df, self.requests_allowed,
+#            time_limit = time_limit)
+#
+#        if len(self.request_sets_tonight) == 0:
+#           raise QueueEmptyError("No request sets selected!")
+#
+#        # optimize assignment into slots
+#        df_slots = slot_optimize(
+#            self.block_slot_metric.loc[self.request_sets_tonight], 
+#            df.loc[self.request_sets_tonight], self.requests_allowed,
+#            time_limit = time_limit)
+
+        self.request_sets_tonight, df_slots, dft = night_optimize(
             self.block_slot_metric, df, self.requests_allowed,
-            time_limit = time_limit)
-
-        if len(self.request_sets_tonight) == 0:
-            raise QueueEmptyError("No request sets selected!")
-
-        # optimize assignment into slots
-        df_slots = slot_optimize(
-            self.block_slot_metric.loc[self.request_sets_tonight], 
-            df.loc[self.request_sets_tonight], self.requests_allowed,
             time_limit = time_limit)
 
         grp = df_slots.groupby('slot')
@@ -529,8 +552,18 @@ class GurobiQueueManager(QueueManager):
         dft['scheduled'] = dft['scheduled'].fillna(False)
         dft.reset_index(inplace=True)
 
-        dft = pd.merge(dft,df[['field_id','program_id','subprogram_name']],
+        dft = pd.merge(dft,df[['field_id']],
             left_on='request_id', right_index=True)
+
+        n_requests_scheduled = np.sum(dft['scheduled'])
+        total_metric_value = np.sum(dft['scheduled']*dft['metric'])
+        avg_metric_value = total_metric_value / n_requests_scheduled
+
+        print(f'{n_requests_scheduled} requests scheduled')
+        print(f'{total_metric_value:.2f} total metric value; ' 
+               f'{avg_metric_value:.2f} average per request')
+
+
 
         # TODO: put this in a better spot
         dft.to_csv('gurobi_solution.csv')
@@ -672,6 +705,10 @@ class GreedyQueueManager(QueueManager):
         super().__init__(queue_name, queue_configuration, **kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
+        if 'intranight_gap_min' in queue_configuration.config:
+            self.min_gap_since_last_obs = queue_configuration.config['intranight_gap_min'] * u.minute
+        else:
+            self.min_gap_since_last_obs = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
@@ -858,7 +895,7 @@ class GreedyQueueManager(QueueManager):
         # TODO: this could be vectorized much better, possible with a loop over 
         # the subprograms in df
         cadence_cuts = enough_gap_since_last_obs(df,
-            current_state,obs_log)
+            current_state,obs_log, min_gap=self.min_gap_since_last_obs)
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:

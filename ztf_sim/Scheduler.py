@@ -83,9 +83,12 @@ class Scheduler(object):
                 continue
             if qq.validity_window is not None:
                 valid_blocks = qq.valid_blocks(complete_only=True)
+                all_valid_blocks = qq.valid_blocks(complete_only=False)
                 valid_blocks_tonight = [b for b in valid_blocks if
                         (block_start <= b <= block_stop)]
-                if len(valid_blocks_tonight):
+                all_valid_blocks_tonight = [b for b in all_valid_blocks if
+                        (block_start <= b <= block_stop)]
+                if len(all_valid_blocks_tonight):
                     self.timed_queues_tonight.append(qq_name)
                 exclude_blocks.extend(valid_blocks_tonight)
         return exclude_blocks
@@ -108,10 +111,18 @@ class Scheduler(object):
             # check if a timed queue is now valid
             for qq_name in self.timed_queues_tonight:
                 qq = self.queues[qq_name]
-                if qq.is_valid(time_now) and len(qq.queue):
-                    # only switch if we are in the default or fallback queue
-                    if self.Q.queue_name in ['default', 'fallback']:
-                        self.set_queue(qq_name)
+                if qq.is_valid(time_now): 
+                    if (qq.queue_type == 'list'): 
+                        # list queues should have items in them
+                        if len(qq.queue):
+                            # only switch if we are in the default or fallback queue
+                            if self.Q.queue_name in ['default', 'fallback']:
+                                self.set_queue(qq_name)
+                    else:
+                        # don't have a good way to check length of non-list
+                        # queues before nightly assignments
+                        if self.Q.queue_name in ['default', 'fallback']:
+                            self.set_queue(qq_name)
 
     def remove_empty_and_expired_queues(self, time_now):
         queues_for_deletion = []

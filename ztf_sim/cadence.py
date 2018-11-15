@@ -13,14 +13,14 @@ def no_cadence(*args):
     return True
 
 
-def enough_gap_since_last_obs(df, current_state, obs_log):
+def enough_gap_since_last_obs(df, current_state, obs_log, 
+        min_gap = TIME_BLOCK_SIZE):
     """
     Determine if a sufficient time has passed since the last observation
     in this subprogram (in any filter):
     """
 
     now = current_state['current_time'].mjd
-    min_gap = TIME_BLOCK_SIZE
 
     # don't mess up with the upstream data structure
     df = df.copy()
