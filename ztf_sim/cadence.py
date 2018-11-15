@@ -3,6 +3,7 @@
 be observed at the supplied time."""
 from __future__ import absolute_import
 
+import pandas as pd
 import numpy as np
 import astropy.units as u
 from .constants import FILTER_IDS, TIME_BLOCK_SIZE
@@ -30,11 +31,13 @@ def enough_gap_since_last_obs(df, current_state, obs_log,
     df['ref_obs_mjd'] = np.nan
     for grpi, dfi in grp:
         ref_obs = obs_log.select_last_observed_time_by_field(
-                field_ids = dfi['field_id'], 
+                field_ids = set(dfi['field_id'].tolist()), 
                 program_ids = [grpi[0]],
                 subprogram_names = [grpi[1]])
         if len(ref_obs) > 0:
-            df.loc[ref_obs.index, 'ref_obs_mjd'] = ref_obs.expMJD.values
+            tmp = pd.merge(df, ref_obs, left_on='field_id', right_index=True,
+                    how='inner')
+            df.loc[tmp.index, 'ref_obs_mjd'] = tmp.expMJD.values
 
 
     # give a fake value for fields unobserved
