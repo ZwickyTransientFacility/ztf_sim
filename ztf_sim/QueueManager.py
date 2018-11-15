@@ -106,7 +106,7 @@ class QueueManager(object):
 
         start_block = block_index(self.validity_window[0])
 
-        # greedy queues have no len until they have assingments made, so 
+        # greedy queues have no len until they have assignments made, so 
         # just use the validity window
         if len(self.queue) == 0:
             stop_block = block_index(self.validity_window[1])
