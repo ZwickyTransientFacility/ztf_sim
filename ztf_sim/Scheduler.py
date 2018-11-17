@@ -133,7 +133,7 @@ class Scheduler(object):
                 if qq.validity_window[1] < time_now:
                     queues_for_deletion.append(qq_name)
                     continue
-            if len(qq.queue) == 0:
+            if (qq.queue_type == 'list') and (len(qq.queue) == 0):
                     queues_for_deletion.append(qq_name)
 
         # ensure we don't have duplicate values
