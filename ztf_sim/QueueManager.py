@@ -167,6 +167,7 @@ class QueueManager(object):
                 self.rp.add_request_sets(rs['program_id'], 
                             rs['subprogram_name'], rs['program_pi'],
                             rs['field_ids'], rs['filter_ids'], 
+                            rs['intranight_gap'],
                             rs['exposure_time'],
                             rs['total_requests_tonight'])
 
@@ -408,8 +409,9 @@ class GurobiQueueManager(QueueManager):
 
 
         # TODO: should now be able to simply pick up the next observation
-        
-        if len(self.queue_order) == 0:
+        if ~hasattr(self,'queue_order'):
+            raise QueueEmptyError("No observations scheduled this block.") 
+        if (len(self.queue_order) == 0):
             raise QueueEmptyError("Ran out of observations this block.") 
         
         idx = self.queue_order[0]
@@ -705,10 +707,6 @@ class GreedyQueueManager(QueueManager):
         super().__init__(queue_name, queue_configuration, **kwargs)
         self.time_of_last_filter_change = None
         self.min_time_before_filter_change = TIME_BLOCK_SIZE
-        if 'intranight_gap_min' in queue_configuration.config:
-            self.min_gap_since_last_obs = queue_configuration.config['intranight_gap_min'] * u.minute
-        else:
-            self.min_gap_since_last_obs = TIME_BLOCK_SIZE
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
@@ -895,7 +893,7 @@ class GreedyQueueManager(QueueManager):
         # TODO: this could be vectorized much better, possible with a loop over 
         # the subprograms in df
         cadence_cuts = enough_gap_since_last_obs(df,
-            current_state,obs_log, min_gap=self.min_gap_since_last_obs)
+            current_state,obs_log)
 
         # TODO: handle if cadence cuts returns no fields
         if np.sum(cadence_cuts) == 0:
@@ -1113,7 +1111,7 @@ class RequestPool(object):
         pass
 
     def add_request_sets(self, program_id, subprogram_name, program_pi,
-                field_ids, filter_ids, exposure_time, 
+                field_ids, filter_ids, intranight_gap, exposure_time, 
                 total_requests_tonight, priority=1):
         """program_ids must be scalar"""
 
@@ -1140,6 +1138,7 @@ class RequestPool(object):
                 'filter_ids': filter_ids.copy(),
                 # pandas doesn't play well with astropy quantities, so change
                 # back to seconds
+                'intranight_gap_min': intranight_gap.to(u.minute).value,
                 'exposure_time': exposure_time.to(u.second).value,
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})

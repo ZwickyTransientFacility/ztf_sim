@@ -13,7 +13,8 @@ class ObservingProgram(object):
 
     def __init__(self, program_id, subprogram_name, program_pi,
                  program_observing_time_fraction, subprogram_fraction,
-                 field_ids, filter_ids, internight_gap, n_visits_per_night,
+                 field_ids, filter_ids, internight_gap, 
+                 intranight_gap, n_visits_per_night,
                  exposure_time = EXPOSURE_TIME,
                  nobs_range=None,
                  filter_choice='rotate', 
@@ -28,6 +29,7 @@ class ObservingProgram(object):
         self.filter_ids = filter_ids
 
         self.internight_gap = internight_gap
+        self.intranight_gap = intranight_gap
         self.n_visits_per_night = n_visits_per_night
         self.exposure_time = exposure_time # a Quantity
 
@@ -170,6 +172,7 @@ class ObservingProgram(object):
              'field_ids': request_fields.index.values,
              'filter_ids': filter_sequence,
              'exposure_time': self.exposure_time,
+             'intranight_gap': self.intranight_gap,
              'total_requests_tonight': self.n_visits_per_night})
 
         return request_set

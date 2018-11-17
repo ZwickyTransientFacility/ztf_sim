@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as u
 from .ObservingProgram import ObservingProgram
 from .Fields import Fields
-from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID, EXPOSURE_TIME
+from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID, EXPOSURE_TIME, TIME_BLOCK_SIZE
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager, ListQueueManager
 
 
@@ -116,6 +116,11 @@ class QueueConfiguration(Configuration):
                 field_ids = f.select_field_ids(**prog['field_selections'])
             if 'nobs_range' not in prog:
                 prog['nobs_range'] = None
+            if 'intranight_gap_min' not in prog:
+                prog['intranight_gap_min'] = TIME_BLOCK_SIZE
+            else:
+                # make it a quantity
+                prog['intranight_gap_min'] = prog['intranight_gap_min'] * u.minute 
             if 'exposure_time' not in prog:
                 prog['exposure_time'] = EXPOSURE_TIME
             else:
@@ -128,6 +133,7 @@ class QueueConfiguration(Configuration):
                                   prog['subprogram_fraction'],
                                   field_ids, prog['filter_ids'],
                                   prog['internight_gap_days'] * u.day,
+                                  prog['intranight_gap_min'],
                                   prog['n_visits_per_night'],
                                   exposure_time = prog['exposure_time'],
                                   nobs_range = prog['nobs_range'],

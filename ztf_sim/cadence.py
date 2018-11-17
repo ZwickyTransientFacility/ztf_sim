@@ -14,8 +14,7 @@ def no_cadence(*args):
     return True
 
 
-def enough_gap_since_last_obs(df, current_state, obs_log, 
-        min_gap = TIME_BLOCK_SIZE):
+def enough_gap_since_last_obs(df, current_state, obs_log):
     """
     Determine if a sufficient time has passed since the last observation
     in this subprogram (in any filter):
@@ -46,4 +45,4 @@ def enough_gap_since_last_obs(df, current_state, obs_log,
     # calculate dt
     df['dt'] = now - df['ref_obs_mjd']
 
-    return df['dt'] >=  min_gap.to(u.day).value
+    return df['dt'] >=  (df['intranight_gap_min']*(1*u.minute).to(u.day).value)
