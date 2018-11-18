@@ -410,10 +410,6 @@ class GurobiQueueManager(QueueManager):
         if (block_index(current_state['current_time'])[0] != self.queue_slot):
             self._sequence_requests_in_block(current_state)
 
-        # BUG: Sometimes the sequencing above fails to store the queue?
-        if ~hasattr(self,'queue_order'):
-            self._sequence_requests_in_block(current_state)
-
         if (len(self.queue_order) == 0):
             raise QueueEmptyError("Ran out of observations this block.") 
         
