@@ -1167,11 +1167,7 @@ class RequestPool(object):
         rs = self.pool.loc[request_set_id].copy()
         filters = rs['filter_ids']
         # this is another step that shouldn't be necessary...
-        # BUG: check how we could have filter_id not in filters
-        if filter_id in filters:
-            filters.remove(filter_id)
-        else:
-            print('Missing filter id in request set!', rs)
+        filters.remove(filter_id)
         if len(filters) == 0:
             self.remove_request_sets(request_set_id)
         else:
