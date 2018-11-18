@@ -42,6 +42,9 @@ class QueueManager(object):
         self.is_TOO = False
         self.validity_window = None
 
+        # Hack for greedy queues
+        self.requests_in_window = True
+
         if 'validity_window_mjd' in queue_configuration.config:
             window = queue_configuration.config['validity_window_mjd']
             if window is not None:
@@ -407,10 +410,10 @@ class GurobiQueueManager(QueueManager):
         if (block_index(current_state['current_time'])[0] != self.queue_slot):
             self._sequence_requests_in_block(current_state)
 
-
-        # TODO: should now be able to simply pick up the next observation
+        # BUG: Sometimes the sequencing above fails to store the queue?
         if ~hasattr(self,'queue_order'):
-            raise QueueEmptyError("No observations scheduled this block.") 
+            self._sequence_requests_in_block(current_state)
+
         if (len(self.queue_order) == 0):
             raise QueueEmptyError("Ran out of observations this block.") 
         
@@ -896,7 +899,8 @@ class GreedyQueueManager(QueueManager):
             current_state,obs_log)
 
         # TODO: handle if cadence cuts returns no fields
-        if np.sum(cadence_cuts) == 0:
+        self.requests_in_window = np.sum(cadence_cuts) > 0
+        if ~self.requests_in_window:
             print(calc_queue_stats(df, current_state,
                 intro="No fields with observable cadence windows.  Queue in progress:"))
             raise QueueEmptyError("No fields with observable cadence windows")
@@ -1166,7 +1170,12 @@ class RequestPool(object):
 
         rs = self.pool.loc[request_set_id].copy()
         filters = rs['filter_ids']
-        filters.remove(filter_id)
+        # this is another step that shouldn't be necessary...
+        # BUG: check how we could have filter_id not in filters
+        if filter_id in filters:
+            filters.remove(filter_id)
+        else:
+            print('Missing filter id in request set!', rs)
         if len(filters) == 0:
             self.remove_request_sets(request_set_id)
         else:

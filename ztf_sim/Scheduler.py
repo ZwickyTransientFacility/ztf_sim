@@ -121,7 +121,7 @@ class Scheduler(object):
                     else:
                         # don't have a good way to check length of non-list
                         # queues before nightly assignments
-                        if self.Q.queue_name in ['default', 'fallback']:
+                        if (self.Q.queue_name in ['default', 'fallback']) and qq.requests_in_window:
                             self.set_queue(qq_name)
 
     def remove_empty_and_expired_queues(self, time_now):

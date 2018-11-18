@@ -110,18 +110,19 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 if scheduler.Q.queue_name != 'default':
                     tel.logger.info(f"Queue {scheduler.Q.queue_name} empty! Switching to default queue.") 
                     scheduler.set_queue('default')
-                    try:
-                        next_obs = scheduler.Q.next_obs(current_state, 
-                                scheduler.obs_log)
-                        assert(next_obs['request_id'] in scheduler.Q.queue.index)
-                    except QueueEmptyError:
-                        tel.logger.info("Default queue empty!  Trying fallback queue...")
-                        if fallback and 'fallback' in scheduler.queues:
-                            next_obs = scheduler.queues['fallback'].next_obs(
-                                    current_state, scheduler.obs_log)
-                        else:
-                            tel.logger.info("No fallback queue defined!")
-                            raise QueueEmptyError
+                    continue
+#                    try:
+#                        next_obs = scheduler.Q.next_obs(current_state, 
+#                                scheduler.obs_log)
+#                        assert(next_obs['request_id'] in scheduler.Q.queue.index)
+#                    except QueueEmptyError:
+#                        tel.logger.info("Default queue empty!  Trying fallback queue...")
+#                        if fallback and 'fallback' in scheduler.queues:
+#                            next_obs = scheduler.queues['fallback'].next_obs(
+#                                    current_state, scheduler.obs_log)
+#                        else:
+#                            tel.logger.info("No fallback queue defined!")
+#                            raise QueueEmptyError
 
                 else:
                     if fallback and 'fallback' in scheduler.queues:
@@ -177,6 +178,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 scheduler.obs_log.log_pointing(current_state, next_obs)
                 # b) remove completed request_id from the pool and the queue
                 # TODO: debugging check
+                tel.logger.info(next_obs)
                 assert(next_obs['request_id'] in scheduler.queues[next_obs['queue_name']].queue.index)
                 # TODO: check this with request sets...
                 scheduler.queues[next_obs['queue_name']].remove_requests(next_obs['request_id']) 
