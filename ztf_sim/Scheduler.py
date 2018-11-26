@@ -98,8 +98,8 @@ class Scheduler(object):
         for qq_name, qq in self.queues.items():
             if qq.is_TOO:
                 if qq.is_valid(time_now):
-                    # only switch if we don't have an active TOO queue
-                    if not self.Q.is_TOO and len(qq.queue):
+                    # don't switch if there's already a TOO queue active
+                    if (not self.Q.is_TOO) and len(qq.queue):
                         self.set_queue(qq_name)
 
     def check_for_timed_queue_and_switch(self, time_now):
@@ -108,21 +108,20 @@ class Scheduler(object):
                 if not self.Q.is_valid(time_now):
                     self.set_queue('default')
 
-            # check if a timed queue is now valid
-            for qq_name in self.timed_queues_tonight:
-                qq = self.queues[qq_name]
-                if qq.is_valid(time_now): 
-                    if (qq.queue_type == 'list'): 
-                        # list queues should have items in them
-                        if len(qq.queue):
-                            # only switch if we are in the default or fallback queue
-                            if self.Q.queue_name in ['default', 'fallback']:
+            # only switch from default or fallback queues
+            if self.Q.queue_name in ['default', 'fallback']:
+                # check if a timed queue is now valid
+                for qq_name, qq in self.queues.items():
+                    if (qq.validity_window is not None) and (qq.is_valid(time_now)): 
+                        if (qq.queue_type == 'list'): 
+                            # list queues should have items in them
+                            if len(qq.queue):
                                 self.set_queue(qq_name)
-                    else:
-                        # don't have a good way to check length of non-list
-                        # queues before nightly assignments
-                        if (self.Q.queue_name in ['default', 'fallback']) and qq.requests_in_window:
-                            self.set_queue(qq_name)
+                        else:
+                            # don't have a good way to check length of non-list
+                            # queues before nightly assignments
+                            if qq.requests_in_window:
+                                self.set_queue(qq_name)
 
     def remove_empty_and_expired_queues(self, time_now):
         queues_for_deletion = []
