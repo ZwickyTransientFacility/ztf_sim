@@ -1,6 +1,5 @@
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import object
+"""Sky brightness model."""
+
 import sklearn
 from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model

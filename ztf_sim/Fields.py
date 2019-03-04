@@ -1,8 +1,5 @@
 """Routines for working with the ZTF discrete field grid"""
-from __future__ import absolute_import
 
-from builtins import zip
-from builtins import object
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord

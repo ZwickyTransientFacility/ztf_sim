@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+"""Utilities for magnitude conversions"""
 
 import numpy as np
 from scipy.interpolate import interp1d

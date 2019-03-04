@@ -1,3 +1,4 @@
+"""Constants."""
 
 import os
 import inspect

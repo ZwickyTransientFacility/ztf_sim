@@ -1,7 +1,5 @@
-from __future__ import absolute_import
-from builtins import range
-from builtins import object
-import pdb
+"""Classes implementing Observing Programs."""
+
 import numpy as np
 import astropy.units as u
 from astropy.time import Time

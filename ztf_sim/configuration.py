@@ -1,6 +1,5 @@
-from __future__ import absolute_import
+"""Classes for parsing scheduler configuration files."""
 
-from builtins import object
 import pathlib
 import json
 import numpy as np

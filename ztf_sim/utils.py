@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+"""Utility routines."""
 
 import numpy as np
 import pandas as pd

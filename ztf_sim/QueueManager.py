@@ -1,8 +1,5 @@
-from __future__ import print_function
-from __future__ import absolute_import
+"""Queue classes."""
 
-from builtins import zip
-from builtins import object
 from collections import defaultdict
 from datetime import datetime
 import numpy as np

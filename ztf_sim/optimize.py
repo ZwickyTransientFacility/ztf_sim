@@ -1,9 +1,6 @@
-from __future__ import print_function
-from __future__ import absolute_import
+"""Implementation of core scheduling algorithms using Gurobi."""
 
 import os
-from builtins import str
-from builtins import range
 from gurobipy import *
 import numpy as np
 import shelve

@@ -1,5 +1,5 @@
+"""Core scheduler classes."""
 
-from builtins import object
 import configparser
 import numpy as np
 from astropy.time import Time

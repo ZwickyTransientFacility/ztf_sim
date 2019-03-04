@@ -1,6 +1,5 @@
-from __future__ import absolute_import
+"""Code for logging observations to a sqlite database."""
 
-from builtins import object
 from collections import defaultdict
 import uuid
 import numpy as np

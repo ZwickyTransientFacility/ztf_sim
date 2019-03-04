@@ -1,5 +1,5 @@
-from __future__ import absolute_import
-from builtins import object
+"""State machine for simulating observations."""
+
 from transitions import Machine
 from astropy.time import Time
 import numpy as np
