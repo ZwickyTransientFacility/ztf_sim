@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 
 """Calculate basic efficiency statistics for a ztf_sim run."""
-from __future__ import print_function
 
-import sys
-# hack to get the path right
-sys.path.append('..')
 import numpy as np
 from collections import OrderedDict
 from sqlalchemy import create_engine
