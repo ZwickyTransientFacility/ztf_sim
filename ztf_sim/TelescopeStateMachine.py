@@ -6,7 +6,6 @@ import numpy as np
 import astropy.units as u
 import astropy.coordinates as coord
 import logging
-from transitions import logger
 from .utils import *
 from .constants import BASE_DIR, P48_loc, FILTER_IDS
 from .constants import READOUT_TIME, EXPOSURE_TIME, FILTER_CHANGE_TIME, slew_time
@@ -76,7 +75,7 @@ class TelescopeStateMachine(Machine):
         # logging.  wipe out existing log.
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(logging.INFO)
-        self.logger = logger
+        self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(fh)
 
