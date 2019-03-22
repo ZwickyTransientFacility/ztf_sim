@@ -10,9 +10,6 @@ from .utils import *
 from .constants import BASE_DIR, P48_loc, FILTER_IDS
 from .constants import READOUT_TIME, EXPOSURE_TIME, FILTER_CHANGE_TIME, slew_time
 
-
-
-
 class TelescopeStateMachine(Machine):
 
     def __init__(self, current_time=Time('2018-01-01', scale='utc',
@@ -75,7 +72,7 @@ class TelescopeStateMachine(Machine):
         # logging.  wipe out existing log.
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(logging.INFO)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('transitions')
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(fh)
 
