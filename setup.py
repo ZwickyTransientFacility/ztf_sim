@@ -88,6 +88,7 @@ if __name__ == "__main__":
         install_requires=install_requires,
         include_package_data=True,
         packages=['ztf_sim'],
+        scripts=['bin/run_ztf_sim', 'bin/analyze_ztf_sim', 'bin/load_ztf_sim'],
         classifiers=[
                      'Intended Audience :: Science/Research',
                      'Programming Language :: Python :: 3.6',
