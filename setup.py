@@ -2,9 +2,9 @@
 #
 # Copyright (C) 2015-17 California Institute of Technology
 
-DESCRIPTION = "ztf_sim: Schedule simulator for the Zwicky Transient Facility"
+DESCRIPTION = "ztf_sim: Scheduling library for the Zwicky Transient Facility"
 LONG_DESCRIPTION = """\
-Schedule simulator for the Zwicky Tranisent Facility
+Scheduling library for the Zwicky Tranisent Facility
 """
 
 DISTNAME = 'ztf_sim'
@@ -13,7 +13,7 @@ MAINTAINER_EMAIL = 'ecbellm@uw.edu'
 URL = 'https://github.com/ZwickyTransientFacility/ztf_sim/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/ZwickyTransientFacility/ztf_sim/'
-VERSION = '0.0.2.dev'
+VERSION = '1.0'
 
 try:
     from setuptools import setup
@@ -86,6 +86,7 @@ if __name__ == "__main__":
         version=VERSION,
         download_url=DOWNLOAD_URL,
         install_requires=install_requires,
+        include_package_data=True,
         packages=['ztf_sim'],
         classifiers=[
                      'Intended Audience :: Science/Research',

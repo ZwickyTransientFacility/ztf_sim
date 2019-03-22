@@ -1,0 +1,7 @@
+include bin/*
+include config/*
+include data/*
+include docs/*
+include notebooks/*
+include sims/*
+include tests/*
