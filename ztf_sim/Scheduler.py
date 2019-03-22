@@ -41,8 +41,6 @@ class Scheduler(object):
 
     def set_queue(self, queue_name): 
 
-        # TODO: log the switch
-        
         if queue_name not in self.queues:
             raise ValueError(f'Requested queue {queue_name} not available!')
 

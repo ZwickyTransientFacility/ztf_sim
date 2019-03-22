@@ -19,9 +19,6 @@ from .utils import block_index
 import pandas as pd
 pd.options.mode.chained_assignment = 'raise'  # default='warn'
 
-# TODO: tag database with commit hash
-
-
 def simulate(scheduler_config_file, run_config_file = 'default.cfg',
         profile=False, raise_queue_empty=False, fallback=True, 
         time_limit = 30*u.second):
@@ -104,7 +101,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             try:
                 next_obs = scheduler.Q.next_obs(current_state, 
                         scheduler.obs_log)
-                # TODO: debugging check...
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
                 if scheduler.Q.queue_name != 'default':
@@ -141,7 +137,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                         tel.logger.info(calc_pool_stats(
                             scheduler.Q.rp.pool, intro="Current pool status:"))
 
-                        # TODO: in py3, chained exceptions come for free
                         raise QueueEmptyError
 
             # try to change filters, if needed
@@ -156,7 +151,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             if not tel.start_slew(coord.SkyCoord(next_obs['target_ra'] * u.deg,
                                                  next_obs['target_dec'] * u.deg)):
                 tel.set_cant_observe()
-                # TODO: log the failure
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
@@ -177,10 +171,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 current_state = tel.current_state_dict()
                 scheduler.obs_log.log_pointing(current_state, next_obs)
                 # b) remove completed request_id from the pool and the queue
-                # TODO: debugging check
                 tel.logger.info(next_obs)
                 assert(next_obs['request_id'] in scheduler.queues[next_obs['queue_name']].queue.index)
-                # TODO: check this with request sets...
                 scheduler.queues[next_obs['queue_name']].remove_requests(next_obs['request_id']) 
         else:
             scheduler.obs_log.prev_obs = None
@@ -193,4 +185,3 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
         with open('../sims/{}_profile.txt'.format(run_name), 'w') as f:
             f.write(profiler.output_text())
 
-    # TODO: gzip logfile

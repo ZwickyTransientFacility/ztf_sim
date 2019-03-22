@@ -79,7 +79,6 @@ class ObsLogger(object):
             # Drop table if it exists
             try:
                 self.conn.execute("""DROP TABLE Summary""")
-            # TODO: better error handling
             except:
                 pass
 

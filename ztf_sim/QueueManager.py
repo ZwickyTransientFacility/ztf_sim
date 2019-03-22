@@ -68,7 +68,8 @@ class QueueManager(object):
         self.queue = pd.DataFrame()
 
         # should we only consider fields from one program in a given
-        # observing block?  TODO: NOT IMPLEMENTED.
+        # observing block?  
+        # CURRENTLY NOT IMPLEMENTED.
         self.block_programs = False
 
         if rp is None:
@@ -187,7 +188,7 @@ class QueueManager(object):
 
         self.requests_allowed = {}
 
-        # TODO: rather than using equivalent obs, might be easier to work in 
+        # rather than using equivalent obs, might be easier to work in 
         # exposure time directly?
         
         # enforce program balance on a monthly basis
@@ -208,7 +209,6 @@ class QueueManager(object):
                  program.program_observing_time_fraction * total_obs)
                  * program.subprogram_fraction)
 
-            # TODO: tweak as needed
             # how quickly do we want to take to reach equalization?
             CATCHUP_FACTOR = 0.40
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
@@ -283,7 +283,6 @@ class QueueManager(object):
         df.loc[wup, 'sky_brightness'] = self.Sky.predict(df[wup])
 
         # compute seeing at each pointing
-        # TODO: allow variable zenith seeing?  or by band?
         df.loc[wup, 'seeing'] = seeing_at_pointing(2.0*u.arcsec, 
             df.loc[wup,'altitude'])
 
@@ -399,9 +398,6 @@ class GurobiQueueManager(QueueManager):
 
         # do the slot assignment at the beginning of the night 
         # (or if the queue is empty, which should be unusual)
-        # TODO: consider how to detect and handle weather losses--recompute?
-        #if (len(self.queue) == 0):
-        #    self._assign_slots(current_state)
 
         # if we've entered a new block, solve the TSP to sequence the requests
         if (block_index(current_state['current_time'])[0] != self.queue_slot):
@@ -417,7 +413,6 @@ class GurobiQueueManager(QueueManager):
         else:
             raise QueueEmptyError("No requests in this slot!")
 
-        # TODO: make the queue have the right datatypes
         next_obs = {'target_field_id': int(row['field_id']),
             'target_ra': row['ra'],
             'target_dec': row['dec'],
@@ -467,7 +462,6 @@ class GurobiQueueManager(QueueManager):
         df = self.rp.pool.join(self.fields.fields, on='field_id').copy()
 
         # calculate limiting mag by block.  uses the block midpoint time
-        # TODO: and by filter
         blocks, times = nightly_blocks(current_state['current_time'], 
             time_block_size=TIME_BLOCK_SIZE)
 
@@ -492,7 +486,6 @@ class GurobiQueueManager(QueueManager):
             df_az = self.fields.block_az[bi]
             df_az.name = 'azimuth'
             df = df.join(df_az, on='field_id')
-            # TODO: only using r-band right now
             for fid in FILTER_IDS:
                 df_limmag, df_sky = \
                     self.compute_limiting_mag(df, ti, filter_id = fid)
@@ -561,9 +554,6 @@ class GurobiQueueManager(QueueManager):
         print(f'{total_metric_value:.2f} total metric value; ' 
                f'{avg_metric_value:.2f} average per request')
 
-
-
-        # TODO: put this in a better spot
         dft.to_csv('gurobi_solution.csv')
 
 
@@ -595,7 +585,6 @@ class GurobiQueueManager(QueueManager):
 
         # now prepend the CALSTOW positoin so we can minimize slew from
         # filter exchanges 
-        # TODO: instead, use current state if we're not changing filters
         # Need to use current HA=0
         df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
             current_state['current_time']).to(u.degree).value,
@@ -639,13 +628,6 @@ class GurobiQueueManager(QueueManager):
         # reconstruct the request_id
         self.queue_order = df_fakestart.index.values[tsp_order]
         self.queue = df
-
-        # TODO: fix for variable exposure time
-        # TODO: make use of this value
-        scheduled_time = len(tsp_order) * EXPOSURE_TIME + \
-            tsp_overhead_time*u.second
-
-        # TODO: some sort of monitoring of expected vs. block time vs. actual
 
     def _remove_requests(self, request_set_id):
         """Remove a request from both the queue and the pool.
@@ -748,50 +730,30 @@ class GreedyQueueManager(QueueManager):
         max_idx = queue.value.argmax()
         row = queue.loc[max_idx]
 
-
-        # enforce program balance
-        progid = row['program_id']
-        subprogram = row['subprogram_name']
-        # TODO: use obs_log to query for requests completed by this subprogram
-        # tonight
-        #if ((self.requests_completed[(progid, subprogram)] + 1) >= 
-        #        self.requests_allowed[(progid, subprogram)]):
-        if False:
-            # this program has used up all its obs for tonight.
-            # remove all requests for this program from the pool 
-            w = ((self.rp.pool.program_id == progid) &
-                 (self.rp.pool.subprogram_name == subprogram))
-            self.rp.remove_requests(self.rp.pool[w].index.tolist())
-            # reset the queue
-            self._update_queue(current_state, obs_log)
-            # and request a new next_obs
-            next_obs = self._next_obs(current_state, obs_log)
-        else:
-            next_obs = {'target_field_id': row['field_id'],
-                'target_ra': row['ra'],
-                'target_dec': row['dec'],
-                'target_filter_id': row['filter_id'],
-                'target_program_id': row['program_id'],
-                'target_subprogram_name': row['subprogram_name'],
-                'target_program_pi': row['program_pi'],
-                'target_exposure_time': row['exposure_time'] * u.second,
-                'target_sky_brightness': row['sky_brightness'],
-                'target_limiting_mag': row['limiting_mag'],
-                'target_metric_value':  row['value'],
-                'target_total_requests_tonight': row['total_requests_tonight'],
-                'request_id': max_idx}
+        next_obs = {'target_field_id': row['field_id'],
+            'target_ra': row['ra'],
+            'target_dec': row['dec'],
+            'target_filter_id': row['filter_id'],
+            'target_program_id': row['program_id'],
+            'target_subprogram_name': row['subprogram_name'],
+            'target_program_pi': row['program_pi'],
+            'target_exposure_time': row['exposure_time'] * u.second,
+            'target_sky_brightness': row['sky_brightness'],
+            'target_limiting_mag': row['limiting_mag'],
+            'target_metric_value':  row['value'],
+            'target_total_requests_tonight': row['total_requests_tonight'],
+            'request_id': max_idx}
 
         return next_obs
 
     def _metric(self, df):
         """Calculate metric for prioritizing fields.
 
-        penalizes volume for both extinction (airmass) and fwhm penalty
+        Penalizes volume for both extinction (airmass) and fwhm penalty
         due to atmospheric refraction, plus sky brightness from
         moon phase and distance, overhead time
         == 1 for 21st mag, 15 sec overhead."""
-        # df.loc[:, 'value'] =
-        # TODO: consider using variable exposure time 
+
         return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
              (EXPOSURE_TIME.value + 15.))
@@ -813,7 +775,6 @@ class GreedyQueueManager(QueueManager):
         # nb: df has index request_id, not field_id
         df = pd.merge(df, df_overhead, left_on='field_id', right_index=True)
         df = pd.merge(df, df_altaz, left_on='field_id', right_index=True)
-        # TODO: standardize this naming
         df.rename(columns={'alt': 'altitude', 'az': 'azimuth'}, inplace=True)
 
         # add overhead for filter changes
@@ -872,26 +833,9 @@ class GreedyQueueManager(QueueManager):
                 self.queue_slot % LEN_BLOCK_SEQUENCE]
             df = df.loc[df['program_id'] == current_block_program, :]
 
-
-
-        # use cadence functions to compute requests with active cadence windows
-        # this is slow, so do it after our altitude cut
-        # TODO: consider instead
-        # df.apply(time_since_obs,args=(current_state,),axis=1)
-        #in_window = {}
-        #for idx, row in df.iterrows():
-        #    # this is way, way slower
-        #    # df['in_cadence_window'].ix[idx] = \
-        #    in_window[idx] = eval(
-        #        '{}(row, current_state)'.format(row['cadence_func']))
-        #cadence_cuts = pd.Series(in_window)
-
-        # TODO: this could be vectorized much better, possible with a loop over 
-        # the subprograms in df
         cadence_cuts = enough_gap_since_last_obs(df,
             current_state,obs_log)
 
-        # TODO: handle if cadence cuts returns no fields
         self.requests_in_window = np.sum(cadence_cuts) > 0
         if ~self.requests_in_window:
             print(calc_queue_stats(df, current_state,
@@ -1102,8 +1046,6 @@ class RequestPool(object):
 
     def __init__(self):
         # initialize empty dataframe to add to
-        # TODO: currently treating the index as the request_id; should it be
-        # unique across sessions?
         self.pool = pd.DataFrame()
         pass
 

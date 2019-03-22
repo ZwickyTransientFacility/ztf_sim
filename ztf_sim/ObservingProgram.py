@@ -73,8 +73,6 @@ class ObservingProgram(object):
         # Choose which fields will be observed
 
         # minimum time to observe N visits
-        # TODO: consider if we should set min_n_visits so high cadence fields
-        #       can degrade gracefully?
         obs_field_ids = fields.select_field_ids(observable_hours_range=
             [(self.n_visits_per_night*TIME_BLOCK_SIZE).to(u.hour).value, 24.])
 
@@ -180,7 +178,6 @@ class ObservingProgram(object):
 
         # "fudge factor" to provide ~15% extra requests for all programs
         # to minimize QueueEmptyErrors...
-        # TODO: test how much we need this...
         FUDGE_FACTOR = 1.25
 
         dark_time = approx_hours_of_darkness(time)

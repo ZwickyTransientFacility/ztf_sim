@@ -89,11 +89,6 @@ def slew_time(axis, angle):
 
     t_acc = vmax / acc
     t_dec = vmax / dec
-    # TODO: if needed, include conditional for scalars
-#    if 0.5*vmax*(t_acc+t_dec)>=angle:
-#        return np.sqrt(2*angle*(1./acc+1./dec))
-#    else:
-#        return 0.5*(2.*angle/vmax+t_acc+t_dec)
     slew_time = 0.5 * (2. * angle / vmax + t_acc + t_dec)
     w = 0.5 * vmax * (t_acc + t_dec) >= angle
     slew_time[w] = np.sqrt(2 * angle[w] * (1. / acc + 1. / dec))
