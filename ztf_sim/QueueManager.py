@@ -589,7 +589,7 @@ class GurobiQueueManager(QueueManager):
         df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
             current_state['current_time']).to(u.degree).value,
             'dec':-48.,'azimuth':180.},index=[0])
-        df_fakestart = pd.concat([df_blockstart,df])
+        df_fakestart = pd.concat([df_blockstart,df],sort=True)
 
         # compute overhead time between all request pairs
         
@@ -727,7 +727,7 @@ class GreedyQueueManager(QueueManager):
             queue = self.queue
 
         # request_id of the highest value request
-        max_idx = queue.value.argmax()
+        max_idx = queue.value.idxmax()
         row = queue.loc[max_idx]
 
         next_obs = {'target_field_id': row['field_id'],
@@ -1110,7 +1110,7 @@ class RequestPool(object):
         if len(filters) == 0:
             self.remove_request_sets(request_set_id)
         else:
-            self.pool.set_value(request_set_id, 'filter_ids', filters)
+            self.pool.at[request_set_id, 'filter_ids'] =  filters
 
     def clear_all_request_sets(self):
         self.pool = pd.DataFrame()
