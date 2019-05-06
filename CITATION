@@ -1,0 +1,14 @@
+@article{Bellm_2019b,
+	doi = {10.1088/1538-3873/ab0c2a},
+	url = {https://doi.org/10.1088%2F1538-3873%2Fab0c2a},
+	year = 2019,
+	month = {apr},
+	publisher = {{IOP} Publishing},
+	volume = {131},
+	number = {1000},
+	pages = {068003},
+	author = {Eric C. Bellm and Shrinivas R. Kulkarni and Tom Barlow and Ulrich Feindt and Matthew J. Graham and Ariel Goobar and Thomas Kupfer and Chow-Choong Ngeow and Peter Nugent and Eran Ofek and Thomas A. Prince and Reed Riddle and Richard Walters and Quan-Zhi Ye},
+	title = {The Zwicky Transient Facility: Surveys and Scheduler},
+	journal = {Publications of the Astronomical Society of the Pacific},
+	abstract = {We present a novel algorithm for scheduling the observations of time-domain imaging surveys. Our integer linear programming approach optimizes an observing plan for an entire night by assigning targets to temporal blocks, enabling strict control of the number of exposures obtained per field and minimizing filter changes. A subsequent optimization step minimizes slew times between each observation. Our optimization metric self-consistently weights contributions from time-varying airmass, seeing, and sky brightness to maximize the transient discovery rate. We describe the implementation of this algorithm on the surveys of the Zwicky Transient Facility and present its on-sky performance.}
+}
