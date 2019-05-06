@@ -73,3 +73,5 @@ The simulated schedule is written to a SQLite database in the LSST [Operations S
 ```
 analyze_ztf_sim example_ztf_schedule.db
 ```
+
+The simulator also writes a logfile, which may be monitored while the simulation is running with `tail -f example_ztf_schedule_log.txt`
