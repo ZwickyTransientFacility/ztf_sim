@@ -1,5 +1,5 @@
+"""Core scheduler classes."""
 
-from builtins import object
 import configparser
 import numpy as np
 from astropy.time import Time
@@ -16,7 +16,8 @@ from .utils import block_index
 class Scheduler(object):
 
     def __init__(self, scheduler_config_file_fullpath, 
-            run_config_file_fullpath, other_queue_configs = None):
+            run_config_file_fullpath, other_queue_configs = None,
+            output_path = BASE_DIR+'../sims/'):
 
         self.scheduler_config = SchedulerConfiguration(
             scheduler_config_file_fullpath)
@@ -36,13 +37,12 @@ class Scheduler(object):
 
         # initialize sqlite history
         self.obs_log = ObsLogger(log_name,
-                clobber=self.run_config['scheduler'].getboolean('clobber_db')) 
+                output_path = output_path,
+                clobber=self.run_config['scheduler'].getboolean('clobber_db'),) 
 
 
     def set_queue(self, queue_name): 
 
-        # TODO: log the switch
-        
         if queue_name not in self.queues:
             raise ValueError(f'Requested queue {queue_name} not available!')
 

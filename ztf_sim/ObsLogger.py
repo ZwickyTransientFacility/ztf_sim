@@ -1,6 +1,6 @@
-from __future__ import absolute_import
+"""Code for logging observations to a sqlite database."""
 
-from builtins import object
+import os.path
 from collections import defaultdict
 import uuid
 import numpy as np
@@ -18,14 +18,15 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME, EXPOSURE_TIME, READOUT_TIME
 class ObsLogger(object):
 
     def __init__(self, log_name, survey_start_time = Time('2018-01-01'),
+            output_path = BASE_DIR+'../sims/',
             clobber = False):
         self.log_name = log_name
         self.survey_start_time = survey_start_time
         self.prev_obs = None
         self.mjd_tonight = None
         self.moon_illumination_tonight = None
-        self.engine = create_engine('sqlite:///{}../sims/{}.db'.format(
-            BASE_DIR, self.log_name))
+        self.engine = create_engine(
+                'sqlite:///'+os.path.join(output_path,f'{self.log_name}.db'))
         self.conn = self.engine.connect()
         self.create_fields_table(clobber=clobber)
         self.create_pointing_log(clobber=clobber)
@@ -80,7 +81,6 @@ class ObsLogger(object):
             # Drop table if it exists
             try:
                 self.conn.execute("""DROP TABLE Summary""")
-            # TODO: better error handling
             except:
                 pass
 

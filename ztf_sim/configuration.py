@@ -1,6 +1,5 @@
-from __future__ import absolute_import
+"""Classes for parsing scheduler configuration files."""
 
-from builtins import object
 import pathlib
 import json
 import numpy as np
@@ -21,7 +20,6 @@ class Configuration(object):
     def load_configuration(self, config_file):
         with open(config_file, 'r') as f:
             config = json.load(f)
-        # TODO: construct and validate a schema
         self.config = config
 
 class SchedulerConfiguration(Configuration):
@@ -105,8 +103,8 @@ class QueueConfiguration(Configuration):
         OPs = []
         f = Fields()
         for prog in self.config['observing_programs']:
-            # TODO: make these exclusive (one but not both)
             assert(('field_ids' in prog) or ('field_selections' in prog))
+            assert(('field_ids' in prog) != ('field_selections' in prog))
             if 'field_ids' in prog:
                 field_ids = prog['field_ids']
                 for field_id in field_ids:

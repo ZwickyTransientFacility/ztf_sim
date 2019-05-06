@@ -1,9 +1,6 @@
-from __future__ import print_function
-from __future__ import absolute_import
+"""Implementation of core scheduling algorithms using Gurobi."""
 
 import os
-from builtins import str
-from builtins import range
 from gurobipy import *
 import numpy as np
 import shelve
@@ -107,8 +104,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
                 "orconstr_{}".format(r))
 
     # nreqs_{fid} slots assigned per request set if it is observed
-    # (I think it needs to be exact in the nightly solve)
-    # TODO: this constructor is pretty slow
+    # this constructor is pretty slow
     constr_nreqs = m.addConstrs(
         ((np.sum(dft.loc[(dft['request_id'] == r) & 
                         (dft['metric_filter_id'] == f), 'Yrtf']) 
@@ -142,8 +138,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     
 
     # total exposure time constraint 
-    # TODO: tune this so it's closer to the average performance so we don't
-    # drop too many...
     constr_nperslot = m.addConstrs(
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'] * 
             (dft.loc[dft['slot'] == t, 'exposure_time'] + 
@@ -192,7 +186,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
 
 
     # Quick and dirty is okay!
-    # TODO: tune this value
     m.Params.TimeLimit = time_limit.to(u.second).value
 
     m.update()
@@ -212,11 +205,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     n_iterations = 1    
     # if we don't optimize long enough, we can end up not satisfying
     # our constraints.  In that case, continue the optimization
-    # TODO: verify all of them
     while df_schedule.groupby(['slot','request_id']).agg(len).max()[0] > 1:
         n_iterations += 1
         if n_iterations > 10:
-            1/0
+            raise ValueError('Optimization failed to satisfy constraints')
         print("> Slot optimization did not satisfy all constraints. Continuing Optimization (Iteration {})".format(n_iterations)) 
         m.update()
         m.optimize()
@@ -334,7 +326,6 @@ def request_set_optimize(df_metric, df, requests_allowed,
         <= requests_allowed[p]) for p in requests_needed), 
         "constr_balance")
 
-    # TODO: tune this value
     m.Params.TimeLimit = time_limit.to(u.second).value
 
     m.update()
@@ -391,7 +382,6 @@ def slot_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
 
 
     # no more than nreqs_{fid} slots assigned per request set
-    # TODO: this constructor is pretty slow
     constr_nreqs = m.addConstrs(
         ((np.sum(dft.loc[(dft['request_id'] == r) & 
                         (dft['metric_filter_id'] == f), 'Yrtf']) 
@@ -424,8 +414,6 @@ def slot_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     
 
     # total exposure time constraint 
-    # TODO: tune this so it's closer to the average performance so we don't
-    # drop too many...
     constr_nperslot = m.addConstrs(
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'] * 
             (dft.loc[dft['slot'] == t, 'exposure_time'] + 
@@ -474,7 +462,6 @@ def slot_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
 
 
     # Quick and dirty is okay!
-    # TODO: tune this value
     m.Params.TimeLimit = time_limit.to(u.second).value
 
     m.update()
@@ -494,7 +481,6 @@ def slot_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
     n_iterations = 1    
     # if we don't optimize long enough, we can end up not satisfying
     # our constraints.  In that case, continue the optimization
-    # TODO: verify all of them
     while df_schedule.groupby(['slot','request_id']).agg(len).max()[0] > 1:
         n_iterations += 1
         if n_iterations > 10:
@@ -607,7 +593,6 @@ def tsp_optimize(pairwise_distances):
     if m.Status != GRB.OPTIMAL:
         raise ValueError("Optimization failure")
 
-    # TODO: I could cut this block if needed
     solution = m.getAttr('x', vars) 
     selected = [(i,j) for i in range(n) for j in range(n) if solution[i,j] > 0.5] 
     distances = np.sum([pairwise_distances[s] for s in selected])

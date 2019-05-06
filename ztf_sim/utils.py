@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+"""Utility routines."""
 
 import numpy as np
 import pandas as pd
@@ -41,11 +41,6 @@ def HA_to_RA(ha, time):
     if time.location is None:
         time.location = P48_loc
 
-    # TODO: astropy currently breaks on future dates due to IERS problems
-    # issue 3275
-    # hacky workaround from
-    # https://groups.google.com/forum/#!msg/astropy-dev/N2Ug4RPU4DU/Gr5YNOANARUJ
-    time.delta_ut1_utc = 0.
     LST = time.sidereal_time('apparent')
 
     ra = (LST - ha).to(u.deg)
@@ -61,11 +56,6 @@ def RA_to_HA(ra, time):
     if time.location is None:
         time.location = P48_loc
 
-    # TODO: astropy currently breaks on future dates due to IERS problems
-    # issue 3275
-    # hacky workaround from
-    # https://groups.google.com/forum/#!msg/astropy-dev/N2Ug4RPU4DU/Gr5YNOANARUJ
-    time.delta_ut1_utc = 0.
     LST = time.sidereal_time('apparent')
 
     ha = (LST - ra).to(u.deg)
@@ -136,12 +126,9 @@ def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
     """Compute the hours of darkness (greater than t degrees twilight)
 
     The main approximation is a casual treatment of the time since the solstice"""
-#    diff = date - pd.datetime(2000, 12, 21)
-#    day = diff.total_seconds() / 24. / 3600
-#    doy %= 365.25
 
-    # TODO: actually compute the most recent solstice
-    solstice = Time('2008-12-21')
+    # would be better to actually compute a recent solstice
+    solstice = Time('2016-12-21')
 
     diff = (time - solstice).sec * u.second
     doy = np.floor((diff % (1 * u.year)).to(u.day).value)
@@ -167,7 +154,6 @@ def altitude_to_fwhm(altitude, filternum):
 
     # don't have a lot of PTF i-band data, so let's make it the same as
     # r-band (atmosphere should contribute less)
-    # TODO: revise with ZTF on-sky data
     if (filternum == 1) or (filternum == 3):
         return 3.258 - 0.00925 * altitude
     elif filternum == 2:

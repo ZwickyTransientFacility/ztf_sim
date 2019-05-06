@@ -1,6 +1,5 @@
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import object
+"""Sky brightness model."""
+
 import sklearn
 from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
@@ -65,10 +64,10 @@ def train_sky_model(filter_name='r', df=None):
         df = pd.read_csv(BASE_DIR + '../data/ptf-iptf_diq.csv.gz')
     # note that this is by pid, so there are multiple entries per image...
 
-    df = df[df['filterkey'] == filterid_map[filter_name]]
+    df = df[df['filterkey'] == filterid_map[filter_name]].copy()
 
     # IPAC stores negative moonillf, but astroplan.moon_illumination does not
-    df['moonillf'] = np.abs(df['moonillf'])
+    df.loc[:, 'moonillf'] = np.abs(df['moonillf'])
 
     # returns dataframes!
     X_train, X_test, y_train, y_test = model_selection.train_test_split(

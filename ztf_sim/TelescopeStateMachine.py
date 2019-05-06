@@ -1,18 +1,14 @@
-from __future__ import absolute_import
-from builtins import object
+"""State machine for simulating observations."""
+
 from transitions import Machine
 from astropy.time import Time
 import numpy as np
 import astropy.units as u
 import astropy.coordinates as coord
 import logging
-from transitions import logger
 from .utils import *
 from .constants import BASE_DIR, P48_loc, FILTER_IDS
 from .constants import READOUT_TIME, EXPOSURE_TIME, FILTER_CHANGE_TIME, slew_time
-
-
-
 
 class TelescopeStateMachine(Machine):
 
@@ -76,7 +72,7 @@ class TelescopeStateMachine(Machine):
         # logging.  wipe out existing log.
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(logging.INFO)
-        self.logger = logger
+        self.logger = logging.getLogger('transitions')
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(fh)
 
@@ -150,7 +146,7 @@ class TelescopeStateMachine(Machine):
         target_dec = target_skycoord.dec
 
         # calculate time required to slew
-        # TODO: duplicates codes in fields.py--consider refactoring
+        # duplicates codes in fields.py--consider refactoring
         axis_slew_times = [READOUT_TIME]
         for axis in ['ha', 'dec', 'domeaz']:
             dangle = np.abs(eval("target_{}".format(axis)) -
@@ -180,8 +176,6 @@ class TelescopeStateMachine(Machine):
         if self.current_filter_id != target_filter_id:
             self.current_filter_id = target_filter_id
             self.current_time += filter_change_time
-        # TODO: put in actual treatment of filter change (e.g., slew to stow
-        # position)
 
     def process_exposure(self, exposure_time=EXPOSURE_TIME):
         # annoyingly, transitions doesn't let me modify object
@@ -193,9 +187,6 @@ class TelescopeStateMachine(Machine):
                                           self.current_time).az
         self.current_ha = target_ha
         self.current_domeaz = target_domeaz
-
-        # TODO: put in logic that near-zenith pointings could create
-        # long and slow dome slews during the exposure
 
     def wait(self, wait_time=EXPOSURE_TIME):
         self.current_time += wait_time

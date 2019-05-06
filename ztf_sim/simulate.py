@@ -1,5 +1,6 @@
-from __future__ import print_function
-from __future__ import absolute_import
+"""Routines for running the scheduler in simulation mode."""
+
+import os.path
 import configparser
 import numpy as np
 import astropy.coordinates as coord
@@ -9,7 +10,6 @@ from .TelescopeStateMachine import TelescopeStateMachine
 from .Scheduler import Scheduler
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
 from .QueueManager import calc_pool_stats, calc_queue_stats
-from .ObsLogger import ObsLogger
 from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR, P48_loc
 from .utils import block_index
@@ -19,10 +19,10 @@ from .utils import block_index
 import pandas as pd
 pd.options.mode.chained_assignment = 'raise'  # default='warn'
 
-# TODO: tag database with commit hash
-
-
-def simulate(scheduler_config_file, run_config_file = 'default.cfg',
+def simulate(scheduler_config_file, sim_config_file,
+        scheduler_config_path = BASE_DIR + '../../ztf_survey_configuration/',
+        sim_config_path = BASE_DIR+'../config/',
+        output_path = BASE_DIR+'../sims/',
         profile=False, raise_queue_empty=False, fallback=True, 
         time_limit = 30*u.second):
 
@@ -33,14 +33,14 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             print('Error importing pyinstrument')
             profile = False
 
-    run_config = configparser.ConfigParser()
-    run_config_file_fullpath = BASE_DIR+'../config/{}'.format(run_config_file)
-    run_config.read(run_config_file_fullpath)
+    sim_config = configparser.ConfigParser()
+    sim_config_file_fullpath = os.path.join(sim_config_path, sim_config_file)
+    sim_config.read(sim_config_file_fullpath)
 
     # load config parameters into local variables
-    start_time = run_config['simulation']['start_time']
+    start_time = sim_config['simulation']['start_time']
     try:
-        weather_year = run_config['simulation']['weather_year']
+        weather_year = sim_config['simulation']['weather_year']
     except KeyError:
         weather_year = None
     if (weather_year.lower() == "none"):
@@ -48,13 +48,13 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
     else:
         weather_year = int(weather_year)
     survey_duration = \
-        run_config['simulation'].getfloat('survey_duration_days') * u.day
+        sim_config['simulation'].getfloat('survey_duration_days') * u.day
 
     # set up Scheduler
     scheduler_config_file_fullpath = \
-            BASE_DIR + '../../ztf_survey_configuration/{}'.format(scheduler_config_file)
+            os.path.join(scheduler_config_path, scheduler_config_file)
     scheduler = Scheduler(scheduler_config_file_fullpath,
-            run_config_file_fullpath)
+            sim_config_file_fullpath, output_path = output_path)
     run_name = scheduler.scheduler_config.config['run_name']
 
     if profile:
@@ -70,7 +70,7 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
     tel = TelescopeStateMachine(
         current_time=survey_start_time,
         historical_observability_year=weather_year,
-        logfile=BASE_DIR + '../sims/{}_log.txt'.format(run_name))
+        logfile=os.path.join(output_path,f'{run_name}_log.txt'))
 
     # initialize to a low value so we start by assigning nightly requests
     current_night_mjd = 0
@@ -104,7 +104,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             try:
                 next_obs = scheduler.Q.next_obs(current_state, 
                         scheduler.obs_log)
-                # TODO: debugging check...
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
                 if scheduler.Q.queue_name != 'default':
@@ -141,7 +140,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                         tel.logger.info(calc_pool_stats(
                             scheduler.Q.rp.pool, intro="Current pool status:"))
 
-                        # TODO: in py3, chained exceptions come for free
                         raise QueueEmptyError
 
             # try to change filters, if needed
@@ -156,7 +154,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
             if not tel.start_slew(coord.SkyCoord(next_obs['target_ra'] * u.deg,
                                                  next_obs['target_dec'] * u.deg)):
                 tel.set_cant_observe()
-                # TODO: log the failure
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
                 tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
@@ -177,10 +174,8 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
                 current_state = tel.current_state_dict()
                 scheduler.obs_log.log_pointing(current_state, next_obs)
                 # b) remove completed request_id from the pool and the queue
-                # TODO: debugging check
                 tel.logger.info(next_obs)
                 assert(next_obs['request_id'] in scheduler.queues[next_obs['queue_name']].queue.index)
-                # TODO: check this with request sets...
                 scheduler.queues[next_obs['queue_name']].remove_requests(next_obs['request_id']) 
         else:
             scheduler.obs_log.prev_obs = None
@@ -190,7 +185,6 @@ def simulate(scheduler_config_file, run_config_file = 'default.cfg',
     if profile:
         profiler.stop()
         print(profiler.output_text(str=True, color=True))
-        with open('../sims/{}_profile.txt'.format(run_name), 'w') as f:
+        with open(os.path.join(output_path,f'{run_name}_profile.txt'), 'w') as f:
             f.write(profiler.output_text())
 
-    # TODO: gzip logfile

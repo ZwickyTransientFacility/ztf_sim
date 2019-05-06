@@ -1,11 +1,7 @@
 #!/usr/bin/env python
-
 """Calculate basic efficiency statistics for a ztf_sim run."""
-from __future__ import print_function
 
 import sys
-# hack to get the path right
-sys.path.append('..')
 import numpy as np
 from collections import OrderedDict
 from sqlalchemy import create_engine
@@ -17,13 +13,14 @@ from ztf_sim.constants import *
 from ztf_sim.utils import *
 
 
-def calc_stats(sim_name):
+def calc_stats(sim_path):
 
-    df = df_read_from_sqlite(sim_name, tablename='Summary', directory='sims')
+    engine = create_engine(f'sqlite:///{sim_path}')
+    df = pd.read_sql('Summary', engine)
 
     stats = OrderedDict()
 
-    stats['Simulation Name'] = sim_name
+    stats['Simulation Name'] = sim_path
 
     # use max - min because there may be no observations some nights
     # TODO: fails if initial nights are weathered out
@@ -130,6 +127,6 @@ def scratch_program_balance(df):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print('Usage: ./analyze_sim.py sim_name')
+        print('Usage: ./analyze_sim.py path/to/sim.db')
     else:
         calc_stats(sys.argv[1])

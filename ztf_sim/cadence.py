@@ -1,7 +1,5 @@
-
 """Functions defining cadence windows.  Return True if the field can
 be observed at the supplied time."""
-from __future__ import absolute_import
 
 import pandas as pd
 import numpy as np

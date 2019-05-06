@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+"""Utilities for magnitude conversions"""
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -7,7 +7,6 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME, PIXEL_SCALE
 
 
 
-# TODO: need to add i-band
 def interp_R20_airmass(filter_id=2):
     """Returns function to interpolate electrons/sec of a 20th mag source as a function of altitude."""
     R20_file = BASE_DIR + '../data/R20_absorbed_ZTF{}.txt'.format(
@@ -31,7 +30,6 @@ def limiting_mag(exposure_time, seeing_fwhm, sky_brightness,
 
     # sky limited case:
     Rstar = np.sqrt(SNR**2. * npix * Rsky / exposure_time)
-    # TODO: decide if treatment of non-sky limited case is needed
 
     R20 = Rstar20(filter_id=filter_id, altitude=altitude,
                   aperture_cut=True, absorb=True)
