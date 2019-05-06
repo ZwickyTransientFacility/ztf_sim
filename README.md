@@ -27,7 +27,7 @@ conda install pip numpy scipy astropy astroplan pandas scikit-learn xgboost sqla
 pip install sklearn_pandas 
 pip install transitions
 
-pip install git+https://github.com/ZwickyTransientFacility/ztf_sim.git@paper_cleanup
+pip install git+https://github.com/ZwickyTransientFacility/ztf_sim.git
 ```
 
 (To remove the environment, use `conda remove --name ztf_sim_test --all`.)
