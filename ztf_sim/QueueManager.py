@@ -196,24 +196,107 @@ class QueueManager(object):
         month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
                 scale='utc').mjd
         
+        obs_count_by_program = obs_log.count_equivalent_obs_by_program(
+                mjd_range = [month_start_mjd, time.mjd])
+        # drop engineering/commissioning
+        obs_count_by_program = obs_count_by_program[
+                obs_count_by_program['program_id'] != 0]
+
+        # omit commissioning observations
+        total_obs = np.sum(obs_count_by_program['n_obs'])
+
+        # infer the program fractions from the subprograms
+        target_program_fractions = defaultdict(int)
+        for op in self.observing_programs:
+            target_program_fractions[op.program_id] = \
+                    op.program_observing_time_fraction
+
+        target_program_fractions = pd.Series(target_program_fractions) 
+        target_program_fractions.index.name = 'program_id'
+        target_program_fractions.name = 'target_fraction'
+
+        # derive the P term for programs
+        actual_program_fractions = defaultdict(float)
+        proportional_error_term = defaultdict(float)
+        for program in target_program_fractions.index:
+            actual_program_fractions[program] = (
+                obs_count_by_program.loc[program,'nobs']
+                / total_obs)
+            proportional_error_term[program] = ( 
+                    target_program_fractions[program] -
+                    actual_program_fractions[program]) 
+
+        target_program_fractions = target_program_fractions.reset_index()
+
+        # derive the I term for programs
+        obs_count_by_program_night = \
+                obs_log.count_equivalent_obs_by_program_night(
+                mjd_range = [month_start_mjd, time.mjd])
+
+        # drop engineering/commissioning
+        obs_count_by_program_night = obs_count_by_program_night[
+                obs_count_by_program_night['program_id'] != 0]
+
+        nightly_total_obs = obs_count_by_program_night[
+                ['night','n_obs']].groupby('night').agg(np.sum)
+        cumulative_total_obs = nightly_total_obs['n_obs'].cumsum()
+        cumulative_total_obs.name = 'cumulative_total_n_obs'
+
+        cumulative_program_obs = obs_count_by_program_night.groupby('program_id').agg(np.cumsum)
+        cumulative_program_obs.rename(index=int,
+                columns = {'n_obs':'cumulative_program_n_obs'}, inplace=True)
+
+        obs_count_by_program_night = obs_count_by_program_night.join(
+                cumulative_program_obs['cumulative_program_n_obs'])
+
+        obs_count_by_program_night = obs_count_by_program_night.join(
+                cumulative_total_obs, on='night', how='outer')
+
+        obs_count_by_program_night['running_fraction'] = (
+                obs_count_by_program_night['cumulative_program_n_obs'] / 
+                obs_count_by_program_night['cumulative_total_n_obs']) 
+
+        obs_count_by_program_night = obs_count_by_program_night.merge(
+                target_program_fractions, on='program_id', how='outer')
+
+        obs_count_by_program_night['error_term'] = (
+                obs_count_by_program_night['target_fraction'] -
+                obs_count_by_program_night['running_fraction'])
+
+        pgrp = obs_count_by_program_night.groupby('program_id')
+
+        integral_error_term = pgrp['error_term'].sum() 
+        # do I want integral_error_term / len(set(obs_count_by_program_night['night'])) ??  probably not
+
+        # derive the D term (subtract first and last values)
+        derivative_error_term = pgrp['error_term'].apply(
+        
+
+
+
+                    
+        
+        
+        
         obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
                 mjd_range = [month_start_mjd, time.mjd])
-        total_obs = np.sum(list(obs_count_by_subprogram.values()))
-        for program in self.observing_programs:
+        
+        for op in self.observing_programs:
             # number_of_allowed_requests() accounts for variable exposure time
-            n_requests = program.number_of_allowed_requests(time, 
+            n_requests = op.number_of_allowed_requests(time, 
                     exclude_blocks = exclude_blocks)
             delta = np.round(
-                (obs_count_by_subprogram[(program.program_id, 
-                    program.subprogram_name)] -
-                 program.program_observing_time_fraction * total_obs)
-                 * program.subprogram_fraction)
+                (obs_count_by_subprogram[(op.program_id, 
+                    op.subprogram_name)] -
+                 op.program_observing_time_fraction * total_obs)
+                 * op.subprogram_fraction)
+
 
             # how quickly do we want to take to reach equalization?
             CATCHUP_FACTOR = 0.40
             n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
-            self.requests_allowed[(program.program_id, 
-                program.subprogram_name)] = n_requests
+            self.requests_allowed[(op.program_id, 
+                op.subprogram_name)] = n_requests
 
         for key, n_requests in self.requests_allowed.items():
             if n_requests < 0:

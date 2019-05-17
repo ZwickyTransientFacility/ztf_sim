@@ -248,11 +248,8 @@ class ObsLogger(object):
         # save record for next obs
         self.prev_obs = record
 
-
-    def count_equivalent_obs_by_subprogram(self, mjd_range = None):
-        """Count of number of equivalent standard exposures by program and subprogram.
-        
-        Returns a dict with keys (program_id, subprogram_name)"""
+    def _mjd_filter_history(self, mjd_range):
+        """If mjd_range is not `None`, return a dataframe for the provided range"""
 
         if mjd_range is not None:
             assert mjd_range[0] <= mjd_range[1]
@@ -262,9 +259,13 @@ class ObsLogger(object):
         else:
             hist = self.history
 
-        grp = hist.groupby(['propID','subprogram'])
+        return hist
 
-        total_exposure_time =  grp['visitExpTime'].agg(np.sum)
+    def _equivalent_obs(self, grp):
+        """Given a dataframe groupby object, convert to equivalent standard obserations
+        Returns a dict with keys determined by the group"""
+
+        total_exposure_time = grp['visitExpTime'].agg(np.sum)
         count_nobs = grp['requestID'].agg(len)
 
         # add readout overhead (but not slew)
@@ -274,25 +275,63 @@ class ObsLogger(object):
         # make this a defaultdict so we get zero values for new programs
         return defaultdict(int, count_equivalent)
 
+
+    def count_equivalent_obs_by_program(self, mjd_range = None):
+        """Count of number of equivalent standard exposures by program."""
+        
+
+        hist = self._mjd_filter_history(mjd_range)
+
+        grp = hist.groupby(['propID'])
+
+        s = pd.Series(self._equivalent_obs(grp))
+        s.index.name = 'program_id'
+        s.name = 'n_obs'
+        s = s.reset_index()
+        return s
+
+    def count_equivalent_obs_by_subprogram(self, mjd_range = None):
+        """Count of number of equivalent standard exposures by program and subprogram."""
+
+        hist = self._mjd_filter_history(mjd_range)
+
+        grp = hist.groupby(['propID','subprogram'])
+
+        s = pd.Series(self._equivalent_obs(grp))
+        s.index.names = ['program_id','subprogram']
+        s.name = 'n_obs'
+        s = s.reset_index()
+        return s
+
+    def count_equivalent_obs_by_program_night(self, mjd_range = None):
+        """Count of number of equivalent standard exposures by program, subprogram, and night."""
+
+        hist = self._mjd_filter_history(mjd_range)
+
+        grp = hist.groupby(['propID','night'])
+
+        s = pd.Series(self._equivalent_obs(grp))
+        s.index.names = ['program_id','night']
+        s.name = 'n_obs'
+        s = s.reset_index()
+        return s
+
     def count_total_obs_by_subprogram(self, mjd_range = None):
         """Count of observations by program and subprogram.
         
         Returns a dict with keys (program_id, subprogram_name)"""
 
-        if mjd_range is not None:
-            assert mjd_range[0] <= mjd_range[1]
-            w = ((self.history['expMJD'] >= mjd_range[0]) & 
-                  (self.history['expMJD'] <= mjd_range[1])) 
-            hist = self.history[w]
-        else:
-            hist = self.history
+        hist = _mjd_filter_history(mjd_range)
 
         grp = hist.groupby(['propID','subprogram'])
 
         count = grp['requestID'].agg(len).to_dict()
 
-        # make this a defaultdict so we get zero values for new programs
-        return defaultdict(int, count)
+        s = pd.Series(defaultdict(int, count))
+        s.index.names = ['program_id','night']
+        s.name = 'n_obs'
+        s = s.reset_index()
+        return s
 
     def select_last_observed_time_by_field(self,
             field_ids = None, filter_ids = None, 
