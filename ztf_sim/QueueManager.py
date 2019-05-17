@@ -365,6 +365,10 @@ class QueueManager(object):
         w3_end = (np.abs(ha_end) >= 3.) & (df['dec'] <= -46)
         df.loc[w3 | w3_end, 'limiting_mag'] = -99
 
+        # dec > 87.5 is rejected
+        w4 = (df['dec'] > 87.5)
+        df.loc[w4, 'limiting_mag'] = -99
+
         return df['limiting_mag'], df['sky_brightness']
 
     def return_queue(self):
@@ -1004,6 +1008,10 @@ class ListQueueManager(QueueManager):
                 continue
              # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".
             if (np.abs(ha) >= 3.) & (dec <= -46):
+                idx += 1
+                continue
+             # dec > 87.5 is rejected
+            if (dec > 87.5):
                 idx += 1
                 continue
 
