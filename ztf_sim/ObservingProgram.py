@@ -173,6 +173,9 @@ class ObservingProgram(object):
 
         return request_set
 
+    def time_per_exposure(self):
+        return self.exposure_time + READOUT_TIME
+
     def number_of_allowed_requests(self, time, exclude_blocks = []):
         """ Count the (maximal) number of requests allowed for this program tonight."""
 

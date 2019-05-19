@@ -16,6 +16,7 @@ from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
@@ -182,27 +183,16 @@ class QueueManager(object):
         self.queue_night = np.floor(current_state['current_time'].mjd) 
 
 
-    def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
-        """Use count of past observations and expected observing time fractions
-        to determine number of allowed requests tonight."""
-
-        self.requests_allowed = {}
-
-        # rather than using equivalent obs, might be easier to work in 
-        # exposure time directly?
-        
-        # enforce program balance on a monthly basis
-        dtnow = time.to_datetime()
-        month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
-                scale='utc').mjd
+    def determine_program_fractions_tonight(self, obs_log, mjd_start, mjd_stop):
+        """Use PID and past history to adjust the fraction of time per program tonight."""
         
         obs_count_by_program = obs_log.count_equivalent_obs_by_program(
-                mjd_range = [month_start_mjd, time.mjd])
+                mjd_range = [mjd_start, mjd_stop])
         # drop engineering/commissioning
         obs_count_by_program = obs_count_by_program[
                 obs_count_by_program['program_id'] != 0]
+        obs_count_by_program.set_index('program_id', inplace=True)
 
-        # omit commissioning observations
         total_obs = np.sum(obs_count_by_program['n_obs'])
 
         # infer the program fractions from the subprograms
@@ -216,15 +206,19 @@ class QueueManager(object):
         target_program_fractions.name = 'target_fraction'
 
         # derive the P term for programs
-        actual_program_fractions = defaultdict(float)
-        proportional_error_term = defaultdict(float)
-        for program in target_program_fractions.index:
-            actual_program_fractions[program] = (
-                obs_count_by_program.loc[program,'nobs']
-                / total_obs)
-            proportional_error_term[program] = ( 
-                    target_program_fractions[program] -
-                    actual_program_fractions[program]) 
+        if total_obs > 0:
+            actual_program_fractions = obs_count_by_program/total_obs
+        else:
+            # no observations: return the target fractions as is
+            target_program_fractions.name = 'target_fraction_tonight'
+            return target_program_fractions
+
+        # the difference in API between Series and DataFrame is maddening
+        actual_program_fractions.rename(index=int,
+                columns = {'n_obs':'actual_fraction'}, inplace=True)
+
+        proportional_error_term = (target_program_fractions - 
+                actual_program_fractions['actual_fraction'])
 
         target_program_fractions = target_program_fractions.reset_index()
 
@@ -268,39 +262,82 @@ class QueueManager(object):
         integral_error_term = pgrp['error_term'].sum() 
         # do I want integral_error_term / len(set(obs_count_by_program_night['night'])) ??  probably not
 
-        # derive the D term (subtract first and last values)
-        derivative_error_term = pgrp['error_term'].apply(
+        # derive the D term (subtract most recent two values)
+        derivative_error_term = (pgrp['error_term'].last() - 
+                pgrp['error_term'].nth(-2))
+        
+
+        Kprop = 0.6
+        Kint = 0.3
+        Kdrv = 0.1
+
+        PID = (Kprop * proportional_error_term + 
+               Kint * integral_error_term + 
+               Kdrv * derivative_error_term)
+
+        target_program_fractions = target_program_fractions.set_index('program_id')
+        
+        target_fractions_tonight = target_program_fractions + PID
+        target_fractions_tonight.name = 'target_fraction_tonight'
+
+        return target_fractions_tonight
         
 
 
+    def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
+        """Use count of past observations and expected observing time fractions
+        to determine number of allowed requests tonight."""
 
-                    
+        self.requests_allowed = {}
+
+        # rather than using equivalent obs, might be easier to work in 
+        # exposure time directly?
         
+        # enforce program balance on a monthly basis
+        dtnow = time.to_datetime()
+        month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
+                scale='utc').mjd
         
+        target_program_fractions_tonight = determine_program_fractions_tonight(
+            obs_log, month_start_mjd, time.mjd)
         
-        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
-                mjd_range = [month_start_mjd, time.mjd])
+        print('Target Program Fractions: ', target_program_fractions_tonight)
+
+        dark_time = approx_hours_of_darkness(time)
+        # if we know some time tonight will be used up by timed queues, remove
+        # it
+        if len(exclude_blocks):
+            dark_time -= len(exclude_blocks) * TIME_BLOCK_SIZE
         
+        # calculate subprogram fractions excluding list queues and TOOs
+        scheduled_subprogram_sum = defaultdict(float)
         for op in self.observing_programs:
+            if len(op.field_ids) > 0:
+                scheduled_subprogram_sum[op.program_id] += \
+                        op.subprogram_fraction
+
+        for op in self.observing_programs:
+
+            program_time_tonight = (
+                dark_time * target_program_fractions_tonight[op.program_id])
+
+            subprogram_time_tonight = (
+                program_time_tonight * op.subprogram_fraction / 
+                scheduled_subprogram_sum[op.program_id])
+
             # number_of_allowed_requests() accounts for variable exposure time
-            n_requests = op.number_of_allowed_requests(time, 
-                    exclude_blocks = exclude_blocks)
-            delta = np.round(
-                (obs_count_by_subprogram[(op.program_id, 
-                    op.subprogram_name)] -
-                 op.program_observing_time_fraction * total_obs)
-                 * op.subprogram_fraction)
+            n_requests = ((subprogram_time_tonight.to(u.min) / 
+                    op.time_per_exposure.to(u.min)).value[0]
+            n_requests = np.round(n_requests).astype(np.int)
 
-
-            # how quickly do we want to take to reach equalization?
-            CATCHUP_FACTOR = 0.40
-            n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
             self.requests_allowed[(op.program_id, 
                 op.subprogram_name)] = n_requests
 
         for key, n_requests in self.requests_allowed.items():
             if n_requests < 0:
                 self.requests_allowed[key] = 0
+
+        print(self.requests_allowed)
 
     def next_obs(self, current_state, obs_log):
         """Given current state, return the parameters for the next request"""
