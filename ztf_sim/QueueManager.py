@@ -225,7 +225,7 @@ class QueueManager(object):
         # derive the I term for programs
         obs_count_by_program_night = \
                 obs_log.count_equivalent_obs_by_program_night(
-                mjd_range = [month_start_mjd, time.mjd])
+                mjd_range = [mjd_start, mjd_stop])
 
         # drop engineering/commissioning
         obs_count_by_program_night = obs_count_by_program_night[
@@ -260,12 +260,10 @@ class QueueManager(object):
         pgrp = obs_count_by_program_night.groupby('program_id')
 
         integral_error_term = pgrp['error_term'].sum() 
-        # do I want integral_error_term / len(set(obs_count_by_program_night['night'])) ??  probably not
 
         # derive the D term (subtract most recent two values)
         derivative_error_term = (pgrp['error_term'].last() - 
                 pgrp['error_term'].nth(-2))
-        
 
         Kprop = 0.6
         Kint = 0.3
@@ -277,7 +275,7 @@ class QueueManager(object):
 
         target_program_fractions = target_program_fractions.set_index('program_id')
         
-        target_fractions_tonight = target_program_fractions + PID
+        target_fractions_tonight = target_program_fractions.add(PID, axis=0)
         target_fractions_tonight.name = 'target_fraction_tonight'
 
         return target_fractions_tonight
@@ -298,7 +296,7 @@ class QueueManager(object):
         month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
                 scale='utc').mjd
         
-        target_program_fractions_tonight = determine_program_fractions_tonight(
+        target_program_fractions_tonight = self.determine_program_fractions_tonight(
             obs_log, month_start_mjd, time.mjd)
         
         print('Target Program Fractions: ', target_program_fractions_tonight)
@@ -319,15 +317,15 @@ class QueueManager(object):
         for op in self.observing_programs:
 
             program_time_tonight = (
-                dark_time * target_program_fractions_tonight[op.program_id])
-
+                dark_time * target_program_fractions_tonight.loc[
+                    op.program_id,'target_fraction'])
             subprogram_time_tonight = (
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
 
             # number_of_allowed_requests() accounts for variable exposure time
             n_requests = (subprogram_time_tonight.to(u.min) / 
-                    op.time_per_exposure.to(u.min)).value[0]
+                    op.time_per_exposure().to(u.min)).value[0]
             n_requests = np.round(n_requests).astype(np.int)
 
             self.requests_allowed[(op.program_id, 
