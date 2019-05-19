@@ -326,7 +326,7 @@ class QueueManager(object):
                 scheduled_subprogram_sum[op.program_id])
 
             # number_of_allowed_requests() accounts for variable exposure time
-            n_requests = ((subprogram_time_tonight.to(u.min) / 
+            n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure.to(u.min)).value[0]
             n_requests = np.round(n_requests).astype(np.int)
 
