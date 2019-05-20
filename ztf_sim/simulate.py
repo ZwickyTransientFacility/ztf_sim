@@ -86,7 +86,8 @@ def simulate(scheduler_config_file, sim_config_file,
             exclude_blocks = scheduler.find_excluded_blocks_tonight(
                               tel.current_time)
 
-            scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
+            scheduler.queues['default'].assign_nightly_requests(
+                    tel.current_state_dict(),
                     scheduler.obs_log, exclude_blocks = exclude_blocks,
                     time_limit = time_limit)
             current_night_mjd = np.floor(tel.current_time.mjd)
