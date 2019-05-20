@@ -183,8 +183,12 @@ class QueueManager(object):
         self.queue_night = np.floor(current_state['current_time'].mjd) 
 
 
-    def determine_program_fractions_tonight(self, obs_log, mjd_start, mjd_stop):
-        """Use PID and past history to adjust the fraction of time per program tonight."""
+    def adjust_program_exposures_tonight(self, obs_log, mjd_start, mjd_stop):
+        """Use past history to adjust the number of exposures per program tonight.
+        
+        Counts exposures from the start of the month and equalizes any excess
+        over NIGHTS_TO_REDISTRIBUTE or the number of nights to the end of 
+        the month, whichever is less."""
         
         obs_count_by_program = obs_log.count_equivalent_obs_by_program(
                 mjd_range = [mjd_start, mjd_stop])
@@ -205,81 +209,37 @@ class QueueManager(object):
         target_program_fractions.index.name = 'program_id'
         target_program_fractions.name = 'target_fraction'
 
-        # derive the P term for programs
-        if total_obs > 0:
-            actual_program_fractions = obs_count_by_program/total_obs
+        target_program_nobs = target_program_fractions * total_obs
+        target_program_nobs.name = 'target_program_nobs'
+
+        # note that this gives 0 in case of no observations, as desired
+        # have to do the subtraction backwords because of Series/DataFrame 
+        # API nonsense
+        delta_program_nobs = \
+                -1*obs_count_by_program.subtract(target_program_nobs,
+                    axis=0)
+
+        assert(delta_program_nobs.sum().values[0] == 0)
+
+        NIGHTS_TO_REDISTRIBUTE = 5
+        time = Time(mjd_stop,format='mjd')
+        dtnow = time.to_datetime()
+        next_month_start_mjd = Time(datetime(dtnow.year,dtnow.month+1,1),
+                scale='utc').mjd
+        nights_left_this_month = np.round(next_month_start_mjd - time.mjd)
+
+        if nights_left_this_month > NIGHTS_TO_REDISTRIBUTE:
+            divisor = NIGHTS_TO_REDISTRIBUTE
         else:
-            # no observations: return the target fractions as is
-            target_program_fractions.name = 'target_fraction_tonight'
-            return target_program_fractions
+            divisor = nights_left_this_month
 
-        # the difference in API between Series and DataFrame is maddening
-        actual_program_fractions.rename(index=int,
-                columns = {'n_obs':'actual_fraction'}, inplace=True)
+        delta_program_nobs /= divisor
 
-        proportional_error_term = (target_program_fractions - 
-                actual_program_fractions['actual_fraction'])
+        delta_program_nobs = np.round(delta_program_nobs).astype(int)
 
-        target_program_fractions = target_program_fractions.reset_index()
-
-        # derive the I term for programs
-        obs_count_by_program_night = \
-                obs_log.count_equivalent_obs_by_program_night(
-                mjd_range = [mjd_start, mjd_stop])
-
-        # drop engineering/commissioning
-        obs_count_by_program_night = obs_count_by_program_night[
-                obs_count_by_program_night['program_id'] != 0]
-
-        nightly_total_obs = obs_count_by_program_night[
-                ['night','n_obs']].groupby('night').agg(np.sum)
-        cumulative_total_obs = nightly_total_obs['n_obs'].cumsum()
-        cumulative_total_obs.name = 'cumulative_total_n_obs'
-
-        cumulative_program_obs = obs_count_by_program_night.groupby('program_id').agg(np.cumsum)
-        cumulative_program_obs.rename(index=int,
-                columns = {'n_obs':'cumulative_program_n_obs'}, inplace=True)
-
-        obs_count_by_program_night = obs_count_by_program_night.join(
-                cumulative_program_obs['cumulative_program_n_obs'])
-
-        obs_count_by_program_night = obs_count_by_program_night.join(
-                cumulative_total_obs, on='night', how='outer')
-
-        obs_count_by_program_night['running_fraction'] = (
-                obs_count_by_program_night['cumulative_program_n_obs'] / 
-                obs_count_by_program_night['cumulative_total_n_obs']) 
-
-        obs_count_by_program_night = obs_count_by_program_night.merge(
-                target_program_fractions, on='program_id', how='outer')
-
-        obs_count_by_program_night['error_term'] = (
-                obs_count_by_program_night['target_fraction'] -
-                obs_count_by_program_night['running_fraction'])
-
-        pgrp = obs_count_by_program_night.groupby('program_id')
-
-        integral_error_term = pgrp['error_term'].sum() 
-
-        # derive the D term (subtract most recent two values)
-        derivative_error_term = (pgrp['error_term'].last() - 
-                pgrp['error_term'].nth(-2))
-
-        Kprop = 0.6
-        Kint = 0.3
-        Kdrv = 0.1
-
-        PID = (Kprop * proportional_error_term + 
-               Kint * integral_error_term + 
-               Kdrv * derivative_error_term)
-
-        target_program_fractions = target_program_fractions.set_index('program_id')
+        return delta_program_nobs
         
-        target_fractions_tonight = target_program_fractions.add(PID, axis=0)
-        target_fractions_tonight.name = 'target_fraction_tonight'
 
-        return target_fractions_tonight
-        
 
 
     def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
@@ -296,10 +256,10 @@ class QueueManager(object):
         month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
                 scale='utc').mjd
         
-        target_program_fractions_tonight = self.determine_program_fractions_tonight(
+        delta_program_exposures_tonight = self.adjust_program_exposures_tonight(
             obs_log, month_start_mjd, time.mjd)
         
-        print('Target Program Fractions: ', target_program_fractions_tonight)
+        print('Change in allowed exposures: ', delta_program_exposures_tonight)
 
         dark_time = approx_hours_of_darkness(time)
         # if we know some time tonight will be used up by timed queues, remove
@@ -317,8 +277,10 @@ class QueueManager(object):
         for op in self.observing_programs:
 
             program_time_tonight = (
-                dark_time * target_program_fractions_tonight.loc[
-                    op.program_id,'target_fraction'])
+                dark_time * op.program_observing_time_fraction +  
+                delta_program_exposures_tonight.loc[
+                    op.program_id,'n_obs'] * 
+                    (EXPOSURE_TIME+READOUT_TIME))
             subprogram_time_tonight = (
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
