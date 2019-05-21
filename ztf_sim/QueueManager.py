@@ -580,9 +580,15 @@ class GurobiQueueManager(QueueManager):
         self.block_slot_metric = self._slot_metric(self.block_lim_mags)
 
         # count the number of observations requested by filter
+        df['n_reqs_tot'] = 0
         for fid in FILTER_IDS:
             df['n_reqs_{}'.format(fid)] = \
                 df.filter_ids.apply(lambda x: np.sum([xi == fid for xi in x]))
+            df['n_reqs_tot'] += df['n_reqs_{}'.format(fid)] 
+
+        tot_avail_requests_bysubprogram = \
+                df.groupby(['program_id','subprogram_name'])['n_reqs_tot'].agg(np.sum)
+        self.logger.info(f"Total available requests: {tot_avail_requests_bysubprogram}")
 
         # prepare the data for input to gurobi
         #import shelve
@@ -630,6 +636,10 @@ class GurobiQueueManager(QueueManager):
         n_requests_scheduled = np.sum(dft['scheduled'])
         total_metric_value = np.sum(dft['scheduled']*dft['metric'])
         avg_metric_value = total_metric_value / n_requests_scheduled
+
+        nscheduled_requests_bysubprogram = \
+                dft.loc[dft['scheduled'],['program_id','subprogram_name']].groupby(['program_id','subprogram_name']).agg(len)
+        self.logger.info(f"Scheduled requests: {nscheduled_requests_bysubprogram}")
 
         self.logger.info(f'{n_requests_scheduled} requests scheduled')
         self.logger.info(f'{total_metric_value:.2f} total metric value; ' 
