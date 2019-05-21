@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from datetime import datetime
+import logging
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -29,6 +30,8 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, queue_name, queue_configuration, rp=None, fields=None):
+
+        self.logger = logging.getLogger(__name__)
 
         # queue name (useful in Scheduler object when swapping queues)
         self.queue_name = queue_name
@@ -219,8 +222,6 @@ class QueueManager(object):
                 -1*obs_count_by_program.subtract(target_program_nobs,
                     axis=0)
 
-        assert(delta_program_nobs.sum().values[0] == 0)
-
         NIGHTS_TO_REDISTRIBUTE = 5
         time = Time(mjd_stop,format='mjd')
         dtnow = time.to_datetime()
@@ -259,7 +260,7 @@ class QueueManager(object):
         delta_program_exposures_tonight = self.adjust_program_exposures_tonight(
             obs_log, month_start_mjd, time.mjd)
         
-        print('Change in allowed exposures: ', delta_program_exposures_tonight)
+        self.logger.info(f'Change in allowed exposures: {delta_program_exposures_tonight}')
 
         dark_time = approx_hours_of_darkness(time)
         # if we know some time tonight will be used up by timed queues, remove
@@ -297,7 +298,7 @@ class QueueManager(object):
             if n_requests < 0:
                 self.requests_allowed[key] = 0
 
-        print(self.requests_allowed)
+        self.logger.info(self.requests_allowed)
 
     def next_obs(self, current_state, obs_log):
         """Given current state, return the parameters for the next request"""
@@ -630,8 +631,8 @@ class GurobiQueueManager(QueueManager):
         total_metric_value = np.sum(dft['scheduled']*dft['metric'])
         avg_metric_value = total_metric_value / n_requests_scheduled
 
-        print(f'{n_requests_scheduled} requests scheduled')
-        print(f'{total_metric_value:.2f} total metric value; ' 
+        self.logger.info(f'{n_requests_scheduled} requests scheduled')
+        self.logger.info(f'{total_metric_value:.2f} total metric value; ' 
                f'{avg_metric_value:.2f} average per request')
 
         dft.to_csv('gurobi_solution.csv')
@@ -918,7 +919,7 @@ class GreedyQueueManager(QueueManager):
 
         self.requests_in_window = np.sum(cadence_cuts) > 0
         if ~self.requests_in_window:
-            print(calc_queue_stats(df, current_state,
+            self.logging.warning(calc_queue_stats(df, current_state,
                 intro="No fields with observable cadence windows.  Queue in progress:"))
             raise QueueEmptyError("No fields with observable cadence windows")
         # also make a copy because otherwise it retains knowledge of

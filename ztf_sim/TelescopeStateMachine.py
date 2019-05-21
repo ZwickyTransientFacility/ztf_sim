@@ -19,7 +19,6 @@ class TelescopeStateMachine(Machine):
                  current_filter_id=2, filters=FILTER_IDS,
                  current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,
-                 logfile=BASE_DIR + '../sims/log_ztf_sim',
                  historical_observability_year=2015):
 
         # Define some states.
@@ -69,12 +68,8 @@ class TelescopeStateMachine(Machine):
         self.historical_observability_year = historical_observability_year
         self.observability = PTFObservabilityDB()
 
-        # logging.  wipe out existing log.
-        fh = logging.FileHandler(logfile, mode='w')
-        fh.setLevel(logging.INFO)
-        self.logger = logging.getLogger('transitions')
-        self.logger.setLevel(logging.INFO)
-        self.logger.addHandler(fh)
+        self.logger = logging.getLogger(__name__)
+        #self.logger = logging.getLogger('transitions')
 
     def current_state_dict(self):
         """Return current state parameters in a dictionary"""
