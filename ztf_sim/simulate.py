@@ -104,7 +104,7 @@ def simulate(scheduler_config_file, sim_config_file,
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             logger.info(calc_pool_stats(
-                scheduler.Q.rp.pool, intro="Nightly requests initialized"))
+                scheduler.queues['default'].rp.pool, intro="Nightly requests initialized"))
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
