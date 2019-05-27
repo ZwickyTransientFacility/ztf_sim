@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from datetime import datetime
+import logging
 import numpy as np
 import pandas as pd
 import astropy.coordinates as coord
@@ -16,6 +17,7 @@ from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
@@ -28,6 +30,8 @@ class QueueEmptyError(Exception):
 class QueueManager(object):
 
     def __init__(self, queue_name, queue_configuration, rp=None, fields=None):
+
+        self.logger = logging.getLogger(__name__)
 
         # queue name (useful in Scheduler object when swapping queues)
         self.queue_name = queue_name
@@ -182,6 +186,63 @@ class QueueManager(object):
         self.queue_night = np.floor(current_state['current_time'].mjd) 
 
 
+    def adjust_program_exposures_tonight(self, obs_log, mjd_start, mjd_stop):
+        """Use past history to adjust the number of exposures per program tonight.
+        
+        Counts exposures from the start of the month and equalizes any excess
+        over NIGHTS_TO_REDISTRIBUTE or the number of nights to the end of 
+        the month, whichever is less."""
+        
+        obs_count_by_program = obs_log.count_equivalent_obs_by_program(
+                mjd_range = [mjd_start, mjd_stop])
+        # drop engineering/commissioning
+        obs_count_by_program = obs_count_by_program[
+                obs_count_by_program['program_id'] != 0]
+        obs_count_by_program.set_index('program_id', inplace=True)
+
+        total_obs = np.sum(obs_count_by_program['n_obs'])
+
+        # infer the program fractions from the subprograms
+        target_program_fractions = defaultdict(int)
+        for op in self.observing_programs:
+            target_program_fractions[op.program_id] = \
+                    op.program_observing_time_fraction
+
+        target_program_fractions = pd.Series(target_program_fractions) 
+        target_program_fractions.index.name = 'program_id'
+        target_program_fractions.name = 'target_fraction'
+
+        target_program_nobs = target_program_fractions * total_obs
+        target_program_nobs.name = 'target_program_nobs'
+
+        # note that this gives 0 in case of no observations, as desired
+        # have to do the subtraction backwords because of Series/DataFrame 
+        # API nonsense
+        delta_program_nobs = \
+                -1*obs_count_by_program.subtract(target_program_nobs,
+                    axis=0)
+
+        NIGHTS_TO_REDISTRIBUTE = 5
+        time = Time(mjd_stop,format='mjd')
+        dtnow = time.to_datetime()
+        next_month_start_mjd = Time(datetime(dtnow.year,dtnow.month+1,1),
+                scale='utc').mjd
+        nights_left_this_month = np.round(next_month_start_mjd - time.mjd)
+
+        if nights_left_this_month > NIGHTS_TO_REDISTRIBUTE:
+            divisor = NIGHTS_TO_REDISTRIBUTE
+        else:
+            divisor = nights_left_this_month
+
+        delta_program_nobs /= divisor
+
+        delta_program_nobs = np.round(delta_program_nobs).astype(int)
+
+        return delta_program_nobs
+        
+
+
+
     def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
         """Use count of past observations and expected observing time fractions
         to determine number of allowed requests tonight."""
@@ -196,28 +257,48 @@ class QueueManager(object):
         month_start_mjd = Time(datetime(dtnow.year,dtnow.month,1),
                 scale='utc').mjd
         
-        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
-                mjd_range = [month_start_mjd, time.mjd])
-        total_obs = np.sum(list(obs_count_by_subprogram.values()))
-        for program in self.observing_programs:
-            # number_of_allowed_requests() accounts for variable exposure time
-            n_requests = program.number_of_allowed_requests(time, 
-                    exclude_blocks = exclude_blocks)
-            delta = np.round(
-                (obs_count_by_subprogram[(program.program_id, 
-                    program.subprogram_name)] -
-                 program.program_observing_time_fraction * total_obs)
-                 * program.subprogram_fraction)
+        delta_program_exposures_tonight = self.adjust_program_exposures_tonight(
+            obs_log, month_start_mjd, time.mjd)
+        
+        self.logger.info(f'Change in allowed exposures: {delta_program_exposures_tonight}')
 
-            # how quickly do we want to take to reach equalization?
-            CATCHUP_FACTOR = 0.40
-            n_requests -= np.round(delta * CATCHUP_FACTOR).astype(np.int)
-            self.requests_allowed[(program.program_id, 
-                program.subprogram_name)] = n_requests
+        dark_time = approx_hours_of_darkness(time)
+        # if we know some time tonight will be used up by timed queues, remove
+        # it
+        if len(exclude_blocks):
+            dark_time -= len(exclude_blocks) * TIME_BLOCK_SIZE
+        
+        # calculate subprogram fractions excluding list queues and TOOs
+        scheduled_subprogram_sum = defaultdict(float)
+        for op in self.observing_programs:
+            if len(op.field_ids) > 0:
+                scheduled_subprogram_sum[op.program_id] += \
+                        op.subprogram_fraction
+
+        for op in self.observing_programs:
+
+            program_time_tonight = (
+                dark_time * op.program_observing_time_fraction +  
+                delta_program_exposures_tonight.loc[
+                    op.program_id,'n_obs'] * 
+                    (EXPOSURE_TIME+READOUT_TIME))
+            subprogram_time_tonight = (
+                program_time_tonight * op.subprogram_fraction / 
+                scheduled_subprogram_sum[op.program_id])
+
+            # number_of_allowed_requests() accounts for variable exposure time
+            n_requests = (subprogram_time_tonight.to(u.min) / 
+                    op.time_per_exposure().to(u.min)).value[0]
+            n_requests = np.round(n_requests).astype(np.int)
+
+            self.requests_allowed[(op.program_id, 
+                op.subprogram_name)] = n_requests
 
         for key, n_requests in self.requests_allowed.items():
             if n_requests < 0:
                 self.requests_allowed[key] = 0
+
+        self.logger.info(self.requests_allowed)
 
     def next_obs(self, current_state, obs_log):
         """Given current state, return the parameters for the next request"""
@@ -503,9 +584,15 @@ class GurobiQueueManager(QueueManager):
         self.block_slot_metric = self._slot_metric(self.block_lim_mags)
 
         # count the number of observations requested by filter
+        df['n_reqs_tot'] = 0
         for fid in FILTER_IDS:
             df['n_reqs_{}'.format(fid)] = \
                 df.filter_ids.apply(lambda x: np.sum([xi == fid for xi in x]))
+            df['n_reqs_tot'] += df['n_reqs_{}'.format(fid)] 
+
+        tot_avail_requests_bysubprogram = \
+                df.groupby(['program_id','subprogram_name'])['n_reqs_tot'].agg(np.sum)
+        self.logger.info(f"Total available requests: {tot_avail_requests_bysubprogram}")
 
         # prepare the data for input to gurobi
         #import shelve
@@ -554,8 +641,12 @@ class GurobiQueueManager(QueueManager):
         total_metric_value = np.sum(dft['scheduled']*dft['metric'])
         avg_metric_value = total_metric_value / n_requests_scheduled
 
-        print(f'{n_requests_scheduled} requests scheduled')
-        print(f'{total_metric_value:.2f} total metric value; ' 
+        nscheduled_requests_bysubprogram = \
+                dft.loc[dft['scheduled'],['program_id','subprogram_name']].groupby(['program_id','subprogram_name']).agg(len)
+        self.logger.info(f"Scheduled requests: {nscheduled_requests_bysubprogram}")
+
+        self.logger.info(f'{n_requests_scheduled} requests scheduled')
+        self.logger.info(f'{total_metric_value:.2f} total metric value; ' 
                f'{avg_metric_value:.2f} average per request')
 
         dft.to_csv('gurobi_solution.csv')
@@ -842,7 +933,7 @@ class GreedyQueueManager(QueueManager):
 
         self.requests_in_window = np.sum(cadence_cuts) > 0
         if ~self.requests_in_window:
-            print(calc_queue_stats(df, current_state,
+            self.logging.warning(calc_queue_stats(df, current_state,
                 intro="No fields with observable cadence windows.  Queue in progress:"))
             raise QueueEmptyError("No fields with observable cadence windows")
         # also make a copy because otherwise it retains knowledge of

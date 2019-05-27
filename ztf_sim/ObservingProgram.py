@@ -173,12 +173,15 @@ class ObservingProgram(object):
 
         return request_set
 
+    def time_per_exposure(self):
+        return self.exposure_time + READOUT_TIME
+
     def number_of_allowed_requests(self, time, exclude_blocks = []):
         """ Count the (maximal) number of requests allowed for this program tonight."""
 
-        # "fudge factor" to provide ~15% extra requests for all programs
+        # "fudge factor" to provide ~10% extra requests for all programs
         # to minimize QueueEmptyErrors...
-        FUDGE_FACTOR = 1.25
+        FUDGE_FACTOR = 1.1
 
         dark_time = approx_hours_of_darkness(time)
         

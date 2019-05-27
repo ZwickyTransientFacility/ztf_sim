@@ -2,6 +2,7 @@
 
 import os.path
 import configparser
+import logging
 import numpy as np
 import astropy.coordinates as coord
 from astropy.time import Time
@@ -18,6 +19,11 @@ from .utils import block_index
 # check aggressively for setting with copy
 import pandas as pd
 pd.options.mode.chained_assignment = 'raise'  # default='warn'
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+logging.getLogger("transitions").setLevel(logging.WARNING)
+logging.getLogger("gurobipy").setLevel(logging.WARNING)
 
 def simulate(scheduler_config_file, sim_config_file,
         scheduler_config_path = BASE_DIR + '../../ztf_survey_configuration/',
@@ -69,8 +75,13 @@ def simulate(scheduler_config_file, sim_config_file,
 
     tel = TelescopeStateMachine(
         current_time=survey_start_time,
-        historical_observability_year=weather_year,
-        logfile=os.path.join(output_path,f'{run_name}_log.txt'))
+        historical_observability_year=weather_year)
+
+    # logging.  wipe out existing log.
+    logfile=os.path.join(output_path,f'{run_name}_log.txt')
+    fh = logging.FileHandler(logfile, mode='w')
+    fh.setLevel(logging.INFO)
+    logger.addHandler(fh)
 
     # initialize to a low value so we start by assigning nightly requests
     current_night_mjd = 0
@@ -86,13 +97,14 @@ def simulate(scheduler_config_file, sim_config_file,
             exclude_blocks = scheduler.find_excluded_blocks_tonight(
                               tel.current_time)
 
-            scheduler.Q.assign_nightly_requests(tel.current_state_dict(),
+            scheduler.queues['default'].assign_nightly_requests(
+                    tel.current_state_dict(),
                     scheduler.obs_log, exclude_blocks = exclude_blocks,
                     time_limit = time_limit)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
-            tel.logger.info(calc_pool_stats(
-                scheduler.Q.rp.pool, intro="Nightly requests initialized"))
+            logger.info(calc_pool_stats(
+                scheduler.queues['default'].rp.pool, intro="Nightly requests initialized"))
 
         if tel.check_if_ready():
             current_state = tel.current_state_dict()
@@ -107,37 +119,36 @@ def simulate(scheduler_config_file, sim_config_file,
                 assert(next_obs['request_id'] in scheduler.Q.queue.index)
             except QueueEmptyError:
                 if scheduler.Q.queue_name != 'default':
-                    tel.logger.info(f"Queue {scheduler.Q.queue_name} empty! Switching to default queue.") 
+                    logger.info(f"Queue {scheduler.Q.queue_name} empty! Switching to default queue.") 
                     scheduler.set_queue('default')
-                    continue
-#                    try:
-#                        next_obs = scheduler.Q.next_obs(current_state, 
-#                                scheduler.obs_log)
-#                        assert(next_obs['request_id'] in scheduler.Q.queue.index)
-#                    except QueueEmptyError:
-#                        tel.logger.info("Default queue empty!  Trying fallback queue...")
-#                        if fallback and 'fallback' in scheduler.queues:
-#                            next_obs = scheduler.queues['fallback'].next_obs(
-#                                    current_state, scheduler.obs_log)
-#                        else:
-#                            tel.logger.info("No fallback queue defined!")
-#                            raise QueueEmptyError
+                    try:
+                        next_obs = scheduler.Q.next_obs(current_state, 
+                                scheduler.obs_log)
+                        assert(next_obs['request_id'] in scheduler.Q.queue.index)
+                    except QueueEmptyError:
+                        logger.info("Default queue empty!  Trying fallback queue...")
+                        if fallback and 'fallback' in scheduler.queues:
+                            next_obs = scheduler.queues['fallback'].next_obs(
+                                    current_state, scheduler.obs_log)
+                        else:
+                            logger.info("No fallback queue defined!")
+                            raise QueueEmptyError
 
                 else:
                     if fallback and 'fallback' in scheduler.queues:
-                        tel.logger.info("Default queue empty!  Trying fallback queue...")
+                        logger.info("Default queue empty!  Trying fallback queue...")
                         next_obs = scheduler.queues['fallback'].next_obs(
                                     current_state, scheduler.obs_log)
                     elif not raise_queue_empty:
-                            tel.logger.info("Queue empty!  Waiting...")
+                            logger.info("Queue empty!  Waiting...")
                             scheduler.obs_log.prev_obs = None
                             tel.wait()
                             continue
                     else:
-                        tel.logger.info(calc_queue_stats(
+                        logger.info(calc_queue_stats(
                             scheduler.Q.queue, current_state,
                             intro="Queue returned no next_obs. Current queue status:"))
-                        tel.logger.info(calc_pool_stats(
+                        logger.info(calc_pool_stats(
                             scheduler.Q.rp.pool, intro="Current pool status:"))
 
                         raise QueueEmptyError
@@ -145,7 +156,7 @@ def simulate(scheduler_config_file, sim_config_file,
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:
                 if not tel.start_filter_change(next_obs['target_filter_id']):
-                    tel.logger.info("Filter change failure!  Waiting...")
+                    logger.info("Filter change failure!  Waiting...")
                     scheduler.obs_log.prev_obs = None
                     tel.wait()
                     continue
@@ -155,7 +166,7 @@ def simulate(scheduler_config_file, sim_config_file,
                                                  next_obs['target_dec'] * u.deg)):
                 tel.set_cant_observe()
                 # "missed history": http://ops2.lsst.org/docs/current/architecture.html#output-tables
-                tel.logger.info("Failure slewing to {}, {}!  Waiting...".format
+                logger.info("Failure slewing to {}, {}!  Waiting...".format
                                 (next_obs['target_ra'] * u.deg, next_obs['target_dec'] * u.deg))
                 scheduler.obs_log.prev_obs = None
                 tel.wait()
@@ -164,7 +175,7 @@ def simulate(scheduler_config_file, sim_config_file,
             # try to expose
             if not tel.start_exposing():
                 tel.set_cant_observe()
-                tel.logger.info("Exposure failure!  Waiting...")
+                logger.info("Exposure failure!  Waiting...")
                 scheduler.obs_log.prev_obs = None
                 tel.wait()
                 continue
@@ -174,7 +185,7 @@ def simulate(scheduler_config_file, sim_config_file,
                 current_state = tel.current_state_dict()
                 scheduler.obs_log.log_pointing(current_state, next_obs)
                 # b) remove completed request_id from the pool and the queue
-                tel.logger.info(next_obs)
+                logger.info(next_obs)
                 assert(next_obs['request_id'] in scheduler.queues[next_obs['queue_name']].queue.index)
                 scheduler.queues[next_obs['queue_name']].remove_requests(next_obs['request_id']) 
         else:
