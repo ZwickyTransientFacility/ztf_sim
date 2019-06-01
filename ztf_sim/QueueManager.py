@@ -200,6 +200,12 @@ class QueueManager(object):
                 obs_count_by_program['program_id'] != 0]
         obs_count_by_program.set_index('program_id', inplace=True)
 
+        # if there are no observations, add zeros
+        for program_id in PROGRAM_IDS:
+            if program_id != 0:
+                if program_id not in obs_count_by_program.index:
+                    obs_count_by_program.loc[program_id] = 0
+
         total_obs = np.sum(obs_count_by_program['n_obs'])
 
         # infer the program fractions from the subprograms
