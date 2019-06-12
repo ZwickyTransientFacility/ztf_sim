@@ -156,12 +156,13 @@ class QueueManager(object):
         self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state, obs_log, 
-            time_limit = 30 * u.second, exclude_blocks = []):
+            time_limit = 30 * u.second, exclude_blocks = [], 
+            timed_obs_count = defaultdict(int)):
         # clear previous request pool
         self.rp.clear_all_request_sets()
         # set number of allowed requests by program.
         self.determine_allowed_requests(current_state['current_time'],
-                obs_log, exclude_blocks = exclude_blocks)
+                obs_log, timed_obs_count = timed_obs_count)
 
         for program in self.observing_programs:
 
@@ -180,7 +181,7 @@ class QueueManager(object):
 
         # any specific tasks needed)
         self._assign_nightly_requests(current_state, 
-                time_limit = time_limit, exclude_blocks = exclude_blocks)
+                time_limit = time_limit, exclude_blocks = exclude_blocks) 
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
@@ -249,9 +250,12 @@ class QueueManager(object):
 
 
 
-    def determine_allowed_requests(self, time, obs_log, exclude_blocks = []):
+    def determine_allowed_requests(self, time, obs_log, 
+            timed_obs_count = defaultdict(int)):
         """Use count of past observations and expected observing time fractions
-        to determine number of allowed requests tonight."""
+        to determine number of allowed requests tonight.
+        
+        Exclude observations already planned in timed queues."""
 
         self.requests_allowed = {}
 
@@ -267,12 +271,9 @@ class QueueManager(object):
             obs_log, month_start_mjd, time.mjd)
         
         self.logger.info(f'Change in allowed exposures: {delta_program_exposures_tonight}')
+        self.logger.info(f'Number of timed observations: {timed_obs_count}')
 
         dark_time = approx_hours_of_darkness(time)
-        # if we know some time tonight will be used up by timed queues, remove
-        # it
-        if len(exclude_blocks):
-            dark_time -= len(exclude_blocks) * TIME_BLOCK_SIZE
         
         # calculate subprogram fractions excluding list queues and TOOs
         scheduled_subprogram_sum = defaultdict(float)
@@ -283,11 +284,11 @@ class QueueManager(object):
 
         for op in self.observing_programs:
 
+            
             program_time_tonight = (
                 dark_time * op.program_observing_time_fraction +  
-                delta_program_exposures_tonight.loc[
-                    op.program_id,'n_obs'] * 
-                    (EXPOSURE_TIME+READOUT_TIME))
+                (delta_program_exposures_tonight.loc[op.program_id,'n_obs'] 
+                - timed_obs_count[op.program_id]) * (EXPOSURE_TIME+READOUT_TIME))
             subprogram_time_tonight = (
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
@@ -480,9 +481,9 @@ class GurobiQueueManager(QueueManager):
         self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state, 
-            time_limit = 30.*u.second, exclude_blocks = []):
+            time_limit = 30.*u.second, exclude_blocks = []): 
         self._assign_slots(current_state, time_limit = time_limit, 
-                exclude_blocks = exclude_blocks)
+                exclude_blocks = exclude_blocks) 
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -789,7 +790,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second, exclude_blocks = []):
+            time_limit = 30.*u.second, exclude_blocks = []): 
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']

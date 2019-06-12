@@ -3,10 +3,11 @@
 import configparser
 import numpy as np
 from astropy.time import Time
+import astropy.units as u
 from .QueueManager import ListQueueManager, GreedyQueueManager, GurobiQueueManager
 from .ObsLogger import ObsLogger
 from .configuration import SchedulerConfiguration
-from .constants import BASE_DIR
+from .constants import BASE_DIR, PROGRAM_IDS, EXPOSURE_TIME, READOUT_TIME
 from .utils import block_index
 
 
@@ -92,6 +93,26 @@ class Scheduler(object):
                     self.timed_queues_tonight.append(qq_name)
                 exclude_blocks.extend(valid_blocks_tonight)
         return exclude_blocks
+
+    def count_timed_observations_tonight(self):
+        # determine how many equivalent obs are in timed queues
+        
+        timed_obs = {prog:0 for prog in PROGRAM_IDS} 
+        if len(self.timed_queues_tonight) == 0:
+            return timed_obs
+
+        for qq in self.timed_queues_tonight:
+            queue = self.queues[qq].queue.copy()
+            if 'n_repeats' not in queue.columns:
+                queue['n_repeats'] = 1.
+            queue['total_time'] = (queue['exposure_time'] + 
+                READOUT_TIME.to(u.second).value)*queue['n_repeats']
+            net = queue[['program_id','total_time']].groupby('program_id').agg(np.sum)
+            count_equivalent = np.round(net['total_time']/(EXPOSURE_TIME + READOUT_TIME).to(u.second).value).astype(int).to_dict()
+            for k, v in count_equivalent.items():
+                timed_obs[k] += v
+
+        return timed_obs
 
     def check_for_TOO_queue_and_switch(self, time_now):
         # check if a TOO queue is now valid
