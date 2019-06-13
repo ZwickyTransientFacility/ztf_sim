@@ -210,7 +210,8 @@ class QueueManager(object):
         total_obs = np.sum(obs_count_by_program['n_obs'])
 
         # infer the program fractions from the subprograms
-        target_program_fractions = defaultdict(int)
+        target_program_fractions = {propid:0 for propid in PROGRAM_IDS 
+                if propid != 0}
         for op in self.observing_programs:
             target_program_fractions[op.program_id] = \
                     op.program_observing_time_fraction
@@ -240,6 +241,8 @@ class QueueManager(object):
             divisor = NIGHTS_TO_REDISTRIBUTE
         else:
             divisor = nights_left_this_month
+            if divisor == 0:
+                divisor = 1
 
         delta_program_nobs /= divisor
 
