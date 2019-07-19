@@ -183,8 +183,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
             READOUT_TIME) * 2.5).value
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
-                dft['Yrtf'] * 
-                ((dft['program_id'] == p[0]) & (dft['subprogram_name'] == p[1]))
+                dft.loc[(dft['program_id'] == p[0]) &
+                (dft['subprogram_name'] == p[1]), 'Yrtf'].values
+#                dft['Yrtf'] * 
+#                ((dft['program_id'] == p[0]) & (dft['subprogram_name'] == p[1]))
                 )))*2.5 
                 for p in requests_needed]),
         GRB.MAXIMIZE)
