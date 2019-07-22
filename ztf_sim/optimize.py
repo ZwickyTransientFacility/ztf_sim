@@ -160,14 +160,37 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
         "constr_balance")
 
 
+    m.update()
+
+    # np.heaviside returns a TypeError so make our own
+    def heaviside(x, x0=0):
+        # scalars only
+        # < and > are not implimented for Gurobi Linexps, so have to do 
+        # some unusual control flow here with ==, <=, >=
+        if x == 0:
+            return x0
+        elif x <= 0:
+            return 0
+        else:
+            return 1
+
     # scale by number of standard exposures so long exposures aren't
     # penalized
     m.setObjective(
         np.sum(dft['Yrtf'] * dft['metric'] * 
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
-            READOUT_TIME) * 2.5).value,
+            READOUT_TIME) * 2.5).value
+        - np.sum(
+            [heaviside((requests_allowed[p] - np.sum(
+                dft.loc[(dft['program_id'] == p[0]) &
+                (dft['subprogram_name'] == p[1]), 'Yrtf'].values
+#                dft['Yrtf'] * 
+#                ((dft['program_id'] == p[0]) & (dft['subprogram_name'] == p[1]))
+                )))*2.5 
+                for p in requests_needed]),
         GRB.MAXIMIZE)
+
 
 
     # set a minimum metric value we'll allow, so that flagged limiting mags
