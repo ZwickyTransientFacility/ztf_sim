@@ -1,0 +1,9 @@
+{
+	"run_name": "example_ztf_schedule",
+	"queues": [
+		{"config_file": "survey_180501.json",
+			"queue_name": "default"},
+		{"config_file": "reference_building.json",
+			"queue_name": "fallback"}
+	]
+}	
