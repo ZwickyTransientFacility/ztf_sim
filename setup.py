@@ -87,6 +87,7 @@ if __name__ == "__main__":
         download_url=DOWNLOAD_URL,
         install_requires=install_requires,
         include_package_data=True,
+        zip_safe=False,
         packages=['ztf_sim'],
         scripts=['bin/run_ztf_sim', 'bin/analyze_ztf_sim', 'bin/load_ztf_sim'],
         classifiers=[
