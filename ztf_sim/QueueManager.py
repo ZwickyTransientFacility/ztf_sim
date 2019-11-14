@@ -121,8 +121,8 @@ class QueueManager(object):
         if window_stop >= Time('2030-01-01').mjd:
             raise ValueError(f"MJD likely out of range: {window_stop}")
 
-        self.validity_window = [Time(window[0],format='mjd'),
-            Time(window[1],format='mjd')]
+        self.validity_window = [Time(window_start,format='mjd'),
+            Time(window_stop,format='mjd')]
 
     def valid_blocks(self, complete_only = True):
         if self.validity_window is None:
