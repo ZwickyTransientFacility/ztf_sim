@@ -102,7 +102,17 @@ class QueueManager(object):
 
         return [self.validity_window[0].mjd, self.validity_window[1].mjd]
 
-    def set_validity_window_mjd(self,window_start_mjd, window_stop_mjd):
+    def set_validity_window_mjd(self, window_start, window_stop):
+        """Set the time at which this queue can run.
+
+        Parameters
+        ----------
+        window_start : `float` 
+            Modified Julian Date start time
+        window_stop : `float` 
+            Modified Julian Date end time
+        """
+
         if window_start >= window_stop:
             raise ValueError("validity window start time must be less than end time")
         # rough sanity checks
