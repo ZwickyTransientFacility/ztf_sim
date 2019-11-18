@@ -50,9 +50,7 @@ class QueueManager(object):
             window = queue_configuration.config['validity_window_mjd']
             if window is not None:
                 assert(len(window) == 2)
-                assert(window[1] > window[0])
-                self.validity_window = [Time(window[0],format='mjd'),
-                    Time(window[1],format='mjd')]
+                self.set_validity_window_mjd(window[0], window[1])
             else:
                 self.validity_window = None
         else:
@@ -104,6 +102,27 @@ class QueueManager(object):
 
         return [self.validity_window[0].mjd, self.validity_window[1].mjd]
 
+    def set_validity_window_mjd(self, window_start, window_stop):
+        """Set the time at which this queue can run.
+
+        Parameters
+        ----------
+        window_start : `float` 
+            Modified Julian Date start time
+        window_stop : `float` 
+            Modified Julian Date end time
+        """
+
+        if window_start >= window_stop:
+            raise ValueError("validity window start time must be less than end time")
+        # rough sanity checks
+        if window_start <= Time('2017-01-01').mjd:
+            raise ValueError(f"MJD likely out of range: {window_start}")
+        if window_stop >= Time('2030-01-01').mjd:
+            raise ValueError(f"MJD likely out of range: {window_stop}")
+
+        self.validity_window = [Time(window_start,format='mjd'),
+            Time(window_stop,format='mjd')]
 
     def valid_blocks(self, complete_only = True):
         if self.validity_window is None:
