@@ -252,8 +252,12 @@ class QueueManager(object):
         NIGHTS_TO_REDISTRIBUTE = 5
         time = Time(mjd_stop,format='mjd')
         dtnow = time.to_datetime()
-        next_month_start_mjd = Time(datetime(dtnow.year,dtnow.month+1,1),
-                scale='utc').mjd
+        if dtnow.month != 12:
+            next_month_start_mjd = Time(datetime(dtnow.year,dtnow.month+1,1),
+                    scale='utc').mjd
+        else:
+            next_month_start_mjd = Time(datetime(dtnow.year+1,1,1),
+                    scale='utc').mjd
         nights_left_this_month = np.round(next_month_start_mjd - time.mjd)
 
         if nights_left_this_month > NIGHTS_TO_REDISTRIBUTE:
