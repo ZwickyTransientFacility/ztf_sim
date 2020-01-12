@@ -174,6 +174,10 @@ class ObservingProgram(object):
         return request_set
 
     def time_per_exposure(self):
+        # TEMPORARY fudge for ZUDS
+        if self.subprogram_name == 'ZUDS':
+            # average 4 x 30 and 2 x 90 s
+            return (50 * u.second) + READOUT_TIME
         return self.exposure_time + READOUT_TIME
 
     def number_of_allowed_requests(self, time, exclude_blocks = []):
