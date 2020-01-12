@@ -553,6 +553,11 @@ class GurobiQueueManager(QueueManager):
 #            'target_metric_value':  self.queue.ix[idx].value,
 #            'target_request_number_tonight':
 
+        # TEMPORARY workaround to enable multiple observing times in one
+        # subprogram
+        if (row['subprogram_name'] == 'ZUDS') and (filter_id == 3):
+            next_obs['target_exposure_time'] = 90 * u.second
+
         return next_obs
 
     def _slot_metric(self, limiting_mag):
