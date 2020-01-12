@@ -48,7 +48,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
 
     # TEMPORARY: force ZUDS to use 90s i-band exposures
     wZUDSi = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 3)
-    dft.loc[wZUDSi,'exposure_time'] == 90.
+    dft.loc[wZUDSi,'exposure_time'] = 90.
 
     # calculate number of slots required per request set
     
@@ -518,7 +518,6 @@ def slot_optimize(df_metric, df, requests_allowed, time_limit=30*u.second):
         # now get the decision variables
         dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1)
         df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
-
 
 
     # this doesn't work in the objective function but is a useful check
