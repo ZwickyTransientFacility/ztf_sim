@@ -1,5 +1,6 @@
 """Queue classes."""
 
+import os
 from collections import defaultdict
 from datetime import datetime
 import logging
@@ -17,6 +18,7 @@ from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+from .constants import BASE_DIR
 from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
@@ -687,7 +689,17 @@ class GurobiQueueManager(QueueManager):
         self.logger.info(f'{total_metric_value:.2f} total metric value; ' 
                f'{avg_metric_value:.2f} average per request')
 
-        dft.to_csv('gurobi_solution.csv')
+        # this is not ideal for 
+        tnow = current_state['current_time']
+        yymmdd = tnow.iso.split()[0][2:].replace('-','')
+        solution_outfile = f'{BASE_DIR}/../sims/gurobi_solution_{yymmdd}.csv'
+
+        before_noon_utc = (tnow.mjd - np.floor(tnow.mjd)) < 0.5
+        
+        # avoid clobbering the solution file with restarts after observing has
+        # completed
+        if before_noon_utc or (not os.path.exists(solution_outfile)):
+            dft.drop(columns=['Yrtf']).to_csv(solution_outfile)
 
 
     def _sequence_requests_in_block(self, current_state):
