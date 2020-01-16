@@ -245,6 +245,42 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
 
     return blocks, times
 
+def block_use_fraction(block_index, obs_start_time, obs_end_time):
+    """Given a block index and Times specifying the start and end of an observation window, return the fraction of the block covered by the window.
+    
+    Scalars only for now"""
+
+    # obs_start_time is just providing the year here
+    block_tstart = block_index_to_time(block_index, obs_start_time,
+            where='start')[0]
+    block_tend = block_index_to_time(block_index, obs_end_time,
+            where='end')[0]
+
+    # block completely filled
+    if (obs_start_time <= block_tstart) and (obs_end_time >= block_tend):
+        return 1.0
+
+    # window completely within the block
+    if (obs_start_time >= block_tstart) and (obs_end_time <= block_tend):
+        return ((obs_end_time - obs_start_time) /
+                TIME_BLOCK_SIZE).to(u.dimensionless_unscaled).value
+
+    # window starts within the block and finishes in a later block
+    if (obs_start_time > block_tstart) and (obs_end_time > block_tend):
+        return ((block_tend - obs_start_time) /
+                TIME_BLOCK_SIZE).to(u.dimensionless_unscaled).value
+
+    # window starts in an earlier block and finishes in this block
+    if (obs_start_time < block_tstart) and (obs_end_time < block_tend):
+        return ((obs_end_time - block_tstart) /
+                TIME_BLOCK_SIZE).to(u.dimensionless_unscaled).value
+
+    # this should never be reached
+    raise AssertionError('Block use calculation is inconsistent')
+
+
+
+
 
 def scalar_len(x):
     """Convenience function to sanitize potential scalars or arrays

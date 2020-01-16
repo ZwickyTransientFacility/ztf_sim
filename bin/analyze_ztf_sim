@@ -82,6 +82,7 @@ def calc_stats(sim_path):
     stats['Program Fraction'] = (pgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
 
     spgrp = df.groupby('subprogram')
+    stats['Subprogram Total Obs'] = (spgrp['visitExpTime'].agg(len)).to_dict()
     stats['Subprogram Fraction'] = (spgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
 
     # filter breakdown

@@ -1,6 +1,8 @@
 """Core scheduler classes."""
 
 import configparser
+from collections import defaultdict
+import logging
 import numpy as np
 from astropy.time import Time
 import astropy.units as u
@@ -8,7 +10,8 @@ from .QueueManager import ListQueueManager, GreedyQueueManager, GurobiQueueManag
 from .ObsLogger import ObsLogger
 from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR, PROGRAM_IDS, EXPOSURE_TIME, READOUT_TIME
-from .utils import block_index
+from .utils import block_index, block_use_fraction
+from .utils import next_12deg_evening_twilight, next_12deg_morning_twilight
 
 
 
@@ -19,6 +22,8 @@ class Scheduler(object):
     def __init__(self, scheduler_config_file_fullpath, 
             run_config_file_fullpath, other_queue_configs = None,
             output_path = BASE_DIR+'../sims/'):
+
+        self.logger = logging.getLogger(__name__)
 
         self.scheduler_config = SchedulerConfiguration(
             scheduler_config_file_fullpath)
@@ -67,7 +72,7 @@ class Scheduler(object):
         else:
             raise ValueError(f"Queue {queue_name} does not exist!")
 
-    def find_excluded_blocks_tonight(self, time_now):
+    def find_block_use_tonight(self, time_now):
         # also sets up timed_queues_tonight
 
         # start of the night
@@ -76,23 +81,52 @@ class Scheduler(object):
         # Look for timed queues that will be valid tonight,
         # to exclude from the nightly solution
         self.timed_queues_tonight = []
-        block_start = block_index(Time(mjd_today, format='mjd'))
-        block_stop = block_index(Time(mjd_today + 1, format='mjd'))
-        exclude_blocks = []
+        today = Time(mjd_today, format='mjd')
+        tomorrow = Time(mjd_today + 1, format='mjd')
+        block_start = block_index(today)[0]
+        block_stop = block_index(tomorrow)[0]
+
+        block_use = defaultdict(float)
+
+        # compute fraction of twilight blocks not available
+        evening_twilight = next_12deg_evening_twilight(today)
+        morning_twilight = next_12deg_morning_twilight(today)
+
+        evening_twilight_block = block_index(evening_twilight)[0]
+        frac_evening_twilight = block_use_fraction(
+                evening_twilight_block, today, evening_twilight)
+        block_use[evening_twilight_block] = frac_evening_twilight
+        self.logger.debug(f'{frac_evening_twilight} of block {evening_twilight_block} is before 12 degree twilight')
+
+        morning_twilight_block = block_index(morning_twilight)[0]
+        frac_morning_twilight = block_use_fraction(
+                morning_twilight_block, morning_twilight, tomorrow)
+        block_use[morning_twilight_block] = frac_morning_twilight
+        self.logger.debug(f'{frac_morning_twilight} of block {morning_twilight_block} is before 12 degree twilight')
+
         for qq_name, qq in self.queues.items():
             if qq.queue_name in ['default', 'fallback']:
                 continue
             if qq.validity_window is not None:
-                valid_blocks = qq.valid_blocks(complete_only=True)
-                all_valid_blocks = qq.valid_blocks(complete_only=False)
-                valid_blocks_tonight = [b for b in valid_blocks if
-                        (block_start <= b <= block_stop)]
-                all_valid_blocks_tonight = [b for b in all_valid_blocks if
-                        (block_start <= b <= block_stop)]
-                if len(all_valid_blocks_tonight):
+                qq_block_use = qq.compute_block_use()
+
+                is_tonight = False
+
+                # sum block use
+                for block, frac in qq_block_use.items():
+                    if (block_start <= block <= block_stop):
+                        if frac > 0:
+                            is_tonight = True
+                        self.logger.debug(f'{frac} of block {block} used by queue {qq.queue_name}')
+                        block_use[block] += frac
+                        if block_use[block] > 1:
+                            self.logger.warn(f'Too many observations for block {block}: {block_use[block]}')
+                            block_use[block] = 1.
+
+                if is_tonight:    
                     self.timed_queues_tonight.append(qq_name)
-                exclude_blocks.extend(valid_blocks_tonight)
-        return exclude_blocks
+
+        return block_use
 
     def count_timed_observations_tonight(self):
         # determine how many equivalent obs are in timed queues
@@ -151,9 +185,11 @@ class Scheduler(object):
                 continue
             if qq.validity_window is not None:
                 if qq.validity_window[1] < time_now:
+                    self.logger.info(f'Deleting expired queue {qq_name}')
                     queues_for_deletion.append(qq_name)
                     continue
             if (qq.queue_type == 'list') and (len(qq.queue) == 0):
+                    self.logger.info(f'Deleting empty queue {qq_name}')
                     queues_for_deletion.append(qq_name)
 
         # ensure we don't have duplicate values

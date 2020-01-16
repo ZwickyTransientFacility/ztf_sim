@@ -1,5 +1,6 @@
 """Queue classes."""
 
+import os
 from collections import defaultdict
 from datetime import datetime
 import logging
@@ -17,10 +18,12 @@ from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
 from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+from .constants import BASE_DIR
 from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
+from .utils import block_use_fraction
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -124,11 +127,16 @@ class QueueManager(object):
         self.validity_window = [Time(window_start,format='mjd'),
             Time(window_stop,format='mjd')]
 
-    def valid_blocks(self, complete_only = True):
+    def compute_block_use(self):
+        """Returns a dictionary with the fraction of blocks used by the queue,
+        assuming observing starts at the beginning of the validity window"""
+        
+
         if self.validity_window is None:
             raise ValueError('All blocks are valid')
 
         start_block = block_index(self.validity_window[0])
+        obs_start_time = Time(self.validity_window[0],format='mjd')
 
         # greedy queues have no len until they have assignments made, so 
         # just use the validity window
@@ -151,31 +159,23 @@ class QueueManager(object):
             # below breaks if the window is longer than the observations
             #stop_block = block_index(self.validity_window[1])
 
-        if complete_only:
-            # only give blocks that are completely used by this queue
-            # (if the validity range starts within a block we need to 
-            # have observations scheduled for it)
-            
-            dt = TimeDelta(1*u.minute)
-            
-            if (self.validity_window[0] - 
-                    block_index_to_time(start_block, self.validity_window[0], 
-                        where='start')) > dt:
-                start_block += 1
-            if (block_index_to_time(stop_block, obs_end_time, 
-                where='end') - obs_end_time) > dt:
-                stop_block -= 1
+        assert obs_end_time > obs_start_time
 
-        # np.arange returns an empty list if stop_block <= start block
-        return np.arange(start_block, stop_block+1).tolist()
-                
+        # compute fraction of the blocks used by the queue
+        block_use = defaultdict(float)
 
+        for block in np.arange(start_block, stop_block+1):
+
+            block_use[block] = block_use_fraction(block, obs_start_time,
+                                                  obs_end_time)
+
+        return block_use
 
     def add_observing_program(self, observing_program):
         self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state, obs_log, 
-            time_limit = 30 * u.second, exclude_blocks = [], 
+            time_limit = 30 * u.second, block_use = defaultdict(float),
             timed_obs_count = defaultdict(int)):
         # clear previous request pool
         self.rp.clear_all_request_sets()
@@ -200,7 +200,7 @@ class QueueManager(object):
 
         # any specific tasks needed)
         self._assign_nightly_requests(current_state, 
-                time_limit = time_limit, exclude_blocks = exclude_blocks) 
+                time_limit = time_limit, block_use = block_use)
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
@@ -319,7 +319,6 @@ class QueueManager(object):
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
 
-            # number_of_allowed_requests() accounts for variable exposure time
             n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure().to(u.min)).value[0]
             n_requests = np.round(n_requests).astype(np.int)
@@ -507,9 +506,9 @@ class GurobiQueueManager(QueueManager):
         self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state, 
-            time_limit = 30.*u.second, exclude_blocks = []): 
+            time_limit = 30.*u.second, block_use = defaultdict(float)): 
         self._assign_slots(current_state, time_limit = time_limit, 
-                exclude_blocks = exclude_blocks) 
+                block_use = block_use)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -573,7 +572,7 @@ class GurobiQueueManager(QueueManager):
         return metric.where(limiting_mag > 0, -0.99)
 
     def _assign_slots(self, current_state, time_limit = 30*u.second, 
-            exclude_blocks = []):
+            block_use = defaultdict(float)):
         """Assign requests in the Pool to slots"""
 
         # check that the pool has fields in it
@@ -588,7 +587,14 @@ class GurobiQueueManager(QueueManager):
         blocks, times = nightly_blocks(current_state['current_time'], 
             time_block_size=TIME_BLOCK_SIZE)
 
-        # remove the excluded blocks, if any
+        # remove the excluded blocks, if any.  Could do this in optimize.py
+        # but it makes the optimization problem unneccesarily bigger
+        # don't demand 100% of the block is used: tiny fractions lead to
+        # infeasible models
+        exclude_blocks = [b for (b,v) in block_use.items() if v > 0.95]
+
+        self.logger.debug(f'Excluding completely filled blocks {exclude_blocks}')
+
         if len(exclude_blocks):
             cut_blocks = np.setdiff1d(blocks, exclude_blocks)
             cut_times = block_index_to_time(cut_blocks, 
@@ -628,10 +634,6 @@ class GurobiQueueManager(QueueManager):
                 df.filter_ids.apply(lambda x: np.sum([xi == fid for xi in x]))
             df['n_reqs_tot'] += df['n_reqs_{}'.format(fid)] 
 
-        tot_avail_requests_bysubprogram = \
-                df.groupby(['program_id','subprogram_name'])['n_reqs_tot'].agg(np.sum)
-        self.logger.info(f"Total available requests: {tot_avail_requests_bysubprogram}")
-
         # prepare the data for input to gurobi
         #import shelve
         #s = shelve.open('tmp_vars.shelf')
@@ -656,7 +658,7 @@ class GurobiQueueManager(QueueManager):
 
         self.request_sets_tonight, df_slots, dft = night_optimize(
             self.block_slot_metric, df, self.requests_allowed,
-            time_limit = time_limit)
+            time_limit = time_limit, block_use = block_use)
 
         grp = df_slots.groupby('slot')
 
@@ -679,16 +681,40 @@ class GurobiQueueManager(QueueManager):
         total_metric_value = np.sum(dft['scheduled']*dft['metric'])
         avg_metric_value = total_metric_value / n_requests_scheduled
 
+        tot_avail_requests_bysubprogram = \
+                df.groupby(['program_id','subprogram_name'])['n_reqs_tot'].agg(np.sum)
+        tot_avail_requests_bysubprogram.name = 'available'
+
+        # use self.requests_allowed and join this all up
+
         nscheduled_requests_bysubprogram = \
                 dft.loc[dft['scheduled'],['program_id','subprogram_name']].groupby(['program_id','subprogram_name']).agg(len)
-        self.logger.info(f"Scheduled requests: {nscheduled_requests_bysubprogram}")
+        nscheduled_requests_bysubprogram.name = 'scheduled'
+
+        # reformat requests_allowed for joining
+        mux = pd.MultiIndex.from_tuples(self.requests_allowed.keys(),
+                names = ['program_id','subprogram_name'])
+        df_allowed = pd.DataFrame(list(self.requests_allowed.values()),
+                index=mux,columns=['allowed'])
+
+        df_summary = df_allowed.join(tot_avail_requests_bysubprogram).join(nscheduled_requests_bysubprogram)
+        self.logger.info(df_summary)
 
         self.logger.info(f'{n_requests_scheduled} requests scheduled')
         self.logger.info(f'{total_metric_value:.2f} total metric value; ' 
                f'{avg_metric_value:.2f} average per request')
 
-        dft.to_csv('gurobi_solution.csv')
+        # this is not ideal for 
+        tnow = current_state['current_time']
+        yymmdd = tnow.iso.split()[0][2:].replace('-','')
+        solution_outfile = f'{BASE_DIR}/../sims/gurobi_solution_{yymmdd}.csv'
 
+        before_noon_utc = (tnow.mjd - np.floor(tnow.mjd)) < 0.5
+        
+        # avoid clobbering the solution file with restarts after observing has
+        # completed
+        if before_noon_utc or (not os.path.exists(solution_outfile)):
+            dft.drop(columns=['Yrtf']).to_csv(solution_outfile)
 
     def _sequence_requests_in_block(self, current_state):
         """Solve the TSP for requests in this slot"""
@@ -821,7 +847,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second, exclude_blocks = []): 
+            time_limit = 30.*u.second, block_use = defaultdict(float)):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']
@@ -1177,7 +1203,6 @@ class ListQueueManager(QueueManager):
         queue = self.queue.copy()
         queue['ordered'] = True
         return queue
-
 
 class RequestPool(object):
 
