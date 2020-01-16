@@ -21,7 +21,7 @@ max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE /
                 u.dimensionless_unscaled).value).astype(int)
 
 def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
-        blocks_used = defaultdict(float)):
+        block_use = defaultdict(float)):
     """Determine which requests to observe and in what slots.
 
     Decision variable is yes/no per request_id, slot, filter,
@@ -147,7 +147,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         ((np.sum(dft.loc[dft['slot'] == t, 'Yrtf'] * 
             (dft.loc[dft['slot'] == t, 'exposure_time'] + 
                 READOUT_TIME.to(u.second).value))
-            <= (TIME_BLOCK_SIZE.to(u.second).value * (1. - blocks_used[t]))) 
+            <= (TIME_BLOCK_SIZE.to(u.second).value * (1. - block_use[t]))) 
             for t in slots), "constr_nperslot")
 
     # program balance.  To avoid key errors, only set constraints 
