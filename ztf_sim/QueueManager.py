@@ -127,7 +127,7 @@ class QueueManager(object):
         self.validity_window = [Time(window_start,format='mjd'),
             Time(window_stop,format='mjd')]
 
-    def blocks_used(self):
+    def compute_block_use(self):
         """Returns a dictionary with the fraction of blocks used by the queue,
         assuming observing starts at the beginning of the validity window"""
         
@@ -175,7 +175,7 @@ class QueueManager(object):
         self.observing_programs.append(observing_program)
 
     def assign_nightly_requests(self, current_state, obs_log, 
-            time_limit = 30 * u.second, blocks_used = defaultdict(float),
+            time_limit = 30 * u.second, block_use = defaultdict(float),
             timed_obs_count = defaultdict(int)):
         # clear previous request pool
         self.rp.clear_all_request_sets()
@@ -200,7 +200,7 @@ class QueueManager(object):
 
         # any specific tasks needed)
         self._assign_nightly_requests(current_state, 
-                time_limit = time_limit, blocks_used = blocks_used)
+                time_limit = time_limit, block_use = block_use)
 
         # mark that we've set up the pool for tonight
         self.queue_night = np.floor(current_state['current_time'].mjd) 
@@ -506,9 +506,9 @@ class GurobiQueueManager(QueueManager):
         self.queue_type = 'gurobi'
 
     def _assign_nightly_requests(self, current_state, 
-            time_limit = 30.*u.second, blocks_used = defaultdict(float)): 
+            time_limit = 30.*u.second, block_use = defaultdict(float)): 
         self._assign_slots(current_state, time_limit = time_limit, 
-                blocks_used = blocks_used)
+                block_use = block_use)
 
     def _next_obs(self, current_state, obs_log):
         """Select the highest value request."""
@@ -572,7 +572,7 @@ class GurobiQueueManager(QueueManager):
         return metric.where(limiting_mag > 0, -0.99)
 
     def _assign_slots(self, current_state, time_limit = 30*u.second, 
-            blocks_used = defaultdict(float)):
+            block_use = defaultdict(float)):
         """Assign requests in the Pool to slots"""
 
         # check that the pool has fields in it
@@ -591,7 +591,7 @@ class GurobiQueueManager(QueueManager):
         # but it makes the optimization problem unneccesarily bigger
         # don't demand 100% of the block is used: tiny fractions lead to
         # infeasible models
-        exclude_blocks = [b for (b,v) in blocks_used.items() if v > 0.95]
+        exclude_blocks = [b for (b,v) in block_use.items() if v > 0.95]
 
         self.logger.debug(f'Excluding completely filled blocks {exclude_blocks}')
 
@@ -658,7 +658,7 @@ class GurobiQueueManager(QueueManager):
 
         self.request_sets_tonight, df_slots, dft = night_optimize(
             self.block_slot_metric, df, self.requests_allowed,
-            time_limit = time_limit, blocks_used = blocks_used)
+            time_limit = time_limit, block_use = block_use)
 
         grp = df_slots.groupby('slot')
 
@@ -847,7 +847,7 @@ class GreedyQueueManager(QueueManager):
         self.queue_type = 'greedy'
 
     def _assign_nightly_requests(self, current_state,
-            time_limit = 30.*u.second, blocks_used = defaultdict(float)):
+            time_limit = 30.*u.second, block_use = defaultdict(float)):
         # initialize the time of last filter change
         if self.time_of_last_filter_change is None:
             self.time_of_last_filter_change = current_state['current_time']

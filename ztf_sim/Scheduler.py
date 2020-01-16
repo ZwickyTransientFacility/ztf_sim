@@ -108,7 +108,7 @@ class Scheduler(object):
             if qq.queue_name in ['default', 'fallback']:
                 continue
             if qq.validity_window is not None:
-                qq_block_use = qq.blocks_used()
+                qq_block_use = qq.compute_block_use()
 
                 is_tonight = False
 
