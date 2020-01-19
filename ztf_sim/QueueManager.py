@@ -1192,10 +1192,13 @@ class ListQueueManager(QueueManager):
     def _remove_requests(self, request_id):
         """Remove a request from the queue"""
 
-        if self.queue.loc[request_id,'n_repeats'] > 1:
-            self.queue.loc[request_id,'n_repeats'] -= 1
-        else:    
-            self.queue = self.queue.drop(request_id)
+        try:
+            if self.queue.loc[request_id,'n_repeats'] > 1:
+                self.queue.loc[request_id,'n_repeats'] -= 1
+            else:    
+                self.queue = self.queue.drop(request_id)
+        except Exception:
+            self.logger.exception(f'Failure removing request {request_id}')
 
     def _return_queue(self):
 
