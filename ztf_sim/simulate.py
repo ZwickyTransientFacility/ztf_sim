@@ -174,7 +174,7 @@ def simulate(scheduler_config_file, sim_config_file,
                 continue
 
             # try to expose
-            if not tel.start_exposing():
+            if not tel.start_exposing(next_obs['target_exposure_time']):
                 tel.set_cant_observe()
                 logger.info("Exposure failure!  Waiting...")
                 scheduler.obs_log.prev_obs = None

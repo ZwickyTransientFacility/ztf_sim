@@ -172,7 +172,7 @@ class TelescopeStateMachine(Machine):
             self.current_filter_id = target_filter_id
             self.current_time += filter_change_time
 
-    def process_exposure(self, exposure_time=EXPOSURE_TIME):
+    def process_exposure(self, exposure_time):
         # annoyingly, transitions doesn't let me modify object
         # variables in the trigger functions themselves
         self.current_time += exposure_time
