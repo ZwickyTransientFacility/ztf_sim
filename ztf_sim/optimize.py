@@ -117,6 +117,32 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                         for f in filter_ids for r in request_sets), 
                         "constr_nreqs")
 
+    def range(x):
+        # TODO: see if I can avoid this inequality here, as it may be adding
+        # extra constraints?
+        if np.sum(x) >= 1: # strict inequalities not supported
+            return np.max(x) - np.min(x)
+        else:
+            return 10000
+
+    # TEST minimum slot separation per filter constraint
+    MIN_SLOT_SEPARATION = 1
+    # TODO: make this SuperCombo
+    wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
+    wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
+    ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
+    filter_ids_to_limit = [1]
+    # TODO: rework to only add constraints to relevant request sets
+    constr_slot_sep = m.addConstrs(
+        #((range(dft.loc[(dft['request_id'] == r) & 
+        #                (dft['metric_filter_id'] == f), ['slot','Yrtf']])
+        ((range((dft['slot'] * dft['Yrtf']).loc[(dft['request_id'] == r) & 
+                        (dft['metric_filter_id'] == f)])
+                        >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr'])
+                        for f in filter_ids_to_limit for r in ZUDS_request_sets), 
+                        #for f in filter_ids for r in request_sets), 
+                        "constr_slot_sep")
+
     
     # create resultant variables: Ytf = 1 if slot t has filter f used
     ytf = m.addVars(slots, filter_ids, vtype=GRB.BINARY)
@@ -260,6 +286,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         return n_changes
 
     print(f'Number of filter changes: {num_filter_changes(ytf)}')
+
+    1/0
 
     return dfr.loc[dfr['Yr_val'],'program_id'].index, df_schedule, dft
 
