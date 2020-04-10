@@ -51,6 +51,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # TEMPORARY: force ZUDS to use 90s i-band exposures
     wZUDSi = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 3)
     dft.loc[wZUDSi,'exposure_time'] = 90.
+    wZUDS2i = (dft['subprogram_name'] == 'ZUDS2') & (dft['metric_filter_id'] == 3)
+    dft.loc[wZUDS2i,'exposure_time'] = 60.
 
     # calculate number of slots required per request set
     
