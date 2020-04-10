@@ -132,17 +132,39 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
     ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
     filter_ids_to_limit = [1]
-    # TODO: rework to only add constraints to relevant request sets
-    constr_slot_sep = m.addConstrs(
-        #((range(dft.loc[(dft['request_id'] == r) & 
-        #                (dft['metric_filter_id'] == f), ['slot','Yrtf']])
-        ((range((dft['slot'] * dft['Yrtf']).loc[(dft['request_id'] == r) & 
-                        (dft['metric_filter_id'] == f)])
-                        >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr'])
-                        for f in filter_ids_to_limit for r in ZUDS_request_sets), 
-                        #for f in filter_ids for r in request_sets), 
-                        "constr_slot_sep")
+#    TODO: as written this doesn't work. 
+#    constr_slot_sep = m.addConstrs(
+#        #((range(dft.loc[(dft['request_id'] == r) & 
+#        #                (dft['metric_filter_id'] == f), ['slot','Yrtf']])
+#        ((range((dft['slot'] * dft['Yrtf']).loc[(dft['request_id'] == r) & 
+#                        (dft['metric_filter_id'] == f)])
+#                        >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr'])
+#                        for f in filter_ids_to_limit for r in ZUDS_request_sets), 
+#                        #for f in filter_ids for r in request_sets), 
+#                        "constr_slot_sep")
 
+#    trying with resultant variables
+
+    # create resultant variables: minSrf = minimum slot x Yrtf
+    #                           : maxSrf = maximum slot x Yrtf
+    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
+            vtype=GRB.SEMIINT, lb=slots[0], ub=slots[-1])
+    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
+            vtype=GRB.SEMIINT, lb=slots[0], ub=slots[-1])
+    for r in ZUDS_request_sets:
+        for f in filter_ids_to_limit:
+            wrf = (dft['request_id'] == r) & (dft['metric_filter_id'] == f)
+            m.addGenConstrMin(minSrf[r,f], 
+                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
+                GRB.INFINITY, "slotmin_{}_{}".format(r,f))
+            m.addGenConstrMax(maxSrf[r,f], 
+                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
+                0, "slotmax_{}_{}".format(r,f))
+    # now constrain each request to have the required slot separation
+    constr_slot_sep = m.addConstrs(
+        (maxSrf[r,f] - minSrf[r,f] >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr']
+            for f in filter_ids_to_limit for r in ZUDS_request_sets),
+            'constr_slot_sep')
     
     # create resultant variables: Ytf = 1 if slot t has filter f used
     ytf = m.addVars(slots, filter_ids, vtype=GRB.BINARY)
