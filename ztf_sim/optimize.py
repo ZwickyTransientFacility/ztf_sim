@@ -150,23 +150,23 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # create resultant variables: minSrf = minimum slot x Yrtf
     #                           : maxSrf = maximum slot x Yrtf
     minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
-            vtype=GRB.SEMIINT, lb=slots[0], ub=slots[-1])
+            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
     maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
-            vtype=GRB.SEMIINT, lb=slots[0], ub=slots[-1])
+            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
     for r in ZUDS_request_sets:
         for f in filter_ids_to_limit:
             wrf = (dft['request_id'] == r) & (dft['metric_filter_id'] == f)
             m.addGenConstrMin(minSrf[r,f], 
                 (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                GRB.INFINITY, "slotmin_{}_{}".format(r,f))
+                slots[-1], "slotmin_{}_{}".format(r,f))
             m.addGenConstrMax(maxSrf[r,f], 
                 (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                0, "slotmax_{}_{}".format(r,f))
+                slots[0], "slotmax_{}_{}".format(r,f))
     # now constrain each request to have the required slot separation
-    constr_slot_sep = m.addConstrs(
-        (maxSrf[r,f] - minSrf[r,f] >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr']
-            for f in filter_ids_to_limit for r in ZUDS_request_sets),
-            'constr_slot_sep')
+#    constr_slot_sep = m.addConstrs(
+#        (maxSrf[r,f] - minSrf[r,f] >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr']
+#            for f in filter_ids_to_limit for r in ZUDS_request_sets),
+#            'constr_slot_sep')
     
     # create resultant variables: Ytf = 1 if slot t has filter f used
     ytf = m.addVars(slots, filter_ids, vtype=GRB.BINARY)
@@ -236,6 +236,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
+        + np.sum( ((maxSrf[r,f] - minSrf[r,f]) 
+            for f in filter_ids_to_limit for r in ZUDS_request_sets)),
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
