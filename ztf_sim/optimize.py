@@ -172,6 +172,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     yrttf = m.addVars(ZUDS_request_sets,slots[:-1],slots[1:],
             filter_ids_to_limit, vtype=GRB.BINARY)
     # use indicator constraints to set the value
+    # TODO: this constructor is dog-slow--can it be improved?
+    # would it be faster to use dict lookups to the yrtf_dict index?
     for r in ZUDS_request_sets:
         for t in slots[:-1]:
             for t2 in slots[1:]:
@@ -189,13 +191,13 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                     assert (np.sum(wrif) == 1)
                     assert (np.sum(wrjf) == 1)
 
-                    m.addGenConstrIndicator(yrttf[r,t,t2,f], True,
+                    m.addGenConstrIndicator(yrttf[r,t,t2,f], False,
                             # need to use dft with wheres to make this work,
                             # which is probably slow
                         dft.loc[wrif,'Yrtf'].iloc[0] + dft.loc[wrjf,'Yrtf'].iloc[0],
                         #yrtf is indexed by some other value, not what we want 
                         #yrtf_dict[r,slots[i],f] + yrtf_dict[r,slots[j], f], 
-                        GRB.EQUAL, 2,
+                        GRB.LESS_EQUAL, 1,
                         "slotdiff_indicator_{}_{}_{}_{}".format(r,t,t2,f))
             
 
