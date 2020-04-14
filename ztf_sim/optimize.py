@@ -125,6 +125,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         
         w = x >= 0.5
         if np.sum(x) >= 1: # strict inequalities not supported
+            1/0
             return 100*(np.max(x[w]) - np.min(x[w]))
         else:
             return 0
