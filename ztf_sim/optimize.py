@@ -119,16 +119,18 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                         for f in filter_ids for r in request_sets), 
                         "constr_nreqs")
 
-    def range(x):
+    def slotdiff(x):
         # TODO: see if I can avoid this inequality here, as it may be adding
         # extra constraints?
+        
+        w = x >= 0.5
         if np.sum(x) >= 1: # strict inequalities not supported
-            return np.max(x) - np.min(x)
+            return 100*(np.max(x[w]) - np.min(x[w]))
         else:
-            return 10000
+            return 0
 
     # TEST minimum slot separation per filter constraint
-    MIN_SLOT_SEPARATION = 1
+    MIN_SLOT_SEPARATION = 4
     # TODO: make this SuperCombo
     wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
     wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
@@ -136,9 +138,9 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     filter_ids_to_limit = [1]
 #    TODO: as written this doesn't work. 
 #    constr_slot_sep = m.addConstrs(
-#        #((range(dft.loc[(dft['request_id'] == r) & 
+#        #((slotdiff(dft.loc[(dft['request_id'] == r) & 
 #        #                (dft['metric_filter_id'] == f), ['slot','Yrtf']])
-#        ((range((dft['slot'] * dft['Yrtf']).loc[(dft['request_id'] == r) & 
+#        ((slotdiff((dft['slot'] * dft['Yrtf']).loc[(dft['request_id'] == r) & 
 #                        (dft['metric_filter_id'] == f)])
 #                        >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr'])
 #                        for f in filter_ids_to_limit for r in ZUDS_request_sets), 
@@ -149,19 +151,19 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 
     # create resultant variables: minSrf = minimum slot x Yrtf
     #                           : maxSrf = maximum slot x Yrtf
-    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
-            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
-    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
-            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
-    for r in ZUDS_request_sets:
-        for f in filter_ids_to_limit:
-            wrf = (dft['request_id'] == r) & (dft['metric_filter_id'] == f)
-            m.addGenConstrMin(minSrf[r,f], 
-                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                slots[-1], "slotmin_{}_{}".format(r,f))
-            m.addGenConstrMax(maxSrf[r,f], 
-                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                slots[0], "slotmax_{}_{}".format(r,f))
+#    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
+#            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
+#    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_limit, 
+#            vtype=GRB.CONTINUOUS, lb=slots[0], ub=slots[-1])
+#    for r in ZUDS_request_sets:
+#        for f in filter_ids_to_limit:
+#            wrf = (dft['request_id'] == r) & (dft['metric_filter_id'] == f)
+#            m.addGenConstrMin(minSrf[r,f], 
+#                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
+#                slots[-1], "slotmin_{}_{}".format(r,f))
+#            m.addGenConstrMax(maxSrf[r,f], 
+#                (dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
+#                slots[0], "slotmax_{}_{}".format(r,f))
     # now constrain each request to have the required slot separation
 #    constr_slot_sep = m.addConstrs(
 #        (maxSrf[r,f] - minSrf[r,f] >= MIN_SLOT_SEPARATION * dfr.loc[r,'Yr']
@@ -236,8 +238,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
-        + np.sum( ((maxSrf[r,f] - minSrf[r,f]) 
-            for f in filter_ids_to_limit for r in ZUDS_request_sets)),
+        + np.sum([slotdiff((dft['slot'] * dft['Yrtf']).loc[
+            (dft['request_id'] == r) & 
+                        (dft['metric_filter_id'] == f)])
+            for f in filter_ids_to_limit for r in ZUDS_request_sets])
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
