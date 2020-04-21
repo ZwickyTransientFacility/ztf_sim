@@ -231,7 +231,11 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
     evening_twilight = next_12deg_evening_twilight(time)
     morning_twilight = next_12deg_morning_twilight(time)
 
-    if (evening_twilight > morning_twilight) or (evening_twilight.value < 0):
+    if ((evening_twilight > morning_twilight) 
+        or (evening_twilight.value < 0)
+        # some versions of astroplan+astropy seem to return masked arrays
+        # instead
+        or (type(evening_twilight.value) == np.ma.core.MaskedArray)):
         # the night has already started, find previous twilight
         evening_twilight = previous_12deg_evening_twilight(time)
 
