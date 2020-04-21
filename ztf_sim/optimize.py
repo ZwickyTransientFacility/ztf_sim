@@ -130,7 +130,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
             return 0
 
     # TEST minimum slot separation per filter constraint
-    MIN_SLOT_SEPARATION = 4
+    MIN_SLOT_SEPARATION = 2
     # TODO: make this SuperCombo
     wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
     wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
@@ -176,11 +176,16 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # use indicator constraints to set the value
     # TODO: this constructor is dog-slow--can it be improved?
     # would it be faster to use dict lookups to the yrtf_dict index?
+    constraint_dict = {}
     for r in ZUDS_request_sets:
         for t in slots[:-1]:
             for t2 in slots[1:]:
                 if t2 < t: 
                     # avoid duplicate entries
+                    continue
+                dt = t2 - t
+                #TODO: this should be removed if we're not doing hard constraints
+                if dt >= MIN_SLOT_SEPARATION:
                     continue
                 for f in filter_ids_to_limit:
                     wrif = ((dft['request_id'] == r) & 
@@ -193,41 +198,45 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                     assert (np.sum(wrif) == 1)
                     assert (np.sum(wrjf) == 1)
 
-                    m.addGenConstrIndicator(yrttf[r,t,t2,f], False,
+                    m.addGenConstrAnd(yrttf[r,t,t2,f], 
                             # need to use dft with wheres to make this work,
                             # which is probably slow
-                        dft.loc[wrif,'Yrtf'].iloc[0] + dft.loc[wrjf,'Yrtf'].iloc[0],
+                        [dft.loc[wrif,'Yrtf'].iloc[0],  dft.loc[wrjf,'Yrtf'].iloc[0]],
                         #yrtf is indexed by some other value, not what we want 
                         #yrtf_dict[r,slots[i],f] + yrtf_dict[r,slots[j], f], 
-                        GRB.LESS_EQUAL, 1,
-                        "slotdiff_indicator_{}_{}_{}_{}".format(r,t,t2,f))
+                        "slotdiff_and_{}_{}_{}_{}".format(r,t,t2,f))
+                    constraint_dict[(r,t,t2,f)] = m.addConstr(
+                        yrttf[r,t,t2,f]  == 0, 
+                        "constr_slotsep_{}_{}_{}_{}".format(r,t,t2,f))
+
             
 
-    dtdict = defaultdict(list)
-    for t in slots[:-1]:
-        for t2 in slots[1:]:
-            if t2 < t: 
-                # avoid duplicate entries
-                continue
-            dt = t2 - t
-            dtdict[dt].append((t,t2))
-
-    # create delta-t resultant variables: OR constraint for all pairwise slots
-    yrdtf = m.addVars(ZUDS_request_sets,np.arange(len(slots)),
-            filter_ids_to_limit, vtype=GRB.BINARY)
-    for r in ZUDS_request_sets:
-        for dt in dtdict.keys():
-            for f in filter_ids_to_limit:
-                    # loop over items in dtdict
-                m.addGenConstrOr(yrdtf[r,dt,f], 
-                    [yrttf[r,t,t2,f] for (t,t2) in dtdict[dt]],
-                    "slot_dt_indicator_{}_{}_{}".format(r,dt,f))
-
-    # can set a hard constraint here by requiring all the low-separation pairs
-    # to be zero
-    constr_min_slotsep = m.addConstrs(
-        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= MIN_SLOT_SEPARATION for f in filter_ids_to_limit), 'constr_min_slot_sep')
-    # or use in the objective function
+#    dtdict = defaultdict(list)
+#    for t in slots[:-1]:
+#        for t2 in slots[1:]:
+#            if t2 < t: 
+#                # avoid duplicate entries
+#                continue
+#            dt = t2 - t
+#            dtdict[dt].append((t,t2))
+#            constraint_dict
+#
+#    # create delta-t resultant variables: OR constraint for all pairwise slots
+#    yrdtf = m.addVars(ZUDS_request_sets,np.arange(len(slots)),
+#            filter_ids_to_limit, vtype=GRB.BINARY)
+#    for r in ZUDS_request_sets:
+#        for dt in dtdict.keys():
+#            for f in filter_ids_to_limit:
+#                    # loop over items in dtdict
+#                m.addGenConstrOr(yrdtf[r,dt,f], 
+#                    [yrttf[r,t,t2,f] for (t,t2) in dtdict[dt]],
+#                    "slot_dt_indicator_{}_{}_{}".format(r,dt,f))
+#
+#    # can set a hard constraint here by requiring all the low-separation pairs
+#    # to be zero
+#    constr_min_slotsep = m.addConstrs(
+#        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= (MIN_SLOT_SEPARATION-1) for f in filter_ids_to_limit), 'constr_min_slot_sep')
+#    # or use in the objective function
 
     
     # create resultant variables: Ytf = 1 if slot t has filter f used
@@ -298,10 +307,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
-        + np.sum([slotdiff((dft['slot'] * dft['Yrtf']).loc[
-            (dft['request_id'] == r) & 
-                        (dft['metric_filter_id'] == f)])
-            for f in filter_ids_to_limit for r in ZUDS_request_sets])
+#        + np.sum([slotdiff((dft['slot'] * dft['Yrtf']).loc[
+#            (dft['request_id'] == r) & 
+#                        (dft['metric_filter_id'] == f)])
+#            for f in filter_ids_to_limit for r in ZUDS_request_sets])
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
