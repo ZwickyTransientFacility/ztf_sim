@@ -233,8 +233,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 
 #    # can set a hard constraint here by requiring all the low-separation pairs
 #    # to be zero
-#    constr_min_slotsep = m.addConstrs(
-#        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= (MIN_SLOT_SEPARATION-1) for f in filter_ids_to_limit), 'constr_min_slot_sep')
+    constr_min_slotsep = m.addConstrs(
+        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= (MIN_SLOT_SEPARATION-1) for f in filter_ids_to_limit), 'constr_min_slot_sep')
 #    # or use in the objective function
 
     
