@@ -122,7 +122,9 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # TEST minimum slot separation per filter constraint
     MIN_SLOT_SEPARATION = 4
     # TODO: make this SuperCombo
+    wZUDSt = (dft['subprogram_name'] == 'ZUDS')
     wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
+    wZUDSr = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 2)
     wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
     ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
     filter_ids_to_limit = [1]
@@ -179,6 +181,18 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 #            maxSrf[r,2] - maxSrf[r,3] >= 0, f'constr_order_max_ri')
 #        constraint_dict[(r,'max_gr')] = m.addConstr( 
 #            maxSrf[r,1] - maxSrf[r,2] >= 0, f'constr_order_max_gr')
+
+
+# try computing the diff from max-min slots
+
+    diffSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
+            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
+    diff_constraints = {}
+    for r in ZUDS_request_sets:
+        for f in filter_ids_to_order:
+            diff_constraints[(r,f)] = m.addConstr( 
+                diffSrf[r,f] == maxSrf[r,f] - minSrf[r,f],
+                f'diff_constraint_{r}_{f}')
 
     # slot separation
 
