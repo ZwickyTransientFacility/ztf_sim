@@ -104,6 +104,15 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     yrtf_series = pd.Series(yrtf_dict,name='Yrtf')
     dft = dft.join(yrtf_series)
 
+    # putting the Yrtf vars in the dft series is not always convenient;
+    # provide a lookup table
+    rtf_to_idx = {}
+    idx_to_rtf = dft[['request_id','slot','metric_filter_id']].to_dict(orient='index')
+    for k,v in idx_to_rtf.items():
+        rtf_to_idx[(v['request_id'],v['slot'],v['metric_filter_id'])] = k
+    
+
+
     # create resultant variables: Yr = 1 if request r is observed in at least
     # one slot
     for r in request_sets:
@@ -120,7 +129,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                         "constr_nreqs")
 
     # TEST minimum slot separation per filter constraint
-    MIN_SLOT_SEPARATION = 4
+    MIN_SLOT_SEPARATION = 2
     # TODO: make this SuperCombo
     wZUDSt = (dft['subprogram_name'] == 'ZUDS')
     wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
@@ -128,53 +137,46 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
     ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
     filter_ids_to_limit = [1]
-    filter_ids_to_order = [1,2,3]
 
-    # filter ordering
-
-    
-    # these fake bounds have to match the desired filter order griirg
-    # so that the constraint works when a request is not selected (Yrtf=0)
-    fakeub = {1: slots[-1]+1,2: slots[-1]+2, 3: slots[-1]+3} # used by fakemin
-    fakelb = {1: slots[0]-1, 2: slots[0]-2, 3:slots[0]-3} # used by fakemax
-    # define two sets of slack variables
-    Srtf_fakemin = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
-            vtype=GRB.CONTINUOUS)#, lb=slots[0], ub=fakeub[1])
-    Srtf_fakemax = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
-            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=slots[-1])
-    # create resultant variables: minSrf = minimum slot (or a fake bound)
-    #                           : maxSrf = maximum slot (or a fake bound)
-    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
-            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
-    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
-            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
-    constraint_dict = {}
-    for r in ZUDS_request_sets:
-        for f in filter_ids_to_order:
-            for t in slots:
-                # TODO: if this works use a dict instead this is super slow
-                # or a loop)
-                wrtf = ((dft['request_id'] == r) & 
-                        (dft['slot'] == t) & 
-                        (dft['metric_filter_id'] == f)) 
-                Yrtf_wrtf = dft.loc[wrtf, 'Yrtf'].tolist()[0]
-                m.addConstr(Srtf_fakemin[r,t,f] == (Yrtf_wrtf * (t - fakeub[f]) + fakeub[f]), r"slot_{r}_{t}_{f}_fakemin")
-                m.addConstr(Srtf_fakemax[r,t,f] == (Yrtf_wrtf * (t - fakelb[f]) + fakelb[f]), r"slot_{r}_{t}_{f}_fakemax")
-
-            m.addGenConstrMin(minSrf[r,f], 
-                [Srtf_fakemin[r,tt,f] for tt in slots],
-                #(dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                fakeub[f], "slotmin_{}_{}".format(r,f))
-            m.addGenConstrMax(maxSrf[r,f], 
-                [Srtf_fakemax[r,tt,f] for tt in slots],
-                #(dft.loc[wrf, 'Yrtf'] * dft.loc[wrf, 'slot']).tolist(),
-                fakelb[f], "slotmax_{}_{}".format(r,f))
-    # ZUDS requests g,r,i,i,r,g (confirm)
+#    # FILTER_ORDERING
+#    filter_ids_to_order = [1,2,3]
+#    # these fake bounds have to match the desired filter order griirg
+#    # so that the constraint works when a request is not selected (Yrtf=0)
+#    fakeub = {1: slots[-1]+1,2: slots[-1]+2, 3: slots[-1]+3} # used by fakemin
+#    fakelb = {1: slots[0]-1, 2: slots[0]-2, 3:slots[0]-3} # used by fakemax
+#    # define two sets of slack variables
+#    Srtf_fakemin = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
+#            vtype=GRB.CONTINUOUS)#, lb=slots[0], ub=fakeub[1])
+#    Srtf_fakemax = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
+#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=slots[-1])
+#    # create resultant variables: minSrf = minimum slot (or a fake bound)
+#    #                           : maxSrf = maximum slot (or a fake bound)
+#    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
+#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
+#    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
+#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
+#    constraint_dict = {}
+#    for r in ZUDS_request_sets:
+#        for f in filter_ids_to_order:
+#            for t in slots:
+#                # TODO: if this works use a dict instead this is super slow
+#                # or a loop)
+#                wrtf = ((dft['request_id'] == r) & 
+#                        (dft['slot'] == t) & 
+#                        (dft['metric_filter_id'] == f)) 
+#                Yrtf_wrtf = dft.loc[wrtf, 'Yrtf'].tolist()[0]
+#                m.addConstr(Srtf_fakemin[r,t,f] == (Yrtf_wrtf * (t - fakeub[f]) + fakeub[f]), r"slot_{r}_{t}_{f}_fakemin")
+#                m.addConstr(Srtf_fakemax[r,t,f] == (Yrtf_wrtf * (t - fakelb[f]) + fakelb[f]), r"slot_{r}_{t}_{f}_fakemax")
+#
+#            m.addGenConstrMin(minSrf[r,f], 
+#                [Srtf_fakemin[r,tt,f] for tt in slots],
+#                fakeub[f], "slotmin_{}_{}".format(r,f))
+#            m.addGenConstrMax(maxSrf[r,f], 
+#                [Srtf_fakemax[r,tt,f] for tt in slots],
+#                fakelb[f], "slotmax_{}_{}".format(r,f))
+#    # ZUDS requests g,r,i,i,r,g (confirm)
 #        constraint_dict[(r,'min_gr')] = m.addConstr( 
 #            minSrf[r,2] - minSrf[r,1] >= 0, f'constr_order_min_gr')
-##        # this one is junk just for testing
-#        constraint_dict[(r,'min_gi')] = m.addConstr( 
-#            minSrf[r,3] - minSrf[r,1] >= 0, f'constr_order_min_gi')
 #        constraint_dict[(r,'min_ri')] = m.addConstr( 
 #            minSrf[r,3] - minSrf[r,2] >= 0, f'constr_order_min_ri')
 #        constraint_dict[(r,'max_ri')] = m.addConstr( 
@@ -183,86 +185,56 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 #            maxSrf[r,1] - maxSrf[r,2] >= 0, f'constr_order_max_gr')
 
 
-# try computing the diff from max-min slots
-
-    diffSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
-            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
-    diff_constraints = {}
-    for r in ZUDS_request_sets:
-        for f in filter_ids_to_order:
-            diff_constraints[(r,f)] = m.addConstr( 
-                diffSrf[r,f] == maxSrf[r,f] - minSrf[r,f],
-                f'diff_constraint_{r}_{f}')
-
     # slot separation
 
-#    # create resultant variables: 1 if both slot_a and slot_b are true
-#    yrttf = m.addVars(ZUDS_request_sets,slots[:-1],slots[1:],
-#            filter_ids_to_limit, vtype=GRB.BINARY)
-#    # use indicator constraints to set the value
-#    # TODO: this constructor is dog-slow--can it be improved?
-#    # would it be faster to use dict lookups to the yrtf_dict index?
-#    constraint_dict = {}
-#    for r in ZUDS_request_sets:
-#        for t in slots[:-1]:
-#            for t2 in slots[1:]:
-#                if t2 < t: 
-#                    # avoid duplicate entries
-#                    continue
+    # create resultant variables: 1 if both slot_a and slot_b are true
+    yrttf = m.addVars(ZUDS_request_sets,slots[:-1],slots[1:],
+            filter_ids_to_limit, vtype=GRB.BINARY)
+    constraint_dict = {}
+    for r in ZUDS_request_sets:
+        for t in slots[:-1]:
+            for t2 in slots[1:]:
+                if t2 < t: 
+                    # avoid duplicate entries
+                    continue
+                #TODO: this should be removed if we're not doing hard constraints
 #                dt = t2 - t
-#                #TODO: this should be removed if we're not doing hard constraints
-##                if dt >= MIN_SLOT_SEPARATION:
-##                    continue
-#                for f in filter_ids_to_limit:
-#                    wrif = ((dft['request_id'] == r) & 
-#                            (dft['metric_filter_id'] == f) & 
-#                            (dft['slot'] == t))
-#                    wrjf = ((dft['request_id'] == r) & 
-#                            (dft['metric_filter_id'] == f) & 
-#                            (dft['slot'] == t2))
-#
-#                    assert (np.sum(wrif) == 1)
-#                    assert (np.sum(wrjf) == 1)
-#
-#                    m.addGenConstrAnd(yrttf[r,t,t2,f], 
-#                            # need to use dft with wheres to make this work,
-#                            # which is probably slow
-#                        [dft.loc[wrif,'Yrtf'].iloc[0],  dft.loc[wrjf,'Yrtf'].iloc[0]],
-#                        #yrtf is indexed by some other value, not what we want 
-#                        #yrtf_dict[r,slots[i],f] + yrtf_dict[r,slots[j], f], 
-#                        "slotdiff_and_{}_{}_{}_{}".format(r,t,t2,f))
-##                    constraint_dict[(r,t,t2,f)] = m.addConstr(
-##                        yrttf[r,t,t2,f]  == 0, 
-##                        "constr_slotsep_{}_{}_{}_{}".format(r,t,t2,f))
-#
-#            
-#
-#    dtdict = defaultdict(list)
-#    for t in slots[:-1]:
-#        for t2 in slots[1:]:
-#            if t2 <= t: 
-#                # avoid duplicate entries
-#                continue
-#            dt = t2 - t
-#            dtdict[dt].append((t,t2))
-#
-#    # create delta-t resultant variables: OR constraint for all pairwise slots
-#    yrdtf = m.addVars(ZUDS_request_sets,np.arange(len(slots)),
-#            filter_ids_to_limit, vtype=GRB.BINARY)
-#    for r in ZUDS_request_sets:
-#        for dt in dtdict.keys():
-#            for f in filter_ids_to_limit:
-#                    # loop over items in dtdict
-#                m.addGenConstrOr(yrdtf[r,dt,f], 
-#                   [yrttf[r,t,t2,f] for (t,t2) in dtdict[dt]],
-#                    "slot_dt_indicator_{}_{}_{}".format(r,dt,f))
-#
-## THIS WORKS
-###    # can set a hard constraint here by requiring all the low-separation pairs
-###    # to be zero
-##    constr_min_slotsep = m.addConstrs(
-##        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= (MIN_SLOT_SEPARATION-1) for f in filter_ids_to_limit), 'constr_min_slot_sep')
-###    # or use in the objective function
+#                if dt >= MIN_SLOT_SEPARATION:
+#                    continue
+                for f in filter_ids_to_limit:
+                    m.addGenConstrAnd(yrttf[r,t,t2,f], 
+                        [yrtf_dict[rtf_to_idx[(r,t,f)]], 
+                         yrtf_dict[rtf_to_idx[(r,t2,f)]]],
+                        "slotdiff_and_{}_{}_{}_{}".format(r,t,t2,f))
+
+            
+
+    dtdict = defaultdict(list)
+    for t in slots[:-1]:
+        for t2 in slots[1:]:
+            if t2 <= t: 
+                # avoid duplicate entries
+                continue
+            dt = t2 - t
+            dtdict[dt].append((t,t2))
+
+    # create delta-t resultant variables: OR constraint for all pairwise slots
+    yrdtf = m.addVars(ZUDS_request_sets,np.arange(len(slots)),
+            filter_ids_to_limit, vtype=GRB.BINARY)
+    for r in ZUDS_request_sets:
+        for dt in dtdict.keys():
+            for f in filter_ids_to_limit:
+                    # loop over items in dtdict
+                m.addGenConstrOr(yrdtf[r,dt,f], 
+                   [yrttf[r,t,t2,f] for (t,t2) in dtdict[dt]],
+                    "slot_dt_indicator_{}_{}_{}".format(r,dt,f))
+
+# THIS WORKS to set hard slot separation constraints
+##    # can set a hard constraint here by requiring all the low-separation pairs
+##    # to be zero
+#    constr_min_slotsep = m.addConstrs(
+#        (yrdtf[r,dt,f] == 0 for r in ZUDS_request_sets for dt in dtdict.keys() if dt <= (MIN_SLOT_SEPARATION-1) for f in filter_ids_to_limit), 'constr_min_slot_sep')
+##    # or use in the objective function
 
     
     # create resultant variables: Ytf = 1 if slot t has filter f used
@@ -333,7 +305,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
-#        + np.sum(yrdtf[r,dt,f]*dt**1.5 for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
+        + np.sum(yrdtf[r,dt,f]*dt**1.5 for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
