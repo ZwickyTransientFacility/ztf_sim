@@ -128,15 +128,19 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
                         for f in filter_ids for r in request_sets), 
                         "constr_nreqs")
 
-    # TEST minimum slot separation per filter constraint
+    # minimum slot separation per filter constraint
     MIN_SLOT_SEPARATION = 2
-    # TODO: make this SuperCombo
-    wZUDSt = (dft['subprogram_name'] == 'ZUDS')
-    wZUDSg = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 1)
-    wZUDSr = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 2)
-    wrZUDS =  (dfr['subprogram_name'] == 'ZUDS') 
+    # TODO: generalize this beyond just ZUDS
+    wZUDSt = ((dft['subprogram_name'] == 'ZUDS') | 
+              (dft['subprogram_name'] == 'ZUDS2'))
+    wZUDSg = wZUDSt & (dft['metric_filter_id'] == 1)
+    wZUDSr = wZUDSt & (dft['metric_filter_id'] == 2)
+    wZUDSi = wZUDSt & (dft['metric_filter_id'] == 3)
+    wrZUDS =  ((dfr['subprogram_name'] == 'ZUDS') | 
+               (dfr['subprogram_name'] == 'ZUDS2'))  
     ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
-    filter_ids_to_limit = [1]
+    filter_ids_to_limit = [1,2,3]
+    dt_exponent = {1:1.5,2:1.0,3:0.5}
 
 #    # FILTER_ORDERING
 #    filter_ids_to_order = [1,2,3]
@@ -305,7 +309,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
-        + np.sum(yrdtf[r,dt,f]*dt**1.5 for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
+        + np.sum(yrdtf[r,dt,f]*dt**dt_exponent[f] for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
@@ -380,8 +384,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         return n_changes
 
     print(f'Number of filter changes: {num_filter_changes(ytf)}')
-
-    1/0
 
     return dfr.loc[dfr['Yr_val'],'program_id'].index, df_schedule, dft
 
