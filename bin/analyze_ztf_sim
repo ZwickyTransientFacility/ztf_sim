@@ -97,6 +97,9 @@ def calc_stats(sim_path):
     stats['Average Filter Exchanges per hour'] = np.sum(nchanges) / \
         stats['Total Science Time (h)']
 
+    wfallback = df['subprogram'].str.startswith('reference')
+    stats['Fallback Fraction'] = np.sum(df.loc[wfallback,'visitExpTime'])/np.sum(df['visitExpTime'])
+
     # fraction of completed sequences: by program, by filter, ...
     pgrp = df.groupby(['night', 'propID', 'fieldID'])
     completion = pgrp['totalRequestsTonight'].agg(
