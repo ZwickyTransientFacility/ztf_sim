@@ -141,7 +141,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     wrZUDS =  ((dfr['subprogram_name'] == 'ZUDS') | 
                (dfr['subprogram_name'] == 'ZUDS2'))  
     ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
-    filter_ids_to_limit = [1,2,3]
+    filter_ids_to_limit = [1,]
     dt_exponent = {1:1.5,2:1.0,3:0.5}
 
 #    # FILTER_ORDERING
@@ -304,6 +304,9 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         else:
             return 1
 
+    def slot_scale(dt):
+        return dt/24.
+
     # scale by number of standard exposures so long exposures aren't
     # penalized
     m.setObjective(
@@ -311,7 +314,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
         - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
             READOUT_TIME) * 2.5).value
-        + np.sum(yrdtf[r,dt,f]*dt**dt_exponent[f] for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
+        + np.sum(yrdtf[r,dt,f]*slot_scale(dt) for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
         - np.sum(
             [heaviside((requests_allowed[p] - np.sum(
                 dft.loc[(dft['program_id'] == p[0]) &
