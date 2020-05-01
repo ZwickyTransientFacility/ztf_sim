@@ -142,54 +142,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 #               (dfr['subprogram_name'] == 'ZUDS2'))  
 #    ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
 #    filter_ids_to_limit = [1,]
-#    dt_exponent = {1:1.5,2:1.0,3:0.5}
-
-#    # FILTER_ORDERING
-#    filter_ids_to_order = [1,2,3]
-#    # these fake bounds have to match the desired filter order griirg
-#    # so that the constraint works when a request is not selected (Yrtf=0)
-#    fakeub = {1: slots[-1]+1,2: slots[-1]+2, 3: slots[-1]+3} # used by fakemin
-#    fakelb = {1: slots[0]-1, 2: slots[0]-2, 3:slots[0]-3} # used by fakemax
-#    # define two sets of slack variables
-#    Srtf_fakemin = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
-#            vtype=GRB.CONTINUOUS)#, lb=slots[0], ub=fakeub[1])
-#    Srtf_fakemax = m.addVars(ZUDS_request_sets, slots, filter_ids_to_order,
-#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=slots[-1])
-#    # create resultant variables: minSrf = minimum slot (or a fake bound)
-#    #                           : maxSrf = maximum slot (or a fake bound)
-#    minSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
-#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
-#    maxSrf  = m.addVars(ZUDS_request_sets, filter_ids_to_order, 
-#            vtype=GRB.CONTINUOUS)#, lb=fakelb[1], ub=fakeub[1])
-#    constraint_dict = {}
-#    for r in ZUDS_request_sets:
-#        for f in filter_ids_to_order:
-#            for t in slots:
-#                # TODO: if this works use a dict instead this is super slow
-#                # or a loop)
-#                wrtf = ((dft['request_id'] == r) & 
-#                        (dft['slot'] == t) & 
-#                        (dft['metric_filter_id'] == f)) 
-#                Yrtf_wrtf = dft.loc[wrtf, 'Yrtf'].tolist()[0]
-#                m.addConstr(Srtf_fakemin[r,t,f] == (Yrtf_wrtf * (t - fakeub[f]) + fakeub[f]), r"slot_{r}_{t}_{f}_fakemin")
-#                m.addConstr(Srtf_fakemax[r,t,f] == (Yrtf_wrtf * (t - fakelb[f]) + fakelb[f]), r"slot_{r}_{t}_{f}_fakemax")
-#
-#            m.addGenConstrMin(minSrf[r,f], 
-#                [Srtf_fakemin[r,tt,f] for tt in slots],
-#                fakeub[f], "slotmin_{}_{}".format(r,f))
-#            m.addGenConstrMax(maxSrf[r,f], 
-#                [Srtf_fakemax[r,tt,f] for tt in slots],
-#                fakelb[f], "slotmax_{}_{}".format(r,f))
-#    # ZUDS requests g,r,i,i,r,g (confirm)
-#        constraint_dict[(r,'min_gr')] = m.addConstr( 
-#            minSrf[r,2] - minSrf[r,1] >= 0, f'constr_order_min_gr')
-#        constraint_dict[(r,'min_ri')] = m.addConstr( 
-#            minSrf[r,3] - minSrf[r,2] >= 0, f'constr_order_min_ri')
-#        constraint_dict[(r,'max_ri')] = m.addConstr( 
-#            maxSrf[r,2] - maxSrf[r,3] >= 0, f'constr_order_max_ri')
-#        constraint_dict[(r,'max_gr')] = m.addConstr( 
-#            maxSrf[r,1] - maxSrf[r,2] >= 0, f'constr_order_max_gr')
-
 
 #    # slot separation
 #
