@@ -67,6 +67,9 @@ def calc_stats(sim_path):
     stats['Open Shutter Fraction'] = df[w].visitExpTime.sum() / \
         (df[w].visitExpTime.sum() + df[w].slewTime.sum())
 
+    # add a fiducial readout per exposure
+    df['netVisitTime'] = df['visitExpTime'] + 10.
+
     stats['Mean Time Between Exposures (s)'] = df[w & wrealslew].slewTime.mean()
     stats['Mean Slew Distance (deg)'] = np.degrees(df[w].slewDist.mean())
 
@@ -79,11 +82,11 @@ def calc_stats(sim_path):
 
     # program breakdown
     pgrp = df.groupby('propID')
-    stats['Program Fraction'] = (pgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
+    stats['Program Fraction'] = (pgrp['netVisitTime'].agg(np.sum) /df['netVisitTime'].sum()).to_dict()
 
     spgrp = df.groupby('subprogram')
-    stats['Subprogram Total Obs'] = (spgrp['visitExpTime'].agg(len)).to_dict()
-    stats['Subprogram Fraction'] = (spgrp['visitExpTime'].agg(np.sum) /df['visitExpTime'].sum()).to_dict()
+    stats['Subprogram Total Obs'] = (spgrp['netVisitTime'].agg(len)).to_dict()
+    stats['Subprogram Fraction'] = (spgrp['netVisitTime'].agg(np.sum) /df['netVisitTime'].sum()).to_dict()
 
     # filter breakdown
     fgrp = df.groupby('filter')
@@ -98,7 +101,7 @@ def calc_stats(sim_path):
         stats['Total Science Time (h)']
 
     wfallback = df['subprogram'].str.startswith('reference')
-    stats['Fallback Fraction'] = np.sum(df.loc[wfallback,'visitExpTime'])/np.sum(df['visitExpTime'])
+    stats['Fallback Fraction'] = np.sum(df.loc[wfallback,'netVisitTime'])/np.sum(df['netVisitTime'])
 
     # fraction of completed sequences: by program, by filter, ...
     pgrp = df.groupby(['night', 'propID', 'fieldID'])
