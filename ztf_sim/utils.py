@@ -107,6 +107,25 @@ def altitude_to_airmass(altitude):
     za = 90. - altitude  # if I make 90 a Quantity I have DataFrame troubles
     return zenith_angle_to_airmass(za)
 
+def maximum_altitude(dec, lat=P48_loc.lat.degree):
+    """Compute the altitude of a source with declination dec as it transits the
+    meridian."""
+
+    px = 90 - dec
+    pz = 90 - lat
+
+    results = np.zeros(len(dec))
+
+    w = (px >= pz)
+
+    if np.sum(w):
+        results[w] = 90 - lat + dec[w]
+    if np.sum(~w):
+        results[~w] = 90 + lat - dec[~w]
+
+    return results
+
+
 
 def seeing_at_zenith(pointing_seeing, altitude):
     """Convert seeing at current pointing to zenith by multiplying by X^-3/5"""

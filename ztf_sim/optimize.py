@@ -8,6 +8,7 @@ import shelve
 import astropy.units as u
 import pandas as pd
 from collections import defaultdict
+from .utils import maximum_altitude
 from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME
 
 #s = shelve.open('tmp_vars.shelf',flag='r')
@@ -45,16 +46,28 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # get n_reqs by fid
     n_reqs_cols = ['n_reqs_{}'.format(fid) for fid in filter_ids]
     n_reqs_cols.extend(['program_id','subprogram_name',
-        'total_requests_tonight','exposure_time'])
+        'total_requests_tonight','exposure_time','dec'])
     dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
 
-    # TEMPORARY: force ZUDS to use 90s i-band exposures
+    # TEMPORARY: force mixed-filter programs to use different i-band exposure
+    # times
     wZUDSi = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 3)
     dft.loc[wZUDSi,'exposure_time'] = 90.
     wZUDS2i = (dft['subprogram_name'] == 'ZUDS2') & (dft['metric_filter_id'] == 3)
     dft.loc[wZUDS2i,'exposure_time'] = 60.
     wPPi = (dft['subprogram_name'] == 'Partnership_Plane') & (dft['metric_filter_id'] == 3)
     dft.loc[wPPi,'exposure_time'] = 60.
+
+    # TEMPORARY: normalize Plane metrics by maximum value at transit
+    # so low-declination fields are not penalized
+    # see 200430 notes
+    wPPt = (dft['subprogram_name'] == 'Partnership_Plane') 
+    dft.loc[wPPt,'metric'] = (dft.loc[wPPt,'metric'] / 
+            (1-1e-4*(maximum_altitude(dft.loc[wPPt,'dec']) - 90)**2.))
+    
+    # don't need the dec column anymore
+    dft = dft.drop('dec',axis=1)
+
 
     # calculate number of slots required per request set
     
