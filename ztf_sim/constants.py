@@ -12,8 +12,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(inspect.getfile(
                 inspect.currentframe()))) + '/'
 
 
-P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.35s'),
-                               lon=coords.Longitude('-116d51m32.04s'),
+P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.2s'),
+                               lon=coords.Longitude('-116d51m35.5s'),
                                height=1707.)
 
 # use UTC only
