@@ -556,6 +556,10 @@ class GurobiQueueManager(QueueManager):
         # subprogram
         if (row['subprogram_name'] == 'ZUDS') and (filter_id == 3):
             next_obs['target_exposure_time'] = 90 * u.second
+        if (row['subprogram_name'] == 'ZUDS2') and (filter_id == 3):
+            next_obs['target_exposure_time'] = 60 * u.second
+        if (row['subprogram_name'] == 'Partnership_Plane') and (filter_id == 3):
+            next_obs['target_exposure_time'] = 60 * u.second
 
         return next_obs
 
