@@ -51,6 +51,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 
     # TEMPORARY: force mixed-filter programs to use different i-band exposure
     # times
+    # Note that this also requires a change in QueueManager.py
     wZUDSi = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 3)
     dft.loc[wZUDSi,'exposure_time'] = 90.
     wZUDS2i = (dft['subprogram_name'] == 'ZUDS2') & (dft['metric_filter_id'] == 3)
