@@ -154,7 +154,7 @@ class ObservingProgram(object):
         # scalar everything except field_ids
 
         if self.filter_choice == 'rotate':
-            filter_sequence = [filter_ids_tonight for i in
+            filter_sequence = [filter_ids_tonight[0] for i in
                                range(self.n_visits_per_night)]
         elif self.filter_choice == 'sequence':
             assert(len(self.filter_ids) == self.n_visits_per_night)
