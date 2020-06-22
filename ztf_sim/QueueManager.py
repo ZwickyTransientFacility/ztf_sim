@@ -13,7 +13,7 @@ import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
 from .magnitudes import limiting_mag
-from .optimize import request_set_optimize, slot_optimize, tsp_optimize, night_optimize
+from .optimize import tsp_optimize, night_optimize
 from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
 from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
@@ -645,20 +645,6 @@ class GurobiQueueManager(QueueManager):
         #s['block_slot_metric'] = self.block_slot_metric
         #s['df'] = df
         #s.close()
-
-        # select request_sets for the night
-#        self.request_sets_tonight, dft = request_set_optimize(
-#            self.block_slot_metric, df, self.requests_allowed,
-#            time_limit = time_limit)
-#
-#        if len(self.request_sets_tonight) == 0:
-#           raise QueueEmptyError("No request sets selected!")
-#
-#        # optimize assignment into slots
-#        df_slots = slot_optimize(
-#            self.block_slot_metric.loc[self.request_sets_tonight], 
-#            df.loc[self.request_sets_tonight], self.requests_allowed,
-#            time_limit = time_limit)
 
         self.request_sets_tonight, df_slots, dft = night_optimize(
             self.block_slot_metric, df, self.requests_allowed,
