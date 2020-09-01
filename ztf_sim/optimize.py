@@ -53,12 +53,14 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     wPPi = (dft['subprogram_name'] == 'Partnership_Plane') & (dft['metric_filter_id'] == 3)
     dft.loc[wPPi,'exposure_time'] = 60.
 
-    # TEMPORARY: normalize Plane metrics by maximum value at transit
+    # TEMPORARY: normalize metrics by maximum value at transit
     # so low-declination fields are not penalized
     # see 200430 notes
     wPPt = (dft['subprogram_name'] == 'Partnership_Plane') 
-    dft.loc[wPPt,'metric'] = (dft.loc[wPPt,'metric'] / 
-            (1-1e-4*(maximum_altitude(dft.loc[wPPt,'dec']) - 90)**2.))
+    wMSIPt = (dft['program_id'] == 1)
+    wrenorm = wPPt | wMSIPt
+    dft.loc[wrenorm,'metric'] = (dft.loc[wrenorm,'metric'] / 
+            (1-1e-4*(maximum_altitude(dft.loc[wrenorm,'dec']) - 90)**2.))
     
     # don't need the dec column anymore
     dft = dft.drop('dec',axis=1)
