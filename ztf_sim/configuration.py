@@ -8,6 +8,7 @@ from .ObservingProgram import ObservingProgram
 from .Fields import Fields
 from .constants import PROGRAM_NAMES, PROGRAM_NAME_TO_ID, EXPOSURE_TIME, TIME_BLOCK_SIZE
 from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager, ListQueueManager
+from .field_selection_functions import *
 
 
 class Configuration(object):
@@ -103,15 +104,24 @@ class QueueConfiguration(Configuration):
         OPs = []
         f = Fields()
         for prog in self.config['observing_programs']:
-            assert(('field_ids' in prog) or ('field_selections' in prog))
-            assert(('field_ids' in prog) != ('field_selections' in prog))
+            assert(('field_ids' in prog) or ('field_selections' in prog)
+                    or ('field_selection_function' in prog))
+            assert(('field_ids' in prog) + ('field_selections' in prog) + 
+                    ('field_selection_function' in prog) == 1)
             if 'field_ids' in prog:
                 field_ids = prog['field_ids']
                 for field_id in field_ids:
                     if field_id not in f.fields.index:
                         raise ValueError(f'Input field_id {field_id} is not valid')
-            else: 
+                field_selection_function = None
+            elif 'field_selections' in prog: 
                 field_ids = f.select_field_ids(**prog['field_selections'])
+                field_selection_function = None
+            else:
+                field_ids = None
+                field_selection_function = prog['field_selection_function']
+                # check if it exists
+                assert(field_selection_function in globals())
             if 'nobs_range' not in prog:
                 prog['nobs_range'] = None
             if 'intranight_gap_min' not in prog:
@@ -136,7 +146,8 @@ class QueueConfiguration(Configuration):
                                   exposure_time = prog['exposure_time'],
                                   nobs_range = prog['nobs_range'],
                                   filter_choice=prog['filter_choice'],
-                                  active_months=prog['active_months'])
+                                  active_months=prog['active_months'],
+                                  field_selection_function = field_selection_function)
             OPs.append(OP)
 
         return OPs
