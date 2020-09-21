@@ -91,11 +91,11 @@ class ObservingProgram(object):
         if self.field_selection_function is not None:
             try:
                 selection_function = globals()[self.field_selection_function]
-                field_ids = selection_function(time, obs_log, other_program_fields)
+                field_ids = selection_function(time, obs_log, other_program_fields, fields)
                 self.logger.info(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: selected {len(field_ids)} fields')
                 self.logger.debug(f'    {field_ids}')
             except Exception as e:
-                self.logger.error(e)
+                self.logger.exception(e)
                 self.logger.warning(f'Error in generating nightly field list for Program ID {self.program_id}, subprogram {self.subprogram_name}, returning zero fields!')  
                 return []
         else:

@@ -189,7 +189,8 @@ class QueueManager(object):
             key = (program.program_id, program.subprogram_name)
             program_fields[key] = \
                 {'field_ids': program.field_ids,
-                 'field_selection_function': program.field_selection_function}
+                 'field_selection_function': program.field_selection_function,
+                 'requests_allowed': self.requests_allowed[key]}
 
         for program in self.observing_programs:
 
@@ -595,8 +596,6 @@ class GurobiQueueManager(QueueManager):
         # check that the pool has fields in it
         if len(self.rp.pool) == 0:
             raise QueueEmptyError("No fields in pool")
-
-        1/0
 
         # join with fields so we have the information we need
         # make a copy so rp.pool and self.queue are not linked
