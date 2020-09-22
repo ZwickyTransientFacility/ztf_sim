@@ -183,11 +183,20 @@ class QueueManager(object):
         self.determine_allowed_requests(current_state['current_time'],
                 obs_log, timed_obs_count = timed_obs_count)
 
+        # can be used by field_selection_functions downstream
+        program_fields = {}
+        for program in self.observing_programs:
+            key = (program.program_id, program.subprogram_name)
+            program_fields[key] = \
+                {'field_ids': program.field_ids,
+                 'field_selection_function': program.field_selection_function,
+                 'requests_allowed': self.requests_allowed[key]}
+
         for program in self.observing_programs:
 
             request_sets = program.assign_nightly_requests(
                 current_state['current_time'], self.fields,
-                obs_log, block_programs=self.block_programs)
+                obs_log, program_fields, block_programs=self.block_programs)
             for rs in request_sets:
                 self.rp.add_request_sets(rs['program_id'], 
                             rs['subprogram_name'], rs['program_pi'],
@@ -304,9 +313,14 @@ class QueueManager(object):
         # calculate subprogram fractions excluding list queues and TOOs
         scheduled_subprogram_sum = defaultdict(float)
         for op in self.observing_programs:
-            if len(op.field_ids) > 0:
-                scheduled_subprogram_sum[op.program_id] += \
-                        op.subprogram_fraction
+            # list queues and TOOs should set field_ids = [], but not None
+            # OPs scheduled using field_selection_function will have 
+            # field_ids = None
+            if op.field_ids is not None:
+                if len(op.field_ids) == 0:
+                    continue
+            scheduled_subprogram_sum[op.program_id] += \
+                    op.subprogram_fraction
 
         for op in self.observing_programs:
 

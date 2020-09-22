@@ -1,10 +1,12 @@
 """Classes implementing Observing Programs."""
 
+import logging
 import numpy as np
 import astropy.units as u
 from astropy.time import Time
 from .constants import EXPOSURE_TIME, READOUT_TIME, TIME_BLOCK_SIZE
 from .utils import approx_hours_of_darkness
+from .field_selection_functions import *
 
 
 class ObservingProgram(object):
@@ -16,7 +18,13 @@ class ObservingProgram(object):
                  exposure_time = EXPOSURE_TIME,
                  nobs_range=None,
                  filter_choice='rotate', 
-                 active_months='all'):
+                 active_months='all',
+                 field_selection_function=None):
+
+        assert ((field_ids is None) or (field_selection_function is None))
+        assert not((field_ids is None) and (field_selection_function is None))
+
+        self.logger = logging.getLogger(__name__)
 
         self.program_id = program_id
         self.subprogram_name = subprogram_name
@@ -39,7 +47,10 @@ class ObservingProgram(object):
         else:
             self.active_months = 'all'
 
+        self.field_selection_function = field_selection_function
+
     def assign_nightly_requests(self, time, fields, obs_log, 
+            other_program_fields,
             block_programs=False, **kwargs):
 
         # filters are given in filter_ids:
@@ -76,8 +87,23 @@ class ObservingProgram(object):
         obs_field_ids = fields.select_field_ids(observable_hours_range=
             [(self.n_visits_per_night*TIME_BLOCK_SIZE).to(u.hour).value, 24.])
 
+        # if needed, compute the OP fields on a nightly basis
+        if self.field_selection_function is not None:
+            try:
+                selection_function = globals()[self.field_selection_function]
+                field_ids = selection_function(time, obs_log, other_program_fields, fields)
+                self.logger.info(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: selected {len(field_ids)} fields')
+                self.logger.debug(f'    {field_ids}')
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.warning(f'Error in generating nightly field list for Program ID {self.program_id}, subprogram {self.subprogram_name}, returning zero fields!')  
+                return []
+        else:
+            field_ids = self.field_ids
+
         # now form the intersection of observable fields and the OP fields
-        pool_ids = obs_field_ids.intersection(self.field_ids)
+        pool_ids = obs_field_ids.intersection(field_ids)
+        self.logger.debug(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: {len(pool_ids)} fields observable')
 
         # get the times they were last observed:
         # (note that fields *never* observed will not be included)
@@ -159,6 +185,8 @@ class ObservingProgram(object):
         elif self.filter_choice == 'sequence':
             assert(len(self.filter_ids) == self.n_visits_per_night)
             filter_sequence = self.filter_ids.copy()
+
+        self.logger.debug(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: {len(request_fields.index.values)} fields requested')
 
         request_set = []
         request_set.append(
