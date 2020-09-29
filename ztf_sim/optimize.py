@@ -10,6 +10,7 @@ import pandas as pd
 from collections import defaultdict
 from .utils import maximum_altitude
 from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME
+from .constants import PROGRAM_NAME_TO_ID
 
 max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE / 
                 (EXPOSURE_TIME + READOUT_TIME)).to(
@@ -93,9 +94,10 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     dfr['observable_tonight'] = dfr['total_requests_tonight'] <= dfr['n_usable']
  
     # restrict to only the observable requests
-    dfr = dfr[dfr['observable_tonight']]
+    dfr = dfr.loc[dfr['observable_tonight'],:]
     dft = pd.merge(dft,dfr[['n_usable','observable_tonight']],
             left_on='request_id',right_index=True)
+    dft = dft.loc[dft['observable_tonight'],:]
     request_sets = dfr.index.values
     df_metric = df_metric.loc[dfr.index]
 
@@ -242,11 +244,41 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 
     # program balance.  To avoid key errors, only set constraints 
     # for programs that are present
+    msip_requests_needed = []
+    msip_requests_possible = {} 
     requests_needed = []
     for p in requests_allowed.keys():
-        if np.sum((dft['program_id'] == p[0]) &
-                (dft['subprogram_name'] == p[1])) > 0:
-            requests_needed.append(p)
+        if p[0] == PROGRAM_NAME_TO_ID['MSIP']:
+            n_available = np.sum((dft['program_id'] == p[0]) &
+                    (dft['subprogram_name'] == p[1]))
+            if n_available > 0:
+                # to demand exact equality we need to know how many 
+                # requests we have
+                # set to the minimum of allowed or available
+                if n_available <=  requests_allowed[p]:
+                    # MSIP requests only come in pairs, so we need an even
+                    # number.
+                    # TODO: generalize this.
+                    if n_available % 2 != 0:
+                        n_available -= 1
+                    msip_requests_possible[p] = n_available
+
+                else:
+                    if requests_allowed[p] % 2 != 0:
+                        requests_allowed[p] += 1
+                    msip_requests_possible[p] = requests_allowed[p]
+                msip_requests_needed.append(p)
+        else: 
+            if np.sum((dft['program_id'] == p[0]) &
+                    (dft['subprogram_name'] == p[1])) > 0:
+                requests_needed.append(p)
+
+    # demand exact equality for MSIP
+    constr_msip_balance = m.addConstrs(
+        ((np.sum(dft.loc[(dft['program_id'] == p[0]) & 
+            (dft['subprogram_name'] == p[1]), 'Yrtf'])
+        == msip_requests_possible[p]) for p in msip_requests_needed), 
+        "constr_msip_balance")
 
     constr_balance = m.addConstrs(
         ((np.sum(dft.loc[(dft['program_id'] == p[0]) & 
