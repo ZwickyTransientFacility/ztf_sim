@@ -109,18 +109,20 @@ def altitude_to_airmass(altitude):
 
 def maximum_altitude(dec, lat=P48_loc.lat.degree):
     """Compute the altitude of a source with declination dec as it transits the
-    meridian."""
+    meridian.
+    
+    dec: Pandas DataFrame, which may be Multi-Indexed"""
 
     px = 90 - dec
     pz = 90 - lat
 
-    results = np.zeros(len(dec))
+    results = dec*0.
 
     w = (px >= pz)
 
-    if np.sum(w):
+    if np.sum(w.values.flatten()):
         results[w] = 90 - lat + dec[w]
-    if np.sum(~w):
+    if np.sum(~w.values.flatten()):
         results[~w] = 90 + lat - dec[~w]
 
     return results
