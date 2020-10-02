@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
     """Select MSIP NSS fields so we ensure lowdec coverage."""
 
-    candidate_nss_field_ids = fields.select_field_ids(dec_range=[-31.5,90.],
+    candidate_nss_field_ids = fields.select_field_ids(dec_range=[-32,90.],
                            grid_id=0,
                            # lowest rung fields are above airmass 2.5 for 2 hrs
                            observable_hours_range=[2.0, 24.])
@@ -72,10 +72,7 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
         available_nss_fields['abs_HA_midnight'] = np.abs(available_nss_fields['HA_midnight'])
         nss_field_ids_to_observe = available_nss_fields.sort_values(by='abs_HA_midnight', ascending=True).iloc[:n_fields_to_observe].index.tolist()
 
-
-
-
-
+        logger.info(f'MSIP NSS: requesting {nss_field_ids_to_observe}')
 
     else:
         # we have fewer fields available than expected--pad back on some recent
@@ -102,6 +99,8 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
 
         field_ids_to_extend = extra_fields.sort_values(by='n_obs',ascending=True).iloc[:n_to_extend].index.tolist()
                 
+        logger.info(f'MSIP NSS: requesting {nss_field_ids_to_observe}')
+
         nss_field_ids_to_observe.extend(field_ids_to_extend)
 
         logger.info(f'MSIP NSS: Extending by {n_to_extend} fields: {field_ids_to_extend}')
@@ -111,7 +110,7 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
 def msip_nss_selection(time, obs_log, other_program_fields, fields):
     """Select MSIP NSS fields so they don't overlap with other MSIP subprograms."""
 
-    candidate_nss_fields = fields.select_field_ids(dec_range=[-31.,90.],
+    candidate_nss_fields = fields.select_field_ids(dec_range=[-32,90.],
                            grid_id=0,
                            observable_hours_range=[1.0, 24.])
 
