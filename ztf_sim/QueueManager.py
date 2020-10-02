@@ -12,7 +12,6 @@ from astropy.time import Time, TimeDelta
 import astroplan
 from .Fields import Fields
 from .SkyBrightness import SkyBrightness
-from .magnitudes import limiting_mag
 from .optimize import tsp_optimize, night_optimize
 from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
@@ -23,7 +22,7 @@ from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
-from .utils import block_use_fraction, maximum_altitude
+from .utils import block_use_fraction, maximum_altitude, compute_limiting_mag
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -379,125 +378,6 @@ class QueueManager(object):
         # define functions that actually do the work in subclasses
         return self._remove_requests(request_id)
 
-    def compute_limiting_mag(self, df, time, filter_id=None):
-        """compute limiting magnitude based on sky brightness and seeing"""
-
-        # copy df so we can edit the filter id if desired
-        if filter_id is not None:
-            df = df.copy()
-            df['filter_id'] = filter_id
-
-        # compute inputs for sky brightness
-        sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
-        sun = coord.get_sun(time)
-        sun_altaz = skycoord_to_altaz(sun, time)
-        moon = coord.get_moon(time, location=P48_loc)
-        moon_altaz = skycoord_to_altaz(moon, time)
-        df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(time)
-        
-        # WORKING AROUND BUG in moon distance!!!!  171110
-        df.loc[:, 'moon_dist'] = moon.separation(sc).to(u.deg).value
-        df.loc[:, 'moonalt'] = moon_altaz.alt.to(u.deg).value
-        df.loc[:, 'sunalt'] = sun_altaz.alt.to(u.deg).value
-
-        # check if the sun is up anywhere and break things if it isn't
-        if np.sum(df['sunalt'] > -6) != 0:
-            raise ValueError('Some pointings outside six-degree twilight!')
-
-        # compute sky brightness
-        # only have values for reasonable altitudes (set by R20_absorbed...)
-        wup = df['altitude'] >= airmass_to_altitude(MAX_AIRMASS) 
-        df.loc[wup, 'sky_brightness'] = self.Sky.predict(df[wup])
-
-        # compute seeing at each pointing
-        df.loc[wup, 'seeing'] = seeing_at_pointing(2.0*u.arcsec, 
-            df.loc[wup,'altitude'])
-
-        df.loc[wup, 'limiting_mag'] = limiting_mag(EXPOSURE_TIME, 
-            df.loc[wup, 'seeing'],
-            df.loc[wup, 'sky_brightness'],
-            filter_id = df.loc[wup,'filter_id'],
-            altitude = df.loc[wup,'altitude'], SNR=5.)
-
-        # renormalize limiting mags to the R-band range so we maintain 
-        # the causal structure with airmass, etc. but can get i-band scheduled
-        
-        # bright time limiting mags (from PTF-trained model--see 170930 notes
-        # and plot_sky_brightness_model.ipynb)
-        mlim_bright_g = 19.9
-        mlim_bright_r = 20.1
-        mlim_bright_i = 19.5
-        dm_g = (21.9-19.9)
-        dm_r = (21.5-20.1)
-        dm_i = (20.9-19.5)
-
-        wg = df['filter_id'] == 1
-        if np.sum(wg):
-            df.loc[wg,'limiting_mag'] = \
-                (df.loc[wg,'limiting_mag'] - mlim_bright_g) * dm_r/dm_g \
-                + mlim_bright_r
-
-        wi = df['filter_id'] == 3
-        if np.sum(wi):
-            df.loc[wi,'limiting_mag'] = \
-                (df.loc[wi,'limiting_mag'] - mlim_bright_i) * dm_r/dm_i \
-                + mlim_bright_r
-
-        # assign a very bright limiting mag to the fields that are down 
-        # so the metric goes to zero
-        df.loc[~wup, 'limiting_mag'] = -99
-
-        # assign a very bright limiting mag to the fields within 20 degrees of
-        # the moon 
-        wmoon = df['moon_dist'] < 20
-        df.loc[wmoon, 'limiting_mag'] = -99
-
-        # need to check the Hour Angle at both the start and the end of the
-        # block, since we don't know the exact time it will be observed
-
-        # time is provided at the block midpoint
-
-        ha_vals = RA_to_HA(df['ra'].values*u.degree, 
-                time - TIME_BLOCK_SIZE/2.)
-        # for limits below, need ha-180-180
-        ha_vals = ha_vals.wrap_at(180.*u.degree)
-        ha = pd.Series(ha_vals.to(u.degree), index=df.index, name='ha')
-
-        ha_vals_end = RA_to_HA(df['ra'].values*u.degree, 
-                time + TIME_BLOCK_SIZE/2.)
-        # for limits below, need ha-180-180
-        ha_vals_end = ha_vals_end.wrap_at(180.*u.degree)
-        ha_end = pd.Series(ha_vals_end.to(u.degree), index=df.index, name='ha')
-
-        # lock out TCS limits
-        
-        # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
-        # fields not hit by the airmass cut)
-        whalimit = np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value
-        whalimit_end = np.abs(ha_end) >= (5.95 * u.hourangle).to(u.degree).value
-        df.loc[whalimit | whalimit_end, 'limiting_mag'] = -99
-
-        # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
-        w1 = (ha <= -17.6) & (df['dec'] <= -22)
-        w1_end = (ha_end <= -17.6) & (df['dec'] <= -22)
-        df.loc[w1 | w1_end, 'limiting_mag'] = -99
-
-        # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.  
-        w2 = (ha >= -17.6) & (df['dec'] <= -45)
-        w2_end = (ha_end >= -17.6) & (df['dec'] <= -45)
-        df.loc[w2 | w2_end, 'limiting_mag'] = -99
-
-        # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".  
-        w3 = (np.abs(ha) >= 3.) & (df['dec'] <= -46)
-        w3_end = (np.abs(ha_end) >= 3.) & (df['dec'] <= -46)
-        df.loc[w3 | w3_end, 'limiting_mag'] = -99
-
-        # dec > 87.5 is rejected
-        w4 = (df['dec'] > 87.5)
-        df.loc[w4, 'limiting_mag'] = -99
-
-        return df['limiting_mag'], df['sky_brightness']
-
     def return_queue(self):
         """Return queue values, ordered in the expected sequence if possible"""
 
@@ -642,7 +522,7 @@ class GurobiQueueManager(QueueManager):
             df = df.join(df_az, on='field_id')
             for fid in FILTER_IDS:
                 df_limmag, df_sky = \
-                    self.compute_limiting_mag(df, ti, filter_id = fid)
+                    compute_limiting_mag(df, ti, self.Sky, filter_id = fid)
                 lim_mags[(bi, fid)] = df_limmag
                 sky_brightnesses[(bi, fid)] = df_sky
                 decs[(bi, fid)] = df.dec
@@ -1028,8 +908,8 @@ class GreedyQueueManager(QueueManager):
         # airmass cut (or add airmass weighting to value below)
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
-        df_limmag, df_sky = self.compute_limiting_mag(df,
-                current_state['current_time'])
+        df_limmag, df_sky = compute_limiting_mag(df,
+                current_state['current_time'], self.Sky)
         df.loc[:, 'limiting_mag'] = df_limmag
         df.loc[:, 'sky_brightness'] = df_sky
 
