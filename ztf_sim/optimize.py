@@ -8,7 +8,6 @@ import shelve
 import astropy.units as u
 import pandas as pd
 from collections import defaultdict
-from .utils import maximum_altitude
 from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME
 from .constants import PROGRAM_NAME_TO_ID
 
@@ -54,15 +53,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     wPPi = (dft['subprogram_name'] == 'Partnership_Plane') & (dft['metric_filter_id'] == 3)
     dft.loc[wPPi,'exposure_time'] = 60.
 
-    # TEMPORARY: normalize metrics by maximum value at transit
-    # so low-declination fields are not penalized
-    # see 200430 notes
-    wPPt = (dft['subprogram_name'] == 'Partnership_Plane') 
-    wMSIPt = (dft['program_id'] == 1)
-    wrenorm = wPPt | wMSIPt
-    dft.loc[wrenorm,'metric'] = (dft.loc[wrenorm,'metric'] / 
-            (1-1e-4*(maximum_altitude(dft.loc[wrenorm,'dec']) - 90)**2.))
-    
     # don't need the dec column anymore
     dft = dft.drop('dec',axis=1)
 
@@ -249,8 +239,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     requests_needed = []
     for p in requests_allowed.keys():
         if p[0] == PROGRAM_NAME_TO_ID['MSIP']:
-            n_available = np.sum((dft['program_id'] == p[0]) &
-                    (dft['subprogram_name'] == p[1]))
+            wmsipp = (dfr['program_id'] == p[0]) & (dfr['subprogram_name'] == p[1])
+            n_available = np.sum(dfr.loc[wmsipp,'total_requests_tonight'])
             if n_available > 0:
                 # to demand exact equality we need to know how many 
                 # requests we have
@@ -285,7 +275,6 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
             (dft['subprogram_name'] == p[1]), 'Yrtf'])
         <= requests_allowed[p]) for p in requests_needed), 
         "constr_balance")
-
 
     m.update()
 
