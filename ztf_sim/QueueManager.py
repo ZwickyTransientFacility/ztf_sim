@@ -23,7 +23,7 @@ from .utils import approx_hours_of_darkness
 from .utils import skycoord_to_altaz, seeing_at_pointing
 from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
 from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
-from .utils import block_use_fraction
+from .utils import block_use_fraction, maximum_altitude
 
 class QueueEmptyError(Exception):
     """Error class for when the nightly queue has no more fields"""
@@ -577,15 +577,21 @@ class GurobiQueueManager(QueueManager):
 
         return next_obs
 
-    def _slot_metric(self, limiting_mag):
+    def _slot_metric(self, limiting_mag, dec):
         """Calculate metric for assigning fields to slots.
 
         penalizes volume for both extinction (airmass) and fwhm penalty
         due to atmospheric refraction, plus sky brightness from
         moon phase and distance
-        == 1 for 21st mag."""
+        == 1 for 21st mag.
+        
+        normalize metrics by maximum value at transit
+        so low-declination fields are not penalized
+        """
+        #see 200430 notes
 
-        metric = 10.**(0.6 * (limiting_mag - 21)) 
+        metric = (10.**(0.6 * (limiting_mag - 21)) /
+                (1-1e-4*(maximum_altitude(dec) - 90)**2.))
         # lock out -99 limiting mags even more aggressively
         return metric.where(limiting_mag > 0, -0.99)
 
@@ -621,6 +627,7 @@ class GurobiQueueManager(QueueManager):
 
         lim_mags = {}
         sky_brightnesses = {}
+        decs = {}
         for bi, ti in zip(blocks, times):
             if 'altitude' in df.columns:
                 df.drop('altitude', axis=1, inplace=True)
@@ -638,12 +645,15 @@ class GurobiQueueManager(QueueManager):
                     self.compute_limiting_mag(df, ti, filter_id = fid)
                 lim_mags[(bi, fid)] = df_limmag
                 sky_brightnesses[(bi, fid)] = df_sky
+                decs[(bi, fid)] = df.dec
 
         # this results in a MultiIndex on the *columns*: level 0 is block,
         # level 1 is filter_id.  df_metric.unstack() flattens it
         self.block_lim_mags = pd.DataFrame(lim_mags)
         self.block_sky_brightness = pd.DataFrame(sky_brightnesses)
-        self.block_slot_metric = self._slot_metric(self.block_lim_mags)
+        block_decs = pd.DataFrame(decs)
+        self.block_slot_metric = self._slot_metric(self.block_lim_mags, 
+                block_decs)
 
         # count the number of observations requested by filter
         df['n_reqs_tot'] = 0
@@ -915,11 +925,13 @@ class GreedyQueueManager(QueueManager):
         Penalizes volume for both extinction (airmass) and fwhm penalty
         due to atmospheric refraction, plus sky brightness from
         moon phase and distance, overhead time
-        == 1 for 21st mag, 15 sec overhead."""
+        == 1 for 21st mag, 15 sec overhead.
+        Normalize by value at transit."""
 
         return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
+            (1-1e-4*(maximum_altitude(df['dec']) - 90)**2.) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
-             (EXPOSURE_TIME.value + 15.))
+             (EXPOSURE_TIME.value + 10.))
 
     def _update_overhead(self, current_state, df=None):
         """recalculate overhead values without regenerating whole queue"""
