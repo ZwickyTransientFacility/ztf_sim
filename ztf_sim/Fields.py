@@ -24,6 +24,7 @@ class Fields(object):
         self.current_blocks = None
         self.block_alt = None
         self.block_az = None
+        self._current_observable_hours_night_mjd = None  # np.floor(time.mjd)
         self.observable_hours = None
         self.Sky = SkyBrightness()
 
@@ -109,6 +110,10 @@ class Fields(object):
 
         self.compute_blocks(time, time_block_size=time_block_size)
 
+        block_night = np.floor(time.mjd).astype(np.int)
+        if self._current_observable_hours_night_mjd == block_night:
+            return
+
         lim_mags = {}
         # use pre-computed blocks
         for bi, ti in zip(self.current_blocks, self.current_block_times):
@@ -131,6 +136,7 @@ class Fields(object):
             (TIME_BLOCK_SIZE.to(u.hour))
         observable_hours.name = 'observable_hours'
         self.observable_hours = observable_hours
+        self._current_observable_hours_night_mjd = block_night
 
     def alt_az(self, time, cuts=None):
         """return Altitude & Azimuth by field at a given time"""
