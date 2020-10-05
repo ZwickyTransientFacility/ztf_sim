@@ -1,5 +1,6 @@
 """Implementation of core scheduling algorithms using Gurobi."""
 
+import logging
 import os
 from collections import defaultdict
 from gurobipy import *
@@ -14,6 +15,8 @@ from .constants import PROGRAM_NAME_TO_ID
 max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE / 
                 (EXPOSURE_TIME + READOUT_TIME)).to(
                 u.dimensionless_unscaled).value).astype(int)
+
+logger = logging.getLogger(__name__)
 
 def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         block_use = defaultdict(float)):
@@ -330,13 +333,35 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
 
     m.optimize()
 
+    # if we have optimization problems, MSIP exact equality is likely the problem.
+    # relax the constraint and retry
+    
+
     if (m.Status != GRB.OPTIMAL) and (m.Status != GRB.TIME_LIMIT):
-        raise ValueError("Optimization failure")
+        logger.warning(f"Gurobi failed to optimize! Code {m.Status}")
+        logger.info("Relaxing MSIP exact constraint.")
+        m.setAttr("Sense", [c for c in constr_msip_balance.values()],
+                           ["<" for c in constr_msip_balance.values()]) 
+        m.optimize()
+        if (m.Status != GRB.OPTIMAL) and (m.Status != GRB.TIME_LIMIT):
+            logger.error(f"Gurobi optimization with relaxed MSIP constraints failed! Code {m.Status}")
 
 
     # now get the decision variables.  Use > a constant to avoid 
     # numerical precision issues
-    dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1) 
+    try:
+        dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1) 
+    except AttributeError:
+        logger.error("Optimization reached time limit but didn't find solutions")
+        logger.info("Relaxing MSIP exact constraint.")
+        m.setAttr("Sense", [c for c in constr_msip_balance.values()],
+                           ["<" for c in constr_msip_balance.values()]) 
+        m.optimize()
+        try:
+            dft['Yrtf_val'] = dft['Yrtf'].apply(lambda x: x.getAttr('x') > 0.1) 
+        except AttributeError:
+            logger.error(f"Gurobi optimization with relaxed MSIP constraints failed!")
+
 
     df_schedule = dft.loc[dft['Yrtf_val'],['slot','metric_filter_id', 'request_id']]
 
