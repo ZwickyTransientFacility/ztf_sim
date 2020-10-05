@@ -11,7 +11,6 @@ import astropy.units as u
 from astropy.time import Time, TimeDelta
 import astroplan
 from .Fields import Fields
-from .SkyBrightness import SkyBrightness
 from .optimize import tsp_optimize, night_optimize
 from .cadence import enough_gap_since_last_obs
 from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
@@ -86,8 +85,6 @@ class QueueManager(object):
             self.fields = Fields()
         else:
             self.fields = fields
-
-        self.Sky = SkyBrightness()
 
     def is_valid(self, time):
         if self.validity_window is None:
@@ -522,7 +519,8 @@ class GurobiQueueManager(QueueManager):
             df = df.join(df_az, on='field_id')
             for fid in FILTER_IDS:
                 df_limmag, df_sky = \
-                    compute_limiting_mag(df, ti, self.Sky, filter_id = fid)
+                    compute_limiting_mag(df, ti, self.fields.Sky,
+                            filter_id = fid)
                 lim_mags[(bi, fid)] = df_limmag
                 sky_brightnesses[(bi, fid)] = df_sky
                 decs[(bi, fid)] = df.dec
@@ -909,7 +907,7 @@ class GreedyQueueManager(QueueManager):
         # df = df[(df['airmass'] <= MAX_AIRMASS) & (df['airmass'] > 0)]
 
         df_limmag, df_sky = compute_limiting_mag(df,
-                current_state['current_time'], self.Sky)
+                current_state['current_time'], self.fields.Sky)
         df.loc[:, 'limiting_mag'] = df_limmag
         df.loc[:, 'sky_brightness'] = df_sky
 
