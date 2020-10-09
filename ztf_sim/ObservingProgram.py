@@ -69,7 +69,7 @@ class ObservingProgram(object):
         
         # compute nightly altaz blocks and observability windows
         fields.compute_blocks(time)
-        fields.compute_observability()
+        fields.compute_observability(time)
 
         n_filters = len(set(self.filter_ids))
         if self.filter_choice == 'rotate':
@@ -95,6 +95,7 @@ class ObservingProgram(object):
                 self.logger.info(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: selected {len(field_ids)} fields')
                 self.logger.debug(f'    {field_ids}')
             except Exception as e:
+                #raise(e) # needed to debug filter_selection_functions
                 self.logger.exception(e)
                 self.logger.warning(f'Error in generating nightly field list for Program ID {self.program_id}, subprogram {self.subprogram_name}, returning zero fields!')  
                 return []

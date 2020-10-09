@@ -91,7 +91,7 @@ class QueueConfiguration(Configuration):
                     if ((prog['active_months'] == 'all') or 
                     (month in np.atleast_1d(prog['active_months'])))
                     ]), 1.0):
-                    raise ValueError('Observing fractions must sum to 1')
+                    raise ValueError(f"Observing fractions must sum to 1: {[(prog['subprogram_name'], prog['program_observing_fraction']*prog['subprogram_fraction']) for prog in self.config['observing_programs']]}")
 
             # could do this via schema validation
             for prog in self.config['observing_programs']:
