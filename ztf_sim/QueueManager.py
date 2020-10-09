@@ -356,6 +356,7 @@ class QueueManager(object):
 
         # check if we have a disallowed observation, and reject it:
         if next_obs['target_limiting_mag'] < 0:
+            self.logger.warning(f'Target is unobservable!  Removing from queue {next_obs}')
             self.remove_requests(next_obs['request_id'])
             next_obs = self.next_obs(current_state, obs_log)
 
