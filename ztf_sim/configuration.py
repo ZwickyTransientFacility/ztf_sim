@@ -83,7 +83,7 @@ class QueueConfiguration(Configuration):
 
     def check_configuration(self):
 
-        if self.config['queue_manager'] != 'list':
+        if self.config['queue_manager'] != 'list' and len(self.config['observing_programs']):
             for month in range(1,13):
                 if not np.isclose(np.sum(
                     [prog['program_observing_fraction']*prog['subprogram_fraction'] 
