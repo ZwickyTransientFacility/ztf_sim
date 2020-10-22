@@ -415,7 +415,11 @@ class GurobiQueueManager(QueueManager):
 
         # if we've entered a new block, solve the TSP to sequence the requests
         if (block_index(current_state['current_time'])[0] != self.queue_slot):
-            self._move_requests_to_missed_obs(self.queue_slot)
+            try:
+                self._move_requests_to_missed_obs(self.queue_slot)
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.error('Failed moving requests to missed obs!')
             self._sequence_requests_in_block(current_state)
 
         if (len(self.queue_order) == 0):
