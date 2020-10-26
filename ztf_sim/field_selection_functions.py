@@ -5,7 +5,10 @@ All functions should take
     an ObsLogger instance
     a dictionary of other observing programs field_ids and field_selection_functions
     a Fields object (for efficiency)
-and return a list of field_ids."""
+and return a list of field_ids.
+
+Note that any cadence cuts should occur within the functions defined here--the cadence cuts in ObservingProgram.py are overridden. 
+"""
 
 import logging
 import numpy as np
