@@ -24,6 +24,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logging.getLogger("transitions").setLevel(logging.WARNING)
 logging.getLogger("gurobipy").setLevel(logging.INFO)
+logging.getLogger("ztf_sim.field_selection_functions").setLevel(logging.INFO)
 
 def simulate(scheduler_config_file, sim_config_file,
         scheduler_config_path = BASE_DIR + '../../ztf_survey_configuration/',
