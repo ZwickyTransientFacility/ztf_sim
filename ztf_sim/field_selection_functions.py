@@ -5,7 +5,10 @@ All functions should take
     an ObsLogger instance
     a dictionary of other observing programs field_ids and field_selection_functions
     a Fields object (for efficiency)
-and return a list of field_ids."""
+and return a list of field_ids.
+
+Note that any cadence cuts should occur within the functions defined here--the cadence cuts in ObservingProgram.py are overridden. 
+"""
 
 import logging
 import numpy as np
@@ -25,9 +28,25 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
                            grid_id=0,
                            # lowest rung fields are above airmass 2.5 for 2 hrs
                            observable_hours_range=[2.0, 24.])
+    candidate_nss_fields = fields.fields.loc[candidate_nss_field_ids].copy()
 
-    msip_internight_gap = 2*u.day
+
+    msip_cadence = 2
+    msip_internight_gap = msip_cadence*u.day
     msip_nobs_per_night = 2
+
+    nss_requests_allowed = other_program_fields[
+            (PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['requests_allowed']
+    n_fields_to_observe = int(np.round(nss_requests_allowed / msip_nobs_per_night))
+
+    # define a footprint for the 2-night cadence by cutting on HA at midnight
+    candidate_nss_fields['HA_midnight'] = RA_to_HA(
+                candidate_nss_fields['ra'].values*u.degree, 
+            P48_Observer.midnight(time, which='nearest')).wrap_at(180*u.deg)
+    candidate_nss_fields['abs_HA_midnight'] = np.abs(candidate_nss_fields['HA_midnight'])
+    nss_footprint_field_ids = candidate_nss_fields.sort_values(by='abs_HA_midnight', ascending=True).iloc[:(msip_cadence*n_fields_to_observe-1)].index.tolist()
+    # save these if we need filler
+    candidate_field_ids_outside_footprint = candidate_nss_fields.sort_values(by='abs_HA_midnight', ascending=True).iloc[(msip_cadence*n_fields_to_observe-1):].index.tolist()
 
     # unfortunate duplication of code from ObservingProgram.py
     # get the times they were last observed:
@@ -36,7 +55,7 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
     # at the start of the night, exclude observations taken tonight
     # this lets us restart the scheduler without breaking things
     last_observed_times = obs_log.select_last_observed_time_by_field(
-        field_ids = candidate_nss_field_ids,
+        field_ids = nss_footprint_field_ids,
         filter_ids = [1,2],
         program_ids = [PROGRAM_NAME_TO_ID['MSIP']],
         subprogram_names = ['all_sky'],
@@ -53,24 +72,16 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
     recent_field_ids = last_observed_times.loc[wrecent].index.tolist()
 
     # reduce the list to only those not recently observed:
-    nss_field_ids_due = [idi for idi in candidate_nss_field_ids if idi not in recent_field_ids] 
-    nss_requests_allowed = other_program_fields[
-            (PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['requests_allowed']
-    n_fields_to_observe = int(np.round(nss_requests_allowed / msip_nobs_per_night))
+    nss_field_ids_due = [idi for idi in nss_footprint_field_ids if idi not in recent_field_ids] 
 
     if len(nss_field_ids_due)*msip_nobs_per_night > nss_requests_allowed:
-        # we have more fields we could observe than we are able to, select the
-        # best ones
+        # we have more fields we could observe than we are able to
+        # select the fields with the least recent observations
         logger.info(f'MSIP NSS: {nss_requests_allowed/msip_nobs_per_night} fields needed, {len(nss_field_ids_due)} available--removing fields.')
         available_nss_fields = fields.fields.loc[nss_field_ids_due]
-
-
-        # find HA of the fields at midnight
-        available_nss_fields['HA_midnight'] = RA_to_HA(
-                available_nss_fields['ra'].values*u.degree, 
-                P48_Observer.midnight(time, which='nearest')).wrap_at(180*u.deg)
-        available_nss_fields['abs_HA_midnight'] = np.abs(available_nss_fields['HA_midnight'])
-        nss_field_ids_to_observe = available_nss_fields.sort_values(by='abs_HA_midnight', ascending=True).iloc[:n_fields_to_observe].index.tolist()
+        available_nss_fields = available_nss_fields.join(last_observed_times)
+        available_nss_fields['expMJD'] = available_nss_fields['expMJD'].fillna(Time('2001-01-01').mjd)
+        nss_field_ids_to_observe = available_nss_fields.sort_values(by='expMJD',ascending=True).iloc[:n_fields_to_observe].index.tolist()
 
         logger.info(f'MSIP NSS: requesting {nss_field_ids_to_observe}')
 
@@ -81,6 +92,11 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields):
         nss_field_ids_to_observe = nss_field_ids_due
 
         n_fields_needed = n_fields_to_observe - len(nss_field_ids_due)
+
+        # for now just pad on the extra fields outside the footprint
+        # TODO: think more carefully about how best to handle this
+        recent_field_ids.extend(candidate_field_ids_outside_footprint)
+
         extra_fields = fields.fields.loc[recent_field_ids]
 
         # if we don't have enough extras it's okay; optimize.py will truncate

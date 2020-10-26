@@ -9,9 +9,9 @@ from astropy.time import Time
 import astropy.units as u
 from .TelescopeStateMachine import TelescopeStateMachine
 from .Scheduler import Scheduler
-from .QueueManager import GreedyQueueManager, QueueEmptyError, GurobiQueueManager
+from .QueueManager import GreedyQueueManager, QueueEmptyError
 from .QueueManager import calc_pool_stats, calc_queue_stats
-from .configuration import SchedulerConfiguration
+from .configuration import SchedulerConfiguration, QueueConfiguration
 from .constants import BASE_DIR, P48_loc
 from .utils import block_index
 
@@ -24,6 +24,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logging.getLogger("transitions").setLevel(logging.WARNING)
 logging.getLogger("gurobipy").setLevel(logging.INFO)
+logging.getLogger("ztf_sim.field_selection_functions").setLevel(logging.INFO)
 
 def simulate(scheduler_config_file, sim_config_file,
         scheduler_config_path = BASE_DIR + '../../ztf_survey_configuration/',
@@ -98,6 +99,14 @@ def simulate(scheduler_config_file, sim_config_file,
                               tel.current_time)
             timed_obs_count = scheduler.count_timed_observations_tonight()
 
+            # clobber old missed_obs queue with an empty one
+            scheduler.add_queue('missed_obs',
+                    GreedyQueueManager('missed_obs',
+                        QueueConfiguration(BASE_DIR+'../sims/missed_obs.json')),
+                    clobber=True)
+
+            scheduler.queues['default'].missed_obs_queue = scheduler.queues['missed_obs']
+
             scheduler.queues['default'].assign_nightly_requests(
                     tel.current_state_dict(),
                     scheduler.obs_log, block_use = block_use,
@@ -127,32 +136,43 @@ def simulate(scheduler_config_file, sim_config_file,
                                 scheduler.obs_log)
                         assert(next_obs['request_id'] in scheduler.Q.queue.index)
                     except QueueEmptyError:
-                        logger.info("Default queue empty!  Trying fallback queue...")
-                        if fallback and 'fallback' in scheduler.queues:
-                            next_obs = scheduler.queues['fallback'].next_obs(
+
+                        logger.info("Default queue empty!  Trying missed_obs queue...")
+                        try:
+                            next_obs = scheduler.queues['missed_obs'].next_obs(
                                     current_state, scheduler.obs_log)
-                        else:
-                            logger.info("No fallback queue defined!")
-                            raise QueueEmptyError
+                        except QueueEmptyError:
+                            logger.info("missed_obs queue empty!  Trying fallback queue...")
+                            if fallback and 'fallback' in scheduler.queues:
+                                next_obs = scheduler.queues['fallback'].next_obs(
+                                        current_state, scheduler.obs_log)
+                            else:
+                                logger.info("No fallback queue defined!")
+                                raise QueueEmptyError
 
                 else:
-                    if fallback and 'fallback' in scheduler.queues:
-                        logger.info("Default queue empty!  Trying fallback queue...")
-                        next_obs = scheduler.queues['fallback'].next_obs(
-                                    current_state, scheduler.obs_log)
-                    elif not raise_queue_empty:
-                            logger.info("Queue empty!  Waiting...")
-                            scheduler.obs_log.prev_obs = None
-                            tel.wait()
-                            continue
-                    else:
-                        logger.info(calc_queue_stats(
-                            scheduler.Q.queue, current_state,
-                            intro="Queue returned no next_obs. Current queue status:"))
-                        logger.info(calc_pool_stats(
-                            scheduler.Q.rp.pool, intro="Current pool status:"))
+                    logger.info("Default queue empty!  Trying missed_obs queue...")
+                    try:
+                        next_obs = scheduler.queues['missed_obs'].next_obs(
+                                current_state, scheduler.obs_log)
+                    except QueueEmptyError:
+                        if fallback and 'fallback' in scheduler.queues:
+                            logger.info("Default queue empty!  Trying fallback queue...")
+                            next_obs = scheduler.queues['fallback'].next_obs(
+                                        current_state, scheduler.obs_log)
+                        elif not raise_queue_empty:
+                                logger.info("Queue empty!  Waiting...")
+                                scheduler.obs_log.prev_obs = None
+                                tel.wait()
+                                continue
+                        else:
+                            logger.info(calc_queue_stats(
+                                scheduler.Q.queue, current_state,
+                                intro="Queue returned no next_obs. Current queue status:"))
+                            logger.info(calc_pool_stats(
+                                scheduler.Q.rp.pool, intro="Current pool status:"))
 
-                        raise QueueEmptyError
+                            raise QueueEmptyError
 
             # try to change filters, if needed
             if next_obs['target_filter_id'] != current_state['current_filter_id']:

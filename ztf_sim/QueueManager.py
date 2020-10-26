@@ -86,6 +86,8 @@ class QueueManager(object):
         else:
             self.fields = fields
 
+        self.missed_obs_queue = None
+
     def is_valid(self, time):
         if self.validity_window is None:
             return True
@@ -173,8 +175,11 @@ class QueueManager(object):
     def assign_nightly_requests(self, current_state, obs_log, 
             time_limit = 30 * u.second, block_use = defaultdict(float),
             timed_obs_count = defaultdict(int)):
+
         # clear previous request pool
-        self.rp.clear_all_request_sets()
+        if self.queue_name != 'missed_obs':
+            self.rp.clear_all_request_sets()
+           
         # set number of allowed requests by program.
         self.determine_allowed_requests(current_state['current_time'],
                 obs_log, timed_obs_count = timed_obs_count)
@@ -201,7 +206,7 @@ class QueueManager(object):
                             rs['exposure_time'],
                             rs['total_requests_tonight'])
 
-        assert(len(self.rp.pool) > 0)
+#        assert(len(self.rp.pool) > 0)
 
         # any specific tasks needed)
         self._assign_nightly_requests(current_state, 
@@ -356,6 +361,7 @@ class QueueManager(object):
 
         # check if we have a disallowed observation, and reject it:
         if next_obs['target_limiting_mag'] < 0:
+            self.logger.warning(f'Target is unobservable!  Removing from queue {next_obs}')
             self.remove_requests(next_obs['request_id'])
             next_obs = self.next_obs(current_state, obs_log)
 
@@ -409,6 +415,11 @@ class GurobiQueueManager(QueueManager):
 
         # if we've entered a new block, solve the TSP to sequence the requests
         if (block_index(current_state['current_time'])[0] != self.queue_slot):
+            try:
+                self._move_requests_to_missed_obs(self.queue_slot)
+            except Exception as e:
+                self.logger.exception(e)
+                self.logger.error('Failed moving requests to missed obs!')
             self._sequence_requests_in_block(current_state)
 
         if (len(self.queue_order) == 0):
@@ -680,6 +691,37 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = df_fakestart.index.values[tsp_order]
         self.queue = df
 
+    def _move_requests_to_missed_obs(self, queue_slot):
+        """After a block is expired, move any un-observed requests into the missed_obs queue."""
+        #self.queue should have any remaining obs
+        if len(self.queue):
+            cols = ['program_id', 'subprogram_name', 'program_pi', 'field_id', 
+                    'intranight_gap_min', 'exposure_time', 'priority']
+            # it's a little confusing, because each queue entry has all of the
+            # filter_ids from the original request set.  So we have to 
+            # make a pool that only has single filters in it.
+            filter_id = int(self.filter_by_slot[queue_slot])
+            missed_obs = self.queue.loc[:,cols].copy()
+            missed_obs['filter_ids'] = pd.Series([[filter_id] for i in missed_obs.index],index=missed_obs.index)
+            missed_obs['total_requests_tonight'] = 1
+
+            self.logger.info(f"Saving {len(missed_obs)} requests (filter {filter_id}) to the missed_obs queue: {missed_obs.loc[:,['subprogram_name','field_id']]}")
+
+            # the missed obs RequestPool wants request *sets*, so find out
+            # if previous requests were missed
+            rows_to_append = []
+            for idx, row in missed_obs.iterrows():
+                if idx in self.missed_obs_queue.rp.pool.index:
+                    assert(len(self.missed_obs_queue.rp.pool.loc[idx] == 1))
+                    self.missed_obs_queue.rp.pool.loc[idx,'filter_ids'].append(filter_id) 
+                    self.missed_obs_queue.rp.pool.loc[idx,'total_requests_tonight'] += 1
+                else:
+                    rows_to_append.append(row)
+            self.missed_obs_queue.rp.pool = self.missed_obs_queue.rp.pool.append(rows_to_append)
+
+        else:
+            self.logger.debug(f'No remaining queued observations in slot {queue_slot}')
+
     def _remove_requests(self, request_set_id):
         """Remove a request from both the queue and the pool.
         
@@ -891,7 +933,7 @@ class GreedyQueueManager(QueueManager):
 
         self.requests_in_window = np.sum(cadence_cuts) > 0
         if ~self.requests_in_window:
-            self.logging.warning(calc_queue_stats(df, current_state,
+            self.logger.warning(calc_queue_stats(df, current_state,
                 intro="No fields with observable cadence windows.  Queue in progress:"))
             raise QueueEmptyError("No fields with observable cadence windows")
         # also make a copy because otherwise it retains knowledge of
