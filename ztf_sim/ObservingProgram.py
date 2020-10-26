@@ -128,7 +128,7 @@ class ObservingProgram(object):
         wrecent = (last_observed_times['expMJD'] >= cutoff_time)
         recent_field_ids = last_observed_times.loc[wrecent].index.tolist()
 
-        if self.field_selection_function is not None:
+        if self.field_selection_function is None:
             # reduce the list to only those not recently observed:
             pool_ids_old = [idi for idi in pool_ids if idi not in recent_field_ids]
             request_fields = fields.fields.loc[pool_ids_old]
