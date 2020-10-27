@@ -447,6 +447,7 @@ class GurobiQueueManager(QueueManager):
             'target_metric_value':  
                     self.block_slot_metric.loc[idx,self.queue_slot][filter_id],
             'target_total_requests_tonight': int(row['total_requests_tonight']),
+            'target_mode_num': 0,
             'request_id': idx}
 
 #            'target_sky_brightness': self.queue.ix[idx].sky_brightness,
@@ -835,6 +836,7 @@ class GreedyQueueManager(QueueManager):
             'target_limiting_mag': row['limiting_mag'],
             'target_metric_value':  row['value'],
             'target_total_requests_tonight': row['total_requests_tonight'],
+            'target_mode_num': 0,
             'request_id': max_idx}
 
         return next_obs
@@ -1121,6 +1123,7 @@ class ListQueueManager(QueueManager):
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
             'target_total_requests_tonight': 1,  
+            'target_mode_num': 0,
             'request_id': self.queue.index[idx]}
 
         return next_obs
