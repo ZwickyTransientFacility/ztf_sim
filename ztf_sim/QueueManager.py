@@ -390,6 +390,9 @@ class QueueManager(object):
                 'subprogram_name','ra','dec','ordered']
         if self.queue_type == 'gurobi':
             cols.append('slot_start_time')
+        if self.queue_type == 'list':
+            cols.append('mode_num')
+
 
         return queue.loc[:,cols]
 
