@@ -390,6 +390,9 @@ class QueueManager(object):
                 'subprogram_name','ra','dec','ordered']
         if self.queue_type == 'gurobi':
             cols.append('slot_start_time')
+        if self.queue_type == 'list':
+            cols.append('mode_num')
+
 
         return queue.loc[:,cols]
 
@@ -1056,6 +1059,8 @@ class ListQueueManager(QueueManager):
             queue['max_airmass'] = MAX_AIRMASS
         if 'n_repeats' not in queue.columns:
             queue['n_repeats'] = 1
+        if 'mode_num' not in queue.columns:
+            queue['mode_num'] = 0
 
         if append:
             self.queue = self.queue.append(queue, ignore_index=True)
@@ -1123,7 +1128,7 @@ class ListQueueManager(QueueManager):
             'target_limiting_mag': 0.,
             'target_metric_value':  0.,
             'target_total_requests_tonight': 1,  
-            'target_mode_num': 0,
+            'target_mode_num': int(self.queue.iloc[idx].mode_num),
             'request_id': self.queue.index[idx]}
 
         return next_obs
