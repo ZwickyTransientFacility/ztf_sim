@@ -139,7 +139,9 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     MIN_SLOT_SEPARATION = 2
     # TODO: generalize this beyond just ZUDS
     wZUDSt = ((dft['subprogram_name'] == 'ZUDS') | 
-              (dft['subprogram_name'] == 'ZUDS2'))
+              (dft['subprogram_name'] == 'ZUDS2') | 
+              (dft['subprogram_name'] == 'high_cadence') 
+              )
 
     # only add these parameters if there is a program to space 
     if np.sum(wZUDSt):
@@ -150,7 +152,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         wZUDSr = wZUDSt & (dft['metric_filter_id'] == 2)
         wZUDSi = wZUDSt & (dft['metric_filter_id'] == 3)
         wrZUDS =  ((dfr['subprogram_name'] == 'ZUDS') | 
-                   (dfr['subprogram_name'] == 'ZUDS2'))  
+                   (dfr['subprogram_name'] == 'ZUDS2') |
+                   (dft['subprogram_name'] == 'high_cadence'))  
         ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
         filter_ids_to_limit = [1,2]
 
