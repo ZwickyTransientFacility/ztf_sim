@@ -144,7 +144,7 @@ def partnership_HC_selection(time, obs_log, other_program_fields, fields):
 763, 782, 783, 784, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796,
 814, 815, 816, 817, 818, 819, 820, 821, 822, 823, 824, 825, 839, 840, 841, 842,
 843, 844, 845, 846, 847, 848, 858, 859, 860, 861, 862, 863, 864]
-    candidate_fields = fields.fields.loc[candidate_nss_field_ids].copy()
+    candidate_fields = fields.fields.loc[candidate_field_ids].copy()
 
 
     HC_cadence = 1
