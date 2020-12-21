@@ -1,20 +1,22 @@
 """
 @author: yuhanyao
 """
+from glob import glob
 import os
+import logging
 import astropy.constants as const
-from copy import deepcopy
 import numpy as np
-from astropy.table import Table
+import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-import astropy.io.ascii as asci
 from astropy.time import Time
 from astropy.coordinates import get_sun
-#from shapely.geometry import Point
-#from shapely.geometry.polygon import Polygon
-
 from ..Fields import Fields
+from ..constants import BASE_DIR
+
+logger = logging.getLogger(__name__)
+
+
 
 def get_theta_given_phi(a, b, c, phi):
     """
@@ -41,6 +43,27 @@ def cos_in_sphere(theta1, phi1, theta2, phi2):
     cos_rad = term1 + term2
     return cos_rad
 
+def load_SRG_pointing(tnow):
+    csvfiles = glob(f"{BASE_DIR}../../ztf_survey_configuration/srg_plan/*.csv")
+    if len(csvfiles) == 0:
+        raise FileNotFoundError('No detailed SRG pointing plans found')
+    csvfiles = np.array(csvfiles)
+    csvfiles = csvfiles[np.argsort(csvfiles)]
+    nfiles = len(csvfiles)
+    for i in range(nfiles):
+        if i==0:
+            tb = pd.read_csv(csvfiles[i])
+        else:
+            tb = pd.concat([tb, pd.read_csv(csvfiles[i])])
+    
+    # TODO: passing in the desired date directly would be more efficient
+    ix = (tb["MJD"]>=tnow.mjd)&(tb["MJD"]<(tnow.mjd+1))
+    if np.sum(ix) == 0:
+        raise ValueError(f'No detailed SRG pointing plans found for date {tnow.mjd}')
+    tb = tb[ix]
+    alphas = tb["RA"].values
+    deltas = tb["Dec"].values
+    return alphas, deltas
 
 def SRG_pointing(tnow):
     """
@@ -116,7 +139,11 @@ def SRG_pointing(tnow):
 
 def get_srg_fields(tnow, fields):
 
-    srg_ra, srg_dec = SRG_pointing(tnow)
+    try:
+        srg_ra, srg_dec = load_SRG_pointing(tnow)
+    except Exception as e:
+        logger.exception(e)
+        srg_ra, srg_dec = SRG_pointing(tnow)
 
     # we will use a simple nearest neighbor to avoid lots of nested
     # for loops, as in the original code by Yuhan.
