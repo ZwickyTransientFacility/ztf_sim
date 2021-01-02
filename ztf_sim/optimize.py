@@ -46,19 +46,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         'total_requests_tonight','exposure_time','dec'])
     dft = pd.merge(dft,df[n_reqs_cols],left_on='request_id',right_index=True)
 
-    # TEMPORARY: force mixed-filter programs to use different i-band exposure
-    # times
-    # Note that this also requires a change in QueueManager.py
-    wZUDSi = (dft['subprogram_name'] == 'ZUDS') & (dft['metric_filter_id'] == 3)
-    dft.loc[wZUDSi,'exposure_time'] = 90.
-    wZUDS2i = (dft['subprogram_name'] == 'ZUDS2') & (dft['metric_filter_id'] == 3)
-    dft.loc[wZUDS2i,'exposure_time'] = 60.
-    wPPi = (dft['subprogram_name'] == 'Partnership_Plane') & (dft['metric_filter_id'] == 3)
-    dft.loc[wPPi,'exposure_time'] = 60.
-
     # don't need the dec column anymore
     dft = dft.drop('dec',axis=1)
-
 
     # calculate number of slots required per request set
     
@@ -138,9 +127,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # minimum slot separation per filter constraint
     MIN_SLOT_SEPARATION = 2
     # TODO: generalize this beyond just ZUDS
-    wZUDSt = ((dft['subprogram_name'] == 'ZUDS') | 
-              (dft['subprogram_name'] == 'ZUDS2') | 
-              (dft['subprogram_name'] == 'high_cadence') 
+    wZUDSt = ( (dft['subprogram_name'] == 'high_cadence') 
               )
 
     # only add these parameters if there is a program to space 
@@ -153,9 +140,7 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
         wZUDSg = wZUDSt & (dft['metric_filter_id'] == 1)
         wZUDSr = wZUDSt & (dft['metric_filter_id'] == 2)
         wZUDSi = wZUDSt & (dft['metric_filter_id'] == 3)
-        wrZUDS =  ((dfr['subprogram_name'] == 'ZUDS') | 
-                   (dfr['subprogram_name'] == 'ZUDS2') |
-                   (dft['subprogram_name'] == 'high_cadence'))  
+        wrZUDS =  ((dft['subprogram_name'] == 'high_cadence'))  
         ZUDS_request_sets = dfr.loc[wrZUDS].index.tolist()
         filter_ids_to_limit = [1,2]
 
