@@ -146,6 +146,8 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     # only add these parameters if there is a program to space 
     if np.sum(wZUDSt):
         space_obs = True
+    else:
+        space_obs = False
 
     if space_obs:
         wZUDSg = wZUDSt & (dft['metric_filter_id'] == 1)
