@@ -283,7 +283,72 @@ class QueueManager(object):
 
         return delta_program_nobs
         
+    def adjust_subprogram_exposures_tonight(self, obs_log, mjd_start, mjd_stop):
+        """Use past history to adjust the number of exposures per subprogram tonight.
+        
+        Counts exposures from the start of the month and equalizes any excess
+        over NIGHTS_TO_REDISTRIBUTE or the number of nights to the end of 
+        the month, whichever is less."""
+        
+        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
+                mjd_range = [mjd_start, mjd_stop])
+        # drop engineering/commissioning
+        obs_count_by_subprogram = obs_count_by_subprogram[
+                obs_count_by_program['program_id'] != 0]
+        obs_count_by_subprogram.set_index(['program_id','subprogram_name'], 
+                inplace=True)
 
+        # if there are no observations, add zeros
+        for op in self.observing_programs:
+            if (op.program_id, op.subprogram_name) not in obs_count_by_subprogram.index:
+                obs_count_by_program.loc[program_id] = 0
+
+        total_obs = np.sum(obs_count_by_subprogram['n_obs'])
+
+        # record the subprogram fractions
+        target_subprogram_fractions = defaultdict(float)
+        for op in self.observing_programs:
+            target_subprogram_fractions[(op.program_id, op.subprogram_name)] = \
+                    op.program_observing_time_fraction * op.subprogram_fraction
+
+        target_subprogram_fractions = pd.Series(target_subprogram_fractions) 
+#        target_program_fractions.index.name = 'program_id'
+        target_program_fractions.name = 'target_fraction'
+
+        target_program_nobs = target_program_fractions * total_obs
+        target_program_nobs.name = 'target_subprogram_nobs'
+
+        # note that this gives 0 in case of no observations, as desired
+        # have to do the subtraction backwords because of Series/DataFrame 
+        # API nonsense
+        delta_subprogram_nobs = \
+                -1*obs_count_by_subprogram.subtract(target_subprogram_nobs,
+                    axis=0)
+
+        NIGHTS_TO_REDISTRIBUTE = 5
+        time = Time(mjd_stop,format='mjd')
+        dtnow = time.to_datetime()
+        if dtnow.month != 12:
+            next_month_start_mjd = Time(datetime(dtnow.year,dtnow.month+1,1),
+                    scale='utc').mjd
+        else:
+            next_month_start_mjd = Time(datetime(dtnow.year+1,1,1),
+                    scale='utc').mjd
+        nights_left_this_month = np.round(next_month_start_mjd - time.mjd)
+
+        if nights_left_this_month > NIGHTS_TO_REDISTRIBUTE:
+            divisor = NIGHTS_TO_REDISTRIBUTE
+        else:
+            divisor = nights_left_this_month
+            if divisor == 0:
+                divisor = 1
+
+        delta_subprogram_nobs /= divisor
+
+        delta_subprogram_nobs = np.round(delta_subprogram_nobs).astype(int)
+
+        return delta_subprogram_nobs
+        
 
 
     def determine_allowed_requests(self, time, obs_log, 
@@ -457,15 +522,6 @@ class GurobiQueueManager(QueueManager):
 #            'target_limiting_mag': self.queue.ix[idx].limiting_mag,
 #            'target_metric_value':  self.queue.ix[idx].value,
 #            'target_request_number_tonight':
-
-        # TEMPORARY workaround to enable multiple observing times in one
-        # subprogram
-        if (row['subprogram_name'] == 'ZUDS') and (filter_id == 3):
-            next_obs['target_exposure_time'] = 90 * u.second
-        if (row['subprogram_name'] == 'ZUDS2') and (filter_id == 3):
-            next_obs['target_exposure_time'] = 60 * u.second
-        if (row['subprogram_name'] == 'Partnership_Plane') and (filter_id == 3):
-            next_obs['target_exposure_time'] = 60 * u.second
 
         return next_obs
 
