@@ -457,6 +457,7 @@ class QueueManager(object):
             cols.append('slot_start_time')
         if self.queue_type == 'list':
             cols.append('mode_num')
+            cols.append('ewr_num_images')
 
 
         return queue.loc[:,cols]
@@ -1117,6 +1118,8 @@ class ListQueueManager(QueueManager):
             queue['n_repeats'] = 1
         if 'mode_num' not in queue.columns:
             queue['mode_num'] = 0
+        if 'ewr_num_images' not in queue.columns:
+            queue['num_images'] = 1
 
         if append:
             self.queue = self.queue.append(queue, ignore_index=True)
@@ -1185,6 +1188,7 @@ class ListQueueManager(QueueManager):
             'target_metric_value':  0.,
             'target_total_requests_tonight': 1,  
             'target_mode_num': int(self.queue.iloc[idx].mode_num),
+            'target_num_images': int(self.queue.iloc[idx].num_images),
             'request_id': self.queue.index[idx]}
 
         return next_obs
