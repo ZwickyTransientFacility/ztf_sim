@@ -153,8 +153,12 @@ class Scheduler(object):
         for qq_name, qq in self.queues.items():
             if qq.is_TOO:
                 if qq.is_valid(time_now):
-                    # don't switch if there's already a TOO queue active
+                    # switch if the current queue is not a TOO
                     if (not self.Q.is_TOO) and len(qq.queue):
+                        self.set_queue(qq_name)
+                    # or if the current TOO queue is empty
+                    if ((self.Q.is_TOO) and (len(self.Q.queue) == 0) 
+                            and len(qq.queue)):
                         self.set_queue(qq_name)
 
     def check_for_timed_queue_and_switch(self, time_now):
