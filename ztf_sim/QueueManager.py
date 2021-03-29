@@ -294,14 +294,15 @@ class QueueManager(object):
                 mjd_range = [mjd_start, mjd_stop])
         # drop engineering/commissioning
         obs_count_by_subprogram = obs_count_by_subprogram[
-                obs_count_by_program['program_id'] != 0]
+                obs_count_by_subprogram['program_id'] != 0]
         obs_count_by_subprogram.set_index(['program_id','subprogram_name'], 
                 inplace=True)
 
         # if there are no observations, add zeros
         for op in self.observing_programs:
-            if (op.program_id, op.subprogram_name) not in obs_count_by_subprogram.index:
-                obs_count_by_program.loc[program_id] = 0
+            idx = (op.program_id, op.subprogram_name) 
+            if idx not in obs_count_by_subprogram.index:
+                obs_count_by_subprogram.loc[idx, 'n_obs'] = 0
 
         total_obs = np.sum(obs_count_by_subprogram['n_obs'])
 
@@ -313,10 +314,10 @@ class QueueManager(object):
 
         target_subprogram_fractions = pd.Series(target_subprogram_fractions) 
 #        target_program_fractions.index.name = 'program_id'
-        target_program_fractions.name = 'target_fraction'
+        target_subprogram_fractions.name = 'target_fraction'
 
-        target_program_nobs = target_program_fractions * total_obs
-        target_program_nobs.name = 'target_subprogram_nobs'
+        target_subprogram_nobs = target_subprogram_fractions * total_obs
+        target_subprogram_nobs.name = 'target_subprogram_nobs'
 
         # note that this gives 0 in case of no observations, as desired
         # have to do the subtraction backwords because of Series/DataFrame 
@@ -370,6 +371,9 @@ class QueueManager(object):
         
         delta_program_exposures_tonight = self.adjust_program_exposures_tonight(
             obs_log, month_start_mjd, time.mjd)
+        # use this for i-band only
+        delta_subprogram_exposures_tonight = self.adjust_subprogram_exposures_tonight(
+            obs_log, month_start_mjd, time.mjd)
         
         self.logger.info(f'Change in allowed exposures: {delta_program_exposures_tonight}')
         self.logger.info(f'Number of timed observations: {timed_obs_count}')
@@ -395,9 +399,12 @@ class QueueManager(object):
                 dark_time * op.program_observing_time_fraction +  
                 (delta_program_exposures_tonight.loc[op.program_id,'n_obs'] 
                 - timed_obs_count[op.program_id]) * (EXPOSURE_TIME+READOUT_TIME))
+
             subprogram_time_tonight = (
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
+
+            1/0
 
             n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure().to(u.min)).value[0]

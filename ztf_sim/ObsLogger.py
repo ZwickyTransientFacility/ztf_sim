@@ -298,9 +298,13 @@ class ObsLogger(object):
         grp = hist.groupby(['propID','subprogram'])
 
         s = pd.Series(self._equivalent_obs(grp))
-        s.index.names = ['program_id','subprogram']
-        s.name = 'n_obs'
-        s = s.reset_index()
+        if len(s):
+            s.index.names = ['program_id','subprogram_name']
+            s.name = 'n_obs'
+            s = s.reset_index()
+        else:
+            # handle no history
+            s = pd.DataFrame(columns = ['program_id','subprogram_name', 'n_obs'])
         return s
 
     def count_equivalent_obs_by_program_night(self, mjd_range = None):
@@ -311,23 +315,6 @@ class ObsLogger(object):
         grp = hist.groupby(['propID','night'])
 
         s = pd.Series(self._equivalent_obs(grp))
-        s.index.names = ['program_id','night']
-        s.name = 'n_obs'
-        s = s.reset_index()
-        return s
-
-    def count_total_obs_by_subprogram(self, mjd_range = None):
-        """Count of observations by program and subprogram.
-        
-        Returns a dict with keys (program_id, subprogram_name)"""
-
-        hist = _mjd_filter_history(mjd_range)
-
-        grp = hist.groupby(['propID','subprogram'])
-
-        count = grp['requestID'].agg(len).to_dict()
-
-        s = pd.Series(defaultdict(int, count))
         s.index.names = ['program_id','night']
         s.name = 'n_obs'
         s = s.reset_index()
