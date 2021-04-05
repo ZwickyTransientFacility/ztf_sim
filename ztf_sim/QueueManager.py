@@ -290,21 +290,33 @@ class QueueManager(object):
         over NIGHTS_TO_REDISTRIBUTE or the number of nights to the end of 
         the month, whichever is less."""
         
-        obs_count_by_subprogram = obs_log.count_equivalent_obs_by_subprogram(
+        obs_count_by_subprogram_all = obs_log.count_equivalent_obs_by_subprogram(
                 mjd_range = [mjd_start, mjd_stop])
         # drop engineering/commissioning
-        obs_count_by_subprogram = obs_count_by_subprogram[
-                obs_count_by_subprogram['program_id'] != 0]
-        obs_count_by_subprogram.set_index(['program_id','subprogram_name'], 
+        obs_count_by_subprogram_all = obs_count_by_subprogram_all[
+                obs_count_by_subprogram_all['program_id'] != 0]
+        obs_count_by_subprogram_all.set_index(['program_id','subprogram_name'], 
                 inplace=True)
+
+        # only count the subprograms that are currently active.  This is
+        # going to cause problems when the programs change--but we are going to
+        # only use the subprogram balance for i-band
+        obs_count_by_current_subprogram_dict = {}
 
         # if there are no observations, add zeros
         for op in self.observing_programs:
             idx = (op.program_id, op.subprogram_name) 
-            if idx not in obs_count_by_subprogram.index:
-                obs_count_by_subprogram.loc[idx, 'n_obs'] = 0
+            if idx not in obs_count_by_subprogram_all.index:
+                obs_count_by_current_subprogram_dict[idx] = 0
+            else:
+                obs_count_by_current_subprogram_dict[idx] = obs_count_by_subprogram_all.loc[idx,'n_obs']
 
-        total_obs = np.sum(obs_count_by_subprogram['n_obs'])
+        obs_count_by_subprogram = pd.Series(obs_count_by_current_subprogram_dict)
+        obs_count_by_subprogram.name = 'n_obs'
+        obs_count_by_subprogram.index.set_names(
+                ['program_id','subprogram_name'], inplace=True)
+
+        total_obs = obs_count_by_subprogram.sum()
 
         # record the subprogram fractions
         target_subprogram_fractions = defaultdict(float)
@@ -318,13 +330,15 @@ class QueueManager(object):
 
         target_subprogram_nobs = target_subprogram_fractions * total_obs
         target_subprogram_nobs.name = 'target_subprogram_nobs'
+        target_subprogram_nobs.index.set_names(
+                ['program_id','subprogram_name'], inplace=True)
 
         # note that this gives 0 in case of no observations, as desired
         # have to do the subtraction backwords because of Series/DataFrame 
         # API nonsense
         delta_subprogram_nobs = \
                 -1*obs_count_by_subprogram.subtract(target_subprogram_nobs,
-                    axis=0)
+                    axis=0).fillna(0)
 
         NIGHTS_TO_REDISTRIBUTE = 5
         time = Time(mjd_stop,format='mjd')
@@ -376,6 +390,8 @@ class QueueManager(object):
             obs_log, month_start_mjd, time.mjd)
         
         self.logger.info(f'Change in allowed exposures: {delta_program_exposures_tonight}')
+        self.logger.info(f'Needed change in allowed exposures by subprogram: {delta_subprogram_exposures_tonight}')
+        self.logger.debug(f"Sum of change in allowed exposures by subprogram: {delta_subprogram_exposures_tonight.reset_index().groupby('program_id').agg(np.sum)}")
         self.logger.info(f'Number of timed observations: {timed_obs_count}')
 
         dark_time = approx_hours_of_darkness(time)
@@ -404,11 +420,19 @@ class QueueManager(object):
                 program_time_tonight * op.subprogram_fraction / 
                 scheduled_subprogram_sum[op.program_id])
 
-            1/0
-
             n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure().to(u.min)).value[0]
             n_requests = np.round(n_requests).astype(np.int)
+
+            # i_band program balance needs individual tuning due to 
+            # longer cadence and filter blocking
+            if op.subprogram_name == 'i_band':
+                delta_i_nexp = delta_subprogram_exposures_tonight.loc[(2,'i_band')]
+                if delta_i_nexp > 0:
+                    self.logger.info(f'Adding {delta_i_nexp} additional i-band exposures')
+                    n_requests += delta_i_nexp
+                else:
+                    self.logger.info(f'Implied change in i-band exposures is negative, skipping supplementation: {delta_i_nexp}')
 
             self.requests_allowed[(op.program_id, 
                 op.subprogram_name)] = n_requests
