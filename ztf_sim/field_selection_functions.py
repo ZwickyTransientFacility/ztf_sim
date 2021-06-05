@@ -337,36 +337,36 @@ def aam_caltech_june21(time, obs_log, other_program_fields, fields):
     nss_field_ids = nss_selection_function(time, 
         obs_log, other_program_fields, fields, silent=True)
 
-    if (time >= Time('2021-06-05')) and (time < Time('2021-06-11')):
-        # Daily from Jun 4 through Jun 9 PT inclusive (== Jun 5 through Jun 10 UT - 6 nights) 3 ZTF fields viz. 1433, 1476, and 1525 once each in g and r (g and r need not be consecutive, but close in time will be useful).
-        # set 1 fields: observe every night
-        set1 = [1433, 1476, 1525]
-        aam_fields.extend(set1)
-
-        # Fields 530, 482, 388 from Jun 4 through Jun 9 PT (== Jun 5 through Jun 10 UT, 6 nights), one image each field in g and r on the days when these fields are not being covered by the MSIP survey (the alternate days). Again, g and r need not be consecutive in time.
-
-        # set 2 fields: observe when not being observed by MSIP
-        set2 = [530, 482, 388]
-        set2_use = np.setdiff1d(set2, nss_field_ids)
-
-        aam_fields.extend(set2_use)
-
-    if (time >= Time('2021-06-03')) and (time < Time('2021-06-05')):
-        #(3) Fields 1433, 1476, and 1525 once in g and r on Jun 2 PT (Jun 3 UT)
-        #If these can not be taken on Jun 2 PT, we request that the observations are attempted on Jun 3 PT (Jun 4 UT).
-        set3 = [1433, 1476, 1525]
-
-        observed_ids = obs_log.select_last_observed_time_by_field(
-            field_ids = set3,
-            filter_ids = [1,2],
-            program_ids = [PROGRAM_NAME_TO_ID['Caltech']],
-            subprogram_names = ['AAM_June21'],
-            # arbitrary early date; start of night tonight
-            mjd_range = [Time('2001-01-01').mjd,np.floor(time.mjd)]).index.tolist()
-
-        set3_use = np.setdiff1d(set3, observed_ids)
-
-        aam_fields.extend(set3_use)
+#    if (time >= Time('2021-06-05')) and (time < Time('2021-06-11')):
+#        # Daily from Jun 4 through Jun 9 PT inclusive (== Jun 5 through Jun 10 UT - 6 nights) 3 ZTF fields viz. 1433, 1476, and 1525 once each in g and r (g and r need not be consecutive, but close in time will be useful).
+#        # set 1 fields: observe every night
+#        set1 = [1433, 1476, 1525]
+#        aam_fields.extend(set1)
+#
+#        # Fields 530, 482, 388 from Jun 4 through Jun 9 PT (== Jun 5 through Jun 10 UT, 6 nights), one image each field in g and r on the days when these fields are not being covered by the MSIP survey (the alternate days). Again, g and r need not be consecutive in time.
+#
+#        # set 2 fields: observe when not being observed by MSIP
+#        set2 = [530, 482, 388]
+#        set2_use = np.setdiff1d(set2, nss_field_ids)
+#
+#        aam_fields.extend(set2_use)
+#
+#    if (time >= Time('2021-06-03')) and (time < Time('2021-06-05')):
+#        #(3) Fields 1433, 1476, and 1525 once in g and r on Jun 2 PT (Jun 3 UT)
+#        #If these can not be taken on Jun 2 PT, we request that the observations are attempted on Jun 3 PT (Jun 4 UT).
+#        set3 = [1433, 1476, 1525]
+#
+#        observed_ids = obs_log.select_last_observed_time_by_field(
+#            field_ids = set3,
+#            filter_ids = [1,2],
+#            program_ids = [PROGRAM_NAME_TO_ID['Caltech']],
+#            subprogram_names = ['AAM_June21'],
+#            # arbitrary early date; start of night tonight
+#            mjd_range = [Time('2001-01-01').mjd,np.floor(time.mjd)]).index.tolist()
+#
+#        set3_use = np.setdiff1d(set3, observed_ids)
+#
+#        aam_fields.extend(set3_use)
 
     if (time >= Time('2021-06-11')) and (time < Time('2021-07-16')):
         #(4) Fields 1433, 1476, and 1525 in g and r once per week for five weeks after Jun 10 (ideally on days when Fields 530, 482, 388 are not done). 
