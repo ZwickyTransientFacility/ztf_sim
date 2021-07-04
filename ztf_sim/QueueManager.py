@@ -1153,6 +1153,8 @@ class ListQueueManager(QueueManager):
             queue['mode_num'] = 0
         if 'ewr_num_images' not in queue.columns:
             queue['num_images'] = 1
+        else:
+            queue['num_images'] = queue['ewr_num_images']
 
         if append:
             self.queue = self.queue.append(queue, ignore_index=True)
