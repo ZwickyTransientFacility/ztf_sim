@@ -326,6 +326,7 @@ def srg_selection(time, obs_log, other_program_fields, fields):
 
     return srg_fields
 
+##################### previous/unused -- for reference
 
 def aam_caltech_june21(time, obs_log, other_program_fields, fields):
     """Select Ashish fields, June 2021."""
@@ -407,10 +408,6 @@ def aam_caltech_june21(time, obs_log, other_program_fields, fields):
 
     return aam_fields
 
-
-
-
-##################### previous/unused -- for reference
 
 def msip_nss_selection(time, obs_log, other_program_fields, fields):
     """Select MSIP NSS fields so they don't overlap with other MSIP subprograms."""
