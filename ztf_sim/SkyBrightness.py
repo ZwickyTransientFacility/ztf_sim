@@ -4,7 +4,7 @@ import sklearn
 from sklearn import model_selection, ensemble, preprocessing, pipeline
 from sklearn import neighbors, svm, linear_model
 from sklearn_pandas import DataFrameMapper
-from sklearn.externals import joblib
+import joblib
 import xgboost as xgb
 import pandas as pd
 import numpy as np
