@@ -222,7 +222,8 @@ class ObsLogger(object):
 
         # append to our local history DataFrame
         # note that the index here will change when reloaded from the db
-        self.history = self.history.append(record_row, sort=False)
+        self.history = pd.concat([self.history, record_row], axis=0, join='outer',
+                                           sort=False)
 
         # write to the database
         record_row.to_sql('Summary', self.conn, index=False, if_exists='append')
