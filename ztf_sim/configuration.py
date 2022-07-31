@@ -47,8 +47,13 @@ class SchedulerConfiguration(Configuration):
         queue_configs = {}
 
         for queue_pars in self.config['queues']:
-            queue_config = QueueConfiguration(
+            try:
+                queue_config = QueueConfiguration(
                     self.scheduler_config_file.parent / queue_pars["config_file"])
+            except Exception as e:
+                print(f'Error reading config file {queue_pars["config_file"]}')
+                raise(e)
+
             queue_configs[queue_pars["queue_name"]] = queue_config
 
         return queue_configs
