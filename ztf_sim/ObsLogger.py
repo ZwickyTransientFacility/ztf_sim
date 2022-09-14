@@ -5,7 +5,7 @@ from collections import defaultdict
 import uuid
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
@@ -43,7 +43,7 @@ class ObsLogger(object):
                 pass
 
         # If the table doesn't exist, create it
-        if not self.engine.dialect.has_table(self.engine, 'Field'): 
+        if not inspect(self.engine).has_table('Field'): 
 
             self.conn.execute("""
             CREATE TABLE Field(
@@ -85,7 +85,7 @@ class ObsLogger(object):
                 pass
 
         # If the table doesn't exist, create it
-        if not self.engine.dialect.has_table(self.engine, 'Summary'): 
+        if not inspect(self.engine).has_table('Summary'): 
 
             # create table
             self.conn.execute("""
@@ -222,7 +222,8 @@ class ObsLogger(object):
 
         # append to our local history DataFrame
         # note that the index here will change when reloaded from the db
-        self.history = self.history.append(record_row, sort=False)
+        self.history = pd.concat([self.history, record_row], axis=0, join='outer',
+                                           sort=False)
 
         # write to the database
         record_row.to_sql('Summary', self.conn, index=False, if_exists='append')

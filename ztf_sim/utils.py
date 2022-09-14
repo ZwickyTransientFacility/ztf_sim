@@ -400,13 +400,13 @@ def compute_limiting_mag(df, time, sky, filter_id=None):
             time - TIME_BLOCK_SIZE/2.)
     # for limits below, need ha-180-180
     ha_vals = ha_vals.wrap_at(180.*u.degree)
-    ha = pd.Series(ha_vals.to(u.degree), index=df.index, name='ha')
+    ha = pd.Series(ha_vals.to(u.degree).value, index=df.index, name='ha')
 
     ha_vals_end = RA_to_HA(df['ra'].values*u.degree, 
             time + TIME_BLOCK_SIZE/2.)
     # for limits below, need ha-180-180
     ha_vals_end = ha_vals_end.wrap_at(180.*u.degree)
-    ha_end = pd.Series(ha_vals_end.to(u.degree), index=df.index, name='ha')
+    ha_end = pd.Series(ha_vals_end.to(u.degree).value, index=df.index, name='ha')
 
     # lock out TCS limits
     
