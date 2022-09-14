@@ -483,12 +483,14 @@ class QueueManager(object):
         queue = self._return_queue()
 
         cols = ['field_id','filter_id','exposure_time','program_id',
+                'program_pi', 'max_airmass',
                 'subprogram_name','ra','dec','ordered']
         if self.queue_type == 'gurobi':
             cols.append('slot_start_time')
         if self.queue_type == 'list':
             cols.append('mode_num')
             cols.append('ewr_num_images')
+            cols.append('n_repeats')
 
 
         return queue.loc[:,cols]
