@@ -155,13 +155,18 @@ class ObservingProgram(object):
             else:
                 filter_ids = self.nobs_range['filter_ids'] 
                 
+            if 'mjd_range' not in self.nobs_range:
+                mjd_range = None
+            else:
+                mjd_range = self.nobs_range['mjd_range']
 
             assert 'min_obs' in self.nobs_range
             assert 'max_obs' in self.nobs_range
                 
             nobs = obs_log.select_n_obs_by_field(filter_ids = filter_ids,
                     program_ids = program_ids, 
-                    subprogram_names = subprogram_names)
+                    subprogram_names = subprogram_names,
+                    mjd_range = mjd_range)
             
             # function above only returns fields that have been observed at
             # least once.  use the intersection if min_obs > 0:
