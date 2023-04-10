@@ -31,6 +31,8 @@ class Scheduler(object):
         self.queues = self.scheduler_config.build_queues(self.queue_configs)
         self.timed_queues_tonight = []
 
+        self.skymaps = {}
+
         self.set_queue('default')
         
         self.run_config = configparser.ConfigParser()
@@ -54,8 +56,6 @@ class Scheduler(object):
 
         self.Q = self.queues[queue_name]
         
-
-
     def add_queue(self,  queue_name, queue, clobber=True):
 
         if clobber or (queue_name not in self.queues):
@@ -71,6 +71,20 @@ class Scheduler(object):
             del self.queues[queue_name] 
         else:
             raise ValueError(f"Queue {queue_name} does not exist!")
+
+    def add_skymap(self, trigger_name, skymap, clobber=True):
+
+        if clobber or (trigger_name not in self.skymaps):
+            self.skymaps[trigger_name] = skymap
+        else:
+            raise ValueError(f"Skymap {trigger_name} already exists!")
+
+    def delete_skymap(self, trigger_name):
+
+        if (trigger_name in self.skymaps):
+            del self.skymaps[trigger_name] 
+        else:
+            raise ValueError(f"Skymap {trigger_name} does not exist!")
 
     def find_block_use_tonight(self, time_now):
         # also sets up timed_queues_tonight
