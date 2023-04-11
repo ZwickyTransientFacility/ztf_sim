@@ -5,7 +5,7 @@ from collections import defaultdict
 import uuid
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
@@ -45,7 +45,7 @@ class ObsLogger(object):
         # If the table doesn't exist, create it
         if not inspect(self.engine).has_table('Field'): 
 
-            self.conn.execute("""
+            self.conn.execute(text("""
             CREATE TABLE Field(
             fieldID   INTEGER PRIMARY KEY,
             fieldFov  REAL,
@@ -55,7 +55,7 @@ class ObsLogger(object):
             fieldGB   REAL,
             fieldEL   REAL,
             fieldEB   REAL
-            )""")
+            )"""))
 
             f = Fields()
             df = f.fields.reset_index()
@@ -88,7 +88,7 @@ class ObsLogger(object):
         if not inspect(self.engine).has_table('Summary'): 
 
             # create table
-            self.conn.execute("""
+            self.conn.execute(text("""
             CREATE TABLE Summary(
             obsHistID         INTEGER PRIMARY KEY,
             requestID INTEGER,
@@ -124,7 +124,7 @@ class ObsLogger(object):
             totalRequestsTonight INTEGER,
             metricValue        REAL,
             subprogram         TEXT
-            )""")
+            )"""))
 
     def log_pointing(self, state, request):
 
