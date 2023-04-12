@@ -812,7 +812,7 @@ class GurobiQueueManager(QueueManager):
                     self.missed_obs_queue.rp.pool.loc[idx,'total_requests_tonight'] += 1
                 else:
                     rows_to_append.append(row)
-            self.missed_obs_queue.rp.pool = self.missed_obs_queue.rp.pool.append(rows_to_append)
+            self.missed_obs_queue.rp.pool = pd.concat([self.missed_obs_queue.rp.pool, pd.DataFrame(rows_to_append)])
 
         else:
             self.logger.debug(f'No remaining queued observations in slot {queue_slot}')
@@ -861,7 +861,7 @@ class GurobiQueueManager(QueueManager):
             df.loc[:,'ordered'] = False
             df.loc[:,'slot_start_time'] = block_index_to_time(slot,
                     Time.now(), where='start').iso
-            queue = queue.append(df)
+            queue = pd.concat([queue,df])
         
 
         return queue
@@ -1159,7 +1159,7 @@ class ListQueueManager(QueueManager):
             queue['num_images'] = queue['ewr_num_images']
 
         if append:
-            self.queue = self.queue.append(queue, ignore_index=True)
+            self.queue = pd.concat([self.queue,queue],ignore_index=True)
         else:
             self.queue = queue
 
@@ -1288,7 +1288,7 @@ class RequestPool(object):
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
-        self.pool = self.pool.append(pd.DataFrame(request_sets), 
+        self.pool = pd.concat([self.pool, pd.DataFrame(request_sets)], 
             ignore_index=True)
 
     def n_request_sets(self):
