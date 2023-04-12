@@ -150,7 +150,7 @@ class ObsLogger(object):
         record['expMJD'] = exposure_start.mjd
 
         record['night'] = np.floor((exposure_start - self.survey_start_time).jd
-                                   ).astype(np.int)
+                                   ).astype(int)
         record['visitTime'] = request[
             'target_exposure_time'].to(u.second).value
         record['visitExpTime'] = request[

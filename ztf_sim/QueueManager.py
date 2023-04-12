@@ -422,7 +422,7 @@ class QueueManager(object):
 
             n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure().to(u.min)).value[0]
-            n_requests = np.round(n_requests).astype(np.int)
+            n_requests = np.round(n_requests).astype(int)
 
             # i_band program balance needs individual tuning due to 
             # longer cadence and filter blocking

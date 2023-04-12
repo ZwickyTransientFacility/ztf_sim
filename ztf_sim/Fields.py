@@ -75,7 +75,7 @@ class Fields(object):
         """Store alt/az for tonight in blocks"""
 
         # check if we've already computed for tonight:
-        block_night = np.floor(time.mjd).astype(np.int)
+        block_night = np.floor(time.mjd).astype(int)
         if self.current_block_night_mjd == block_night:
             return
 
@@ -110,7 +110,7 @@ class Fields(object):
 
         self.compute_blocks(time, time_block_size=time_block_size)
 
-        block_night = np.floor(time.mjd).astype(np.int)
+        block_night = np.floor(time.mjd).astype(int)
         if self._current_observable_hours_night_mjd == block_night:
             return
 

@@ -195,7 +195,7 @@ def bin_ptf_obstimes(time_block_size=TIME_BLOCK_SIZE):
                        names=['expMJD'],
                        skipfooter=1)
     t = Time(df['expMJD'], format='mjd', location=P48_loc)
-    df['year'] = np.floor(t.decimalyear).astype(np.int)
+    df['year'] = np.floor(t.decimalyear).astype(int)
     df['block'] = block_index(t, time_block_size=TIME_BLOCK_SIZE)
 
     grp = df.groupby(['year', 'block'])
@@ -214,13 +214,13 @@ def block_index(time, time_block_size=TIME_BLOCK_SIZE):
     year = np.floor(time.decimalyear)
     # this is an annoying conversion. blow up scalars:
     year = np.atleast_1d(year)
-    tyear = Time([datetime(y, 1, 1) for y in year.astype(np.int)])
+    tyear = Time([datetime(y, 1, 1) for y in year.astype(int)])
 
     # mjd to bin
     block_size = time_block_size.to(u.min).value
     convert = (1 * u.day.to(u.min)) / block_size
 
-    return np.floor((time.mjd - tyear.mjd) * convert).astype(np.int)
+    return np.floor((time.mjd - tyear.mjd) * convert).astype(int)
 
 
 def block_index_to_time(block, time_year, where='mid',
@@ -237,7 +237,7 @@ def block_index_to_time(block, time_year, where='mid',
 
     # get the time at the start of the year
     year = np.floor(time_year.decimalyear)
-    tyear = Time([datetime(np.int(year), 1, 1)])
+    tyear = Time([datetime(int(year), 1, 1)])
 
     # this is an annoying conversion. blow up scalars:
     block = np.atleast_1d(block).astype(np.float)
