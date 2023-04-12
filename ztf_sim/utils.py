@@ -240,7 +240,7 @@ def block_index_to_time(block, time_year, where='mid',
     tyear = Time([datetime(int(year), 1, 1)])
 
     # this is an annoying conversion. blow up scalars:
-    block = np.atleast_1d(block).astype(np.float)
+    block = np.atleast_1d(block).astype(float)
 
     if where == 'mid':
         block += 0.5
@@ -465,7 +465,7 @@ def _ptf_to_sqlite():
                            # becomes object and disappears in the mean; dtypes doesn't work
                            # here becuase of skipfooter
                            converters={
-                               'filtSkyBrightness': lambda x: np.float(x)},
+                               'filtSkyBrightness': lambda x: float(x)},
                            skipfooter=1)
 
     # we have sky values and seeing on a per-CCD basis; average
@@ -478,7 +478,7 @@ def _ptf_to_sqlite():
     df_lim = pd.read_table(BASE_DIR + '../data/opsim_dump_sky.txt.gz', sep='|',
                            names=['obsHistID', 'finSeeing', 'fiveSigmaDepth'],
                            converters={
-                               'fiveSigmaDepth': lambda x: np.float(x)},
+                               'fiveSigmaDepth': lambda x: float(x)},
                            skipfooter=1)
 
     # average by CCD
