@@ -179,10 +179,9 @@ class QueueManager(object):
         # clear previous request pool
         if self.queue_name != 'missed_obs':
             self.rp.clear_all_request_sets()
-           
-        # set number of allowed requests by program.
-        self.determine_allowed_requests(current_state['current_time'],
-                obs_log, timed_obs_count = timed_obs_count)
+            # set number of allowed requests by program.
+            self.determine_allowed_requests(current_state['current_time'],
+                    obs_log, timed_obs_count = timed_obs_count)
 
         # can be used by field_selection_functions downstream
         program_fields = {}
@@ -313,8 +312,8 @@ class QueueManager(object):
 
         obs_count_by_subprogram = pd.Series(obs_count_by_current_subprogram_dict)
         obs_count_by_subprogram.name = 'n_obs'
-        obs_count_by_subprogram.index.set_names(
-                ['program_id','subprogram_name'], inplace=True)
+        obs_count_by_subprogram.rename_axis(
+                index=['program_id','subprogram_name'], inplace=True)
 
         total_obs = obs_count_by_subprogram.sum()
 
@@ -330,8 +329,8 @@ class QueueManager(object):
 
         target_subprogram_nobs = target_subprogram_fractions * total_obs
         target_subprogram_nobs.name = 'target_subprogram_nobs'
-        target_subprogram_nobs.index.set_names(
-                ['program_id','subprogram_name'], inplace=True)
+        target_subprogram_nobs.rename_axis(
+                index=['program_id','subprogram_name'], inplace=True)
 
         # note that this gives 0 in case of no observations, as desired
         # have to do the subtraction backwords because of Series/DataFrame 
