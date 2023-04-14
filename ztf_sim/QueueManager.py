@@ -491,8 +491,10 @@ class QueueManager(object):
             cols.append('ewr_num_images')
             cols.append('n_repeats')
 
+        # pandas has gotten more picky if the columns aren't available
+        out_cols = list(set(cols) & set(queue.columns))
 
-        return queue.loc[:,cols]
+        return queue.loc[:,out_cols]
 
 
 
@@ -859,7 +861,7 @@ class GurobiQueueManager(QueueManager):
             df.loc[:,'filter_id'] = self.filter_by_slot[slot]
             df.loc[:,'ordered'] = False
             df.loc[:,'slot_start_time'] = block_index_to_time(slot,
-                    Time.now(), where='start').iso
+                    Time.now(), where='start').iso[0]
             queue = pd.concat([queue,df])
         
 
