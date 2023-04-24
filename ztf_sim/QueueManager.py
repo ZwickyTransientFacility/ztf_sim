@@ -179,10 +179,9 @@ class QueueManager(object):
         # clear previous request pool
         if self.queue_name != 'missed_obs':
             self.rp.clear_all_request_sets()
-           
-        # set number of allowed requests by program.
-        self.determine_allowed_requests(current_state['current_time'],
-                obs_log, timed_obs_count = timed_obs_count)
+            # set number of allowed requests by program.
+            self.determine_allowed_requests(current_state['current_time'],
+                    obs_log, timed_obs_count = timed_obs_count)
 
         # can be used by field_selection_functions downstream
         program_fields = {}
@@ -313,8 +312,8 @@ class QueueManager(object):
 
         obs_count_by_subprogram = pd.Series(obs_count_by_current_subprogram_dict)
         obs_count_by_subprogram.name = 'n_obs'
-        obs_count_by_subprogram.index.set_names(
-                ['program_id','subprogram_name'], inplace=True)
+        obs_count_by_subprogram.rename_axis(
+                index=['program_id','subprogram_name'], inplace=True)
 
         total_obs = obs_count_by_subprogram.sum()
 
@@ -330,8 +329,8 @@ class QueueManager(object):
 
         target_subprogram_nobs = target_subprogram_fractions * total_obs
         target_subprogram_nobs.name = 'target_subprogram_nobs'
-        target_subprogram_nobs.index.set_names(
-                ['program_id','subprogram_name'], inplace=True)
+        target_subprogram_nobs.rename_axis(
+                index=['program_id','subprogram_name'], inplace=True)
 
         # note that this gives 0 in case of no observations, as desired
         # have to do the subtraction backwords because of Series/DataFrame 
@@ -422,7 +421,7 @@ class QueueManager(object):
 
             n_requests = (subprogram_time_tonight.to(u.min) / 
                     op.time_per_exposure().to(u.min)).value[0]
-            n_requests = np.round(n_requests).astype(np.int)
+            n_requests = np.round(n_requests).astype(int)
 
             # i_band program balance needs individual tuning due to 
             # longer cadence and filter blocking
@@ -483,15 +482,19 @@ class QueueManager(object):
         queue = self._return_queue()
 
         cols = ['field_id','filter_id','exposure_time','program_id',
+                'program_pi', 'max_airmass',
                 'subprogram_name','ra','dec','ordered']
         if self.queue_type == 'gurobi':
             cols.append('slot_start_time')
         if self.queue_type == 'list':
             cols.append('mode_num')
             cols.append('ewr_num_images')
+            cols.append('n_repeats')
 
+        # pandas has gotten more picky if the columns aren't available
+        out_cols = list(set(cols) & set(queue.columns))
 
-        return queue.loc[:,cols]
+        return queue.loc[:,out_cols]
 
 
 
@@ -810,7 +813,7 @@ class GurobiQueueManager(QueueManager):
                     self.missed_obs_queue.rp.pool.loc[idx,'total_requests_tonight'] += 1
                 else:
                     rows_to_append.append(row)
-            self.missed_obs_queue.rp.pool = self.missed_obs_queue.rp.pool.append(rows_to_append)
+            self.missed_obs_queue.rp.pool = pd.concat([self.missed_obs_queue.rp.pool, pd.DataFrame(rows_to_append)])
 
         else:
             self.logger.debug(f'No remaining queued observations in slot {queue_slot}')
@@ -858,8 +861,8 @@ class GurobiQueueManager(QueueManager):
             df.loc[:,'filter_id'] = self.filter_by_slot[slot]
             df.loc[:,'ordered'] = False
             df.loc[:,'slot_start_time'] = block_index_to_time(slot,
-                    Time.now(), where='start').iso
-            queue = queue.append(df)
+                    Time.now(), where='start').iso[0]
+            queue = pd.concat([queue,df])
         
 
         return queue
@@ -1157,7 +1160,7 @@ class ListQueueManager(QueueManager):
             queue['num_images'] = queue['ewr_num_images']
 
         if append:
-            self.queue = self.queue.append(queue, ignore_index=True)
+            self.queue = pd.concat([self.queue,queue],ignore_index=True)
         else:
             self.queue = queue
 
@@ -1286,7 +1289,7 @@ class RequestPool(object):
                 'total_requests_tonight': total_requests_tonight,
                 'priority': priority})
 
-        self.pool = self.pool.append(pd.DataFrame(request_sets), 
+        self.pool = pd.concat([self.pool, pd.DataFrame(request_sets)], 
             ignore_index=True)
 
     def n_request_sets(self):

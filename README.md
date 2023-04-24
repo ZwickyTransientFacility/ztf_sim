@@ -16,7 +16,7 @@ conda create -n ztf_sim_test
 
 conda activate ztf_sim_test
 
-conda install python=3.7
+conda install python=3.11
 
 
 conda config --add channels conda-forge 

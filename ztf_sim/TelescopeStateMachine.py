@@ -148,7 +148,7 @@ class TelescopeStateMachine(Machine):
                             eval("self.current_{}".format(axis)))
             angle = np.where(dangle < (360. * u.deg - dangle), dangle,
                              360. * u.deg - dangle)
-            axis_slew_times.append(slew_time(axis[:4], angle * u.deg))
+            axis_slew_times.append(slew_time(axis[:4], angle))
 
         net_slew_time = np.max([st.value for st in axis_slew_times]) *\
             axis_slew_times[0].unit

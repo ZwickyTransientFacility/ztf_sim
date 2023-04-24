@@ -73,7 +73,7 @@ class ObservingProgram(object):
 
         n_filters = len(set(self.filter_ids))
         if self.filter_choice == 'rotate':
-            night_index_filters = np.floor(time.mjd % n_filters).astype(np.int)
+            night_index_filters = np.floor(time.mjd % n_filters).astype(int)
             filter_ids_tonight = self.filter_ids[night_index_filters]
             filter_ids_last_night = self.filter_ids[night_index_filters - 1]
             # make it a list

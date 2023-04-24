@@ -47,8 +47,13 @@ class SchedulerConfiguration(Configuration):
         queue_configs = {}
 
         for queue_pars in self.config['queues']:
-            queue_config = QueueConfiguration(
+            try:
+                queue_config = QueueConfiguration(
                     self.scheduler_config_file.parent / queue_pars["config_file"])
+            except Exception as e:
+                print(f'Error reading config file {queue_pars["config_file"]}')
+                raise(e)
+
             queue_configs[queue_pars["queue_name"]] = queue_config
 
         return queue_configs
@@ -61,12 +66,16 @@ class SchedulerConfiguration(Configuration):
             queue_manager = queue_config.config['queue_manager']
             assert (queue_manager in ('list', 'greedy', 'gurobi'))
 
-            if queue_manager == 'list':
-                queues[queue_name] = ListQueueManager(queue_name, queue_config)
-            elif queue_manager == 'greedy':
-                queues[queue_name] = GreedyQueueManager(queue_name, queue_config)
-            elif queue_manager == 'gurobi':
-                queues[queue_name] = GurobiQueueManager(queue_name, queue_config)
+            try:
+                if queue_manager == 'list':
+                    queues[queue_name] = ListQueueManager(queue_name, queue_config)
+                elif queue_manager == 'greedy':
+                    queues[queue_name] = GreedyQueueManager(queue_name, queue_config)
+                elif queue_manager == 'gurobi':
+                    queues[queue_name] = GurobiQueueManager(queue_name, queue_config)
+            except Exception as e:
+                print(f'Error building queue {queue_name}')
+                raise(e)
 
 
         return queues

@@ -290,13 +290,14 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
             np.sum(dft['Yrtf'] * dft['metric'] * 
             dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
             - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
-                READOUT_TIME) * 2.5).value
-            - np.sum(
-                [heaviside((requests_allowed[p] - np.sum(
-                    dft.loc[(dft['program_id'] == p[0]) &
-                    (dft['subprogram_name'] == p[1]), 'Yrtf'].values
-                    )))*2.5 
-                    for p in requests_needed]),
+                READOUT_TIME) * 2.5).value,
+# TODO: fails under Gurobi 9.0+ ("Constraint has no bool value")
+#            - np.sum(
+#                [heaviside((requests_allowed[p] - np.sum(
+#                    dft.loc[(dft['program_id'] == p[0]) &
+#                    (dft['subprogram_name'] == p[1]), 'Yrtf'].values
+#                    )))*2.5 
+#                    for p in requests_needed]),
             GRB.MAXIMIZE)
     else:
         def slot_scale(dt):
@@ -307,13 +308,14 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
             dft['exposure_time']/EXPOSURE_TIME.to(u.second).value) 
             - ydfds.sum() * (FILTER_CHANGE_TIME / (EXPOSURE_TIME +
                 READOUT_TIME) * 2.5).value
-            + np.sum(yrdtf[r,dt,f]*slot_scale(dt) for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit) 
-            - np.sum(
-                [heaviside((requests_allowed[p] - np.sum(
-                    dft.loc[(dft['program_id'] == p[0]) &
-                    (dft['subprogram_name'] == p[1]), 'Yrtf'].values
-                    )))*2.5 
-                    for p in requests_needed]),
+            + np.sum(yrdtf[r,dt,f]*slot_scale(dt) for r in ZUDS_request_sets for dt in dtdict.keys() if dt >= MIN_SLOT_SEPARATION for f in filter_ids_to_limit), 
+# TODO: fails under Gurobi 9.0+ ("Constraint has no bool value")
+#            - np.sum(
+#                [heaviside((requests_allowed[p] - np.sum(
+#                    dft.loc[(dft['program_id'] == p[0]) &
+#                    (dft['subprogram_name'] == p[1]), 'Yrtf'].values
+#                    )))*2.5 
+#                    for p in requests_needed]),
             GRB.MAXIMIZE)
 
     # Quick and dirty is okay!

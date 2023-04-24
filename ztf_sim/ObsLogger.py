@@ -5,7 +5,7 @@ from collections import defaultdict
 import uuid
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 import astropy.coordinates as coord
 from astropy.time import Time
 import astropy.units as u
@@ -43,9 +43,9 @@ class ObsLogger(object):
                 pass
 
         # If the table doesn't exist, create it
-        if not self.engine.dialect.has_table(self.engine, 'Field'): 
+        if not inspect(self.engine).has_table('Field'): 
 
-            self.conn.execute("""
+            self.conn.execute(text("""
             CREATE TABLE Field(
             fieldID   INTEGER PRIMARY KEY,
             fieldFov  REAL,
@@ -55,7 +55,7 @@ class ObsLogger(object):
             fieldGB   REAL,
             fieldEL   REAL,
             fieldEB   REAL
-            )""")
+            )"""))
 
             f = Fields()
             df = f.fields.reset_index()
@@ -85,10 +85,10 @@ class ObsLogger(object):
                 pass
 
         # If the table doesn't exist, create it
-        if not self.engine.dialect.has_table(self.engine, 'Summary'): 
+        if not inspect(self.engine).has_table('Summary'): 
 
             # create table
-            self.conn.execute("""
+            self.conn.execute(text("""
             CREATE TABLE Summary(
             obsHistID         INTEGER PRIMARY KEY,
             requestID INTEGER,
@@ -124,7 +124,7 @@ class ObsLogger(object):
             totalRequestsTonight INTEGER,
             metricValue        REAL,
             subprogram         TEXT
-            )""")
+            )"""))
 
     def log_pointing(self, state, request):
 
@@ -150,7 +150,7 @@ class ObsLogger(object):
         record['expMJD'] = exposure_start.mjd
 
         record['night'] = np.floor((exposure_start - self.survey_start_time).jd
-                                   ).astype(np.int)
+                                   ).astype(int)
         record['visitTime'] = request[
             'target_exposure_time'].to(u.second).value
         record['visitExpTime'] = request[
@@ -222,7 +222,8 @@ class ObsLogger(object):
 
         # append to our local history DataFrame
         # note that the index here will change when reloaded from the db
-        self.history = self.history.append(record_row, sort=False)
+        self.history = pd.concat([self.history, record_row], axis=0, join='outer',
+                                           sort=False)
 
         # write to the database
         record_row.to_sql('Summary', self.conn, index=False, if_exists='append')
