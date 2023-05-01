@@ -840,7 +840,7 @@ class GurobiQueueManager(QueueManager):
             queue = self.queue.loc[self.queue_order].copy()
             queue.loc[:,'ordered'] = True
             queue.loc[:,'slot_start_time'] = block_index_to_time(
-                    self.queue_slot, Time.now(), where='start').iso
+                    self.queue_slot, Time.now(), where='start')[0].iso
         else:
             # before the night starts, the queue is empty
             queue = self.queue.copy()
