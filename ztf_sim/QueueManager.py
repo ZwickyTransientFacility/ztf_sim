@@ -476,6 +476,15 @@ class QueueManager(object):
         # define functions that actually do the work in subclasses
         return self._remove_requests(request_id)
 
+    def move_program_to_missed_obs(self, program_id):
+        """Remove all requests from the specified program_id to the missed obs queue."""
+
+        # define functions that actually do the work in subclasses
+        return self._move_program_to_missed_obs(program_id)
+
+    def return_queue(self):
+        """Return queue values, ordered in the expected sequence if possible"""
+
     def return_queue(self):
         """Return queue values, ordered in the expected sequence if possible"""
 
@@ -787,7 +796,7 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = df_fakestart.index.values[tsp_order]
         self.queue = df
 
-    def _move_requests_to_missed_obs(self, queue_slot):
+    def _move_requests_to_missed_obs(self, queue_slot, program_id=None):
         """After a block is expired, move any un-observed requests into the missed_obs queue."""
         #self.queue should have any remaining obs
         if len(self.queue):
@@ -797,7 +806,16 @@ class GurobiQueueManager(QueueManager):
             # filter_ids from the original request set.  So we have to 
             # make a pool that only has single filters in it.
             filter_id = int(self.filter_by_slot[queue_slot])
-            missed_obs = self.queue.loc[:,cols].copy()
+            if program_id is not None:
+                wp = self.queue['program_id'] == program_id
+                if np.sum(wp):
+                    missed_obs = self.queue.loc[wp,cols].copy()
+                    self.logger.info(f"Moving {len(missed_obs)} requests (program {program_id}, filter {filter_id}) to the missed_obs queue: {missed_obs.loc[:,['subprogram_name','field_id']]}")
+                else:
+                    self.logger.info(f"No requests for program {program_id}, filter {filter_id} in current queue_slot {queue_slot}.")
+                    return
+            else:
+                missed_obs = self.queue.loc[:,cols].copy()
             missed_obs['filter_ids'] = pd.Series([[filter_id] for i in missed_obs.index],index=missed_obs.index)
             missed_obs['total_requests_tonight'] = 1
 
@@ -832,6 +850,23 @@ class GurobiQueueManager(QueueManager):
         # (we will only reuse the RequestPool if we do recomputes)
         self.rp.remove_request(request_set_id, 
                 self.filter_by_slot.loc[self.queue_slot])
+
+    def _move_program_to_missed_obs(self, program_id):
+        """Move all requests from program_id to missed_obs"""
+
+        # move requests from current queue
+        if self.queue_slot is not None:
+            self._move_requests_to_missed_obs(self.queue_slot, program_id = program_id)
+
+        # move request sets from the pool
+        wpid = self.rp.pool['program_id'] == program_id
+        if np.sum(wpid):
+            self.missed_obs_queue.rp.pool = pd.concat([self.missed_obs_queue.rp.pool, 
+                                                       self.rp.pool.loc[wpid]])
+            self.rp.pool = self.rp.pool.loc[~wpid,:]
+
+        self.logger.info(f'Moved {np.sum(wpid)} request sets from program id {program_id} to missed_obs')
+        
 
     def _return_queue(self):
 
@@ -1066,6 +1101,9 @@ class GreedyQueueManager(QueueManager):
         self.queue = self.queue.drop(request_id)
         self.rp.remove_request(row['request_set_id'], row['filter_id'])
 
+    def _move_program_to_missed_obs(self, program_id):
+        raise NotImplementedError
+
     def _return_queue(self):
 
         if 'value' in self.queue.columns:
@@ -1241,6 +1279,9 @@ class ListQueueManager(QueueManager):
                 self.queue = self.queue.drop(request_id)
         except Exception:
             self.logger.exception(f'Failure removing request {request_id}')
+
+    def _move_program_to_missed_obs(self, program_id):
+        raise NotImplementedError
 
     def _return_queue(self):
 
