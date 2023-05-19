@@ -865,8 +865,16 @@ class GurobiQueueManager(QueueManager):
                                                        self.rp.pool.loc[wpid]])
             self.rp.pool = self.rp.pool.loc[~wpid,:]
 
+            # we also need to delete them self.queued_requests_by_slot
+            slots = self.queued_requests_by_slot.index.values
+            ids_to_remove = [di for di,dv in wpid.items() if dv]
+            for slot in slots:
+                self.queued_requests_by_slot.loc[slot] = [
+                        req for req in self.queued_requests_by_slot.loc[slot]
+                        if req not in ids_to_remove]
+
         self.logger.info(f'Moved {np.sum(wpid)} request sets from program id {program_id} to missed_obs')
-        
+            
 
     def _return_queue(self):
 
@@ -890,15 +898,16 @@ class GurobiQueueManager(QueueManager):
                     continue
             slot_requests = self.queued_requests_by_slot.loc[slot]
  
-            idx = pd.Index(slot_requests)
-            # reconstruct
-            df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
-            df.loc[:,'filter_id'] = self.filter_by_slot[slot]
-            df.loc[:,'ordered'] = False
-            df.loc[:,'slot_start_time'] = block_index_to_time(slot,
-                    Time.now(), where='start').iso[0]
-            queue = pd.concat([queue,df])
-        
+            if len(slot_requests):
+                idx = pd.Index(slot_requests)
+                # reconstruct
+                df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
+                df.loc[:,'filter_id'] = self.filter_by_slot[slot]
+                df.loc[:,'ordered'] = False
+                df.loc[:,'slot_start_time'] = block_index_to_time(slot,
+                        Time.now(), where='start').iso[0]
+                queue = pd.concat([queue,df])
+            
 
         return queue
 
