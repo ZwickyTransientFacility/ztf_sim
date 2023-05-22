@@ -116,7 +116,7 @@ class QueueManager(object):
 
         if window_start >= window_stop:
             raise ValueError("validity window start time must be less than end time")
-        # rough sanity checks
+        # rough checks
         if window_start <= Time('2017-01-01').mjd:
             raise ValueError(f"MJD likely out of range: {window_start}")
         if window_stop >= Time('2030-01-01').mjd:
@@ -177,7 +177,8 @@ class QueueManager(object):
             timed_obs_count = defaultdict(int)):
 
         # clear previous request pool
-        if self.queue_name != 'missed_obs':
+        # missed obs and skymap greedy queues don't have observing programs
+        if len(self.observing_programs) != 0:
             self.rp.clear_all_request_sets()
             # set number of allowed requests by program.
             self.determine_allowed_requests(current_state['current_time'],
@@ -505,8 +506,6 @@ class QueueManager(object):
 
         return queue.loc[:,out_cols]
 
-
-
 class GurobiQueueManager(QueueManager):
 
     def __init__(self, queue_name, queue_configuration, **kwargs):
@@ -801,7 +800,7 @@ class GurobiQueueManager(QueueManager):
         #self.queue should have any remaining obs
         if len(self.queue):
             cols = ['program_id', 'subprogram_name', 'program_pi', 'field_id', 
-                    'intranight_gap_min', 'exposure_time', 'priority']
+                    'intranight_gap_min', 'exposure_time', 'probability']
             # it's a little confusing, because each queue entry has all of the
             # filter_ids from the original request set.  So we have to 
             # make a pool that only has single filters in it.
@@ -993,7 +992,7 @@ class GreedyQueueManager(QueueManager):
         return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
             (1-1e-4*(maximum_altitude(df['dec']) - 90)**2.) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
-             (EXPOSURE_TIME.value + 10.))
+             (EXPOSURE_TIME.value + 10.)) * df['probability']
 
     def _update_overhead(self, current_state, df=None):
         """recalculate overhead values without regenerating whole queue"""
@@ -1308,7 +1307,7 @@ class RequestPool(object):
 
     def add_request_sets(self, program_id, subprogram_name, program_pi,
                 field_ids, filter_ids, intranight_gap, exposure_time, 
-                total_requests_tonight, priority=1):
+                total_requests_tonight, probability=1):
         """program_ids must be scalar"""
 
         assert (scalar_len(program_id) == 1) 
@@ -1323,9 +1322,17 @@ class RequestPool(object):
                 # if not, assume it's a scalar and wrap in a list
                 field_ids = [field_ids]
 
+        n_probs = scalar_len(probability)
+        if n_probs == 1:
+            # blow it up to match field_ids
+            probabilities = np.ones(n_fields) * probability
+        else:
+            assert(n_probs == n_fields)
+            probabilities = probability
+
         # build df as a list of dicts
         request_sets = []
-        for i, field_id in enumerate(field_ids):
+        for i, (field_id, prob_i)  in enumerate(zip(field_ids, probabilities)):
             request_sets.append({
                 'program_id': program_id,
                 'subprogram_name': subprogram_name,
@@ -1337,7 +1344,7 @@ class RequestPool(object):
                 'intranight_gap_min': intranight_gap.to(u.minute).value,
                 'exposure_time': exposure_time.to(u.second).value,
                 'total_requests_tonight': total_requests_tonight,
-                'priority': priority})
+                'probability': prob_i})
 
         self.pool = pd.concat([self.pool, pd.DataFrame(request_sets)], 
             ignore_index=True)
