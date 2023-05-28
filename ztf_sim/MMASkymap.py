@@ -43,7 +43,7 @@ class MMASkymap(object):
             rp.add_request_sets(1,
                                 'MSIP_EMGW',
                                 'Kulkarni',
-                                row['field_id'],
+                                int(row['field_id']),
                                 [1,2],
                                 30*u.minute,
                                 30*u.second,

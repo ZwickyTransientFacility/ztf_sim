@@ -962,7 +962,7 @@ class GreedyQueueManager(QueueManager):
         max_idx = queue.value.idxmax()
         row = queue.loc[max_idx]
 
-        next_obs = {'target_field_id': row['field_id'],
+        next_obs = {'target_field_id': int(row['field_id']),
             'target_ra': row['ra'],
             'target_dec': row['dec'],
             'target_filter_id': row['filter_id'],
