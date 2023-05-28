@@ -7,6 +7,7 @@ import pandas as pd
 
 from .configuration import QueueConfiguration
 from .QueueManager import GreedyQueueManager, RequestPool
+from .constants import BASE_DIR
 
 class MMASkymap(object):
 
