@@ -4,6 +4,7 @@ import logging
 import types
 
 import pandas as pd
+import astropy.units as u
 
 from .configuration import QueueConfiguration
 from .QueueManager import GreedyQueueManager, RequestPool
