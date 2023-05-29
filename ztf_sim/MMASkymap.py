@@ -1,28 +1,14 @@
 """MMA Skymaps."""
 
-import os
-from collections import defaultdict
-from datetime import datetime
 import logging
-import numpy as np
-import pandas as pd
-import astropy.coordinates as coord
-import astropy.units as u
-from astropy.time import Time, TimeDelta
-import astroplan
-from .Fields import Fields
+import types
 
-from .optimize import tsp_optimize, night_optimize
-from .cadence import enough_gap_since_last_obs
-from .constants import P48_loc, PROGRAM_IDS, FILTER_IDS, TIME_BLOCK_SIZE
-from .constants import EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME, slew_time
-from .constants import PROGRAM_BLOCK_SEQUENCE, LEN_BLOCK_SEQUENCE, MAX_AIRMASS
+import pandas as pd
+import astropy.units as u
+
+from .configuration import QueueConfiguration
+from .QueueManager import GreedyQueueManager, RequestPool
 from .constants import BASE_DIR
-from .utils import approx_hours_of_darkness
-from .utils import skycoord_to_altaz, seeing_at_pointing
-from .utils import altitude_to_airmass, airmass_to_altitude, RA_to_HA, HA_to_RA
-from .utils import scalar_len, nightly_blocks, block_index, block_index_to_time
-from .utils import block_use_fraction, maximum_altitude, compute_limiting_mag
 
 class MMASkymap(object):
 
@@ -41,6 +27,34 @@ class MMASkymap(object):
 #        else:
 #            self.fields = fields
 
+    def make_queue(self, validity_window):
+
+        # use a generic configuration and override
+        queue_config = QueueConfiguration(BASE_DIR+'../sims/missed_obs.json')
+        queue_name = self.trigger_name+'_greedy'
+        queue_config.config['queue_name'] = queue_name
+        queue_config.config['queue_description'] = queue_name
+        queue_config.config['queue_manager'] = 'greedy'
+        queue_config.config['observing_programs'] = []
+        queue_config.config['validity_window_mjd'] = validity_window
+
+        rp = RequestPool()
+        for idx, row in self.skymap_fields.iterrows():
+            rp.add_request_sets(1,
+                                'MSIP_EMGW',
+                                'Kulkarni',
+                                int(row['field_id']),
+                                [1,2],
+                                30*u.minute,
+                                30*u.second,
+                                2,
+                                probability=row['probability'])
+
+        queue = GreedyQueueManager(queue_name, queue_config, rp = rp)
+
+        return queue
+
+
     def return_skymap(self):
         return self.skymap_fields
 
@@ -50,6 +64,3 @@ class MMASkymap(object):
     def archive_persisted_skymap(self):
         pass
 
-
-
-#def load_persisted_skymaps():

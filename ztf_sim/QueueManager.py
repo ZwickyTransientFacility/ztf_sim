@@ -116,7 +116,7 @@ class QueueManager(object):
 
         if window_start >= window_stop:
             raise ValueError("validity window start time must be less than end time")
-        # rough sanity checks
+        # rough checks
         if window_start <= Time('2017-01-01').mjd:
             raise ValueError(f"MJD likely out of range: {window_start}")
         if window_stop >= Time('2030-01-01').mjd:
@@ -177,7 +177,8 @@ class QueueManager(object):
             timed_obs_count = defaultdict(int)):
 
         # clear previous request pool
-        if self.queue_name != 'missed_obs':
+        # missed obs and skymap greedy queues don't have observing programs
+        if len(self.observing_programs) != 0:
             self.rp.clear_all_request_sets()
             # set number of allowed requests by program.
             self.determine_allowed_requests(current_state['current_time'],
@@ -476,6 +477,15 @@ class QueueManager(object):
         # define functions that actually do the work in subclasses
         return self._remove_requests(request_id)
 
+    def move_program_to_missed_obs(self, program_id):
+        """Remove all requests from the specified program_id to the missed obs queue."""
+
+        # define functions that actually do the work in subclasses
+        return self._move_program_to_missed_obs(program_id)
+
+    def return_queue(self):
+        """Return queue values, ordered in the expected sequence if possible"""
+
     def return_queue(self):
         """Return queue values, ordered in the expected sequence if possible"""
 
@@ -495,8 +505,6 @@ class QueueManager(object):
         out_cols = list(set(cols) & set(queue.columns))
 
         return queue.loc[:,out_cols]
-
-
 
 class GurobiQueueManager(QueueManager):
 
@@ -787,17 +795,26 @@ class GurobiQueueManager(QueueManager):
         self.queue_order = df_fakestart.index.values[tsp_order]
         self.queue = df
 
-    def _move_requests_to_missed_obs(self, queue_slot):
+    def _move_requests_to_missed_obs(self, queue_slot, program_id=None):
         """After a block is expired, move any un-observed requests into the missed_obs queue."""
         #self.queue should have any remaining obs
         if len(self.queue):
             cols = ['program_id', 'subprogram_name', 'program_pi', 'field_id', 
-                    'intranight_gap_min', 'exposure_time', 'priority']
+                    'intranight_gap_min', 'exposure_time', 'probability']
             # it's a little confusing, because each queue entry has all of the
             # filter_ids from the original request set.  So we have to 
             # make a pool that only has single filters in it.
             filter_id = int(self.filter_by_slot[queue_slot])
-            missed_obs = self.queue.loc[:,cols].copy()
+            if program_id is not None:
+                wp = self.queue['program_id'] == program_id
+                if np.sum(wp):
+                    missed_obs = self.queue.loc[wp,cols].copy()
+                    self.logger.info(f"Moving {len(missed_obs)} requests (program {program_id}, filter {filter_id}) to the missed_obs queue: {missed_obs.loc[:,['subprogram_name','field_id']]}")
+                else:
+                    self.logger.info(f"No requests for program {program_id}, filter {filter_id} in current queue_slot {queue_slot}.")
+                    return
+            else:
+                missed_obs = self.queue.loc[:,cols].copy()
             missed_obs['filter_ids'] = pd.Series([[filter_id] for i in missed_obs.index],index=missed_obs.index)
             missed_obs['total_requests_tonight'] = 1
 
@@ -833,6 +850,31 @@ class GurobiQueueManager(QueueManager):
         self.rp.remove_request(request_set_id, 
                 self.filter_by_slot.loc[self.queue_slot])
 
+    def _move_program_to_missed_obs(self, program_id):
+        """Move all requests from program_id to missed_obs"""
+
+        # move requests from current queue
+        if self.queue_slot is not None:
+            self._move_requests_to_missed_obs(self.queue_slot, program_id = program_id)
+
+        # move request sets from the pool
+        wpid = self.rp.pool['program_id'] == program_id
+        if np.sum(wpid):
+            self.missed_obs_queue.rp.pool = pd.concat([self.missed_obs_queue.rp.pool, 
+                                                       self.rp.pool.loc[wpid]])
+            self.rp.pool = self.rp.pool.loc[~wpid,:]
+
+            # we also need to delete them self.queued_requests_by_slot
+            slots = self.queued_requests_by_slot.index.values
+            ids_to_remove = [di for di,dv in wpid.items() if dv]
+            for slot in slots:
+                self.queued_requests_by_slot.loc[slot] = [
+                        req for req in self.queued_requests_by_slot.loc[slot]
+                        if req not in ids_to_remove]
+
+        self.logger.info(f'Moved {np.sum(wpid)} request sets from program id {program_id} to missed_obs')
+            
+
     def _return_queue(self):
 
         # start by setting up the current slot
@@ -855,15 +897,16 @@ class GurobiQueueManager(QueueManager):
                     continue
             slot_requests = self.queued_requests_by_slot.loc[slot]
  
-            idx = pd.Index(slot_requests)
-            # reconstruct
-            df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
-            df.loc[:,'filter_id'] = self.filter_by_slot[slot]
-            df.loc[:,'ordered'] = False
-            df.loc[:,'slot_start_time'] = block_index_to_time(slot,
-                    Time.now(), where='start').iso[0]
-            queue = pd.concat([queue,df])
-        
+            if len(slot_requests):
+                idx = pd.Index(slot_requests)
+                # reconstruct
+                df = self.rp.pool.loc[idx].join(self.fields.fields, on='field_id').copy()
+                df.loc[:,'filter_id'] = self.filter_by_slot[slot]
+                df.loc[:,'ordered'] = False
+                df.loc[:,'slot_start_time'] = block_index_to_time(slot,
+                        Time.now(), where='start').iso[0]
+                queue = pd.concat([queue,df])
+            
 
         return queue
 
@@ -919,7 +962,7 @@ class GreedyQueueManager(QueueManager):
         max_idx = queue.value.idxmax()
         row = queue.loc[max_idx]
 
-        next_obs = {'target_field_id': row['field_id'],
+        next_obs = {'target_field_id': int(row['field_id']),
             'target_ra': row['ra'],
             'target_dec': row['dec'],
             'target_filter_id': row['filter_id'],
@@ -949,7 +992,7 @@ class GreedyQueueManager(QueueManager):
         return 10.**(0.6 * (df['limiting_mag'] - 21)) / \
             (1-1e-4*(maximum_altitude(df['dec']) - 90)**2.) / \
             ((EXPOSURE_TIME.value + df['overhead_time']) /
-             (EXPOSURE_TIME.value + 10.))
+             (EXPOSURE_TIME.value + 10.)) * df['probability']
 
     def _update_overhead(self, current_state, df=None):
         """recalculate overhead values without regenerating whole queue"""
@@ -1065,6 +1108,9 @@ class GreedyQueueManager(QueueManager):
 
         self.queue = self.queue.drop(request_id)
         self.rp.remove_request(row['request_set_id'], row['filter_id'])
+
+    def _move_program_to_missed_obs(self, program_id):
+        raise NotImplementedError
 
     def _return_queue(self):
 
@@ -1242,6 +1288,9 @@ class ListQueueManager(QueueManager):
         except Exception:
             self.logger.exception(f'Failure removing request {request_id}')
 
+    def _move_program_to_missed_obs(self, program_id):
+        raise NotImplementedError
+
     def _return_queue(self):
 
         # by construction the list queue is already in order
@@ -1258,7 +1307,7 @@ class RequestPool(object):
 
     def add_request_sets(self, program_id, subprogram_name, program_pi,
                 field_ids, filter_ids, intranight_gap, exposure_time, 
-                total_requests_tonight, priority=1):
+                total_requests_tonight, probability=1):
         """program_ids must be scalar"""
 
         assert (scalar_len(program_id) == 1) 
@@ -1273,9 +1322,17 @@ class RequestPool(object):
                 # if not, assume it's a scalar and wrap in a list
                 field_ids = [field_ids]
 
+        n_probs = scalar_len(probability)
+        if n_probs == 1:
+            # blow it up to match field_ids
+            probabilities = np.ones(n_fields) * probability
+        else:
+            assert(n_probs == n_fields)
+            probabilities = probability
+
         # build df as a list of dicts
         request_sets = []
-        for i, field_id in enumerate(field_ids):
+        for i, (field_id, prob_i)  in enumerate(zip(field_ids, probabilities)):
             request_sets.append({
                 'program_id': program_id,
                 'subprogram_name': subprogram_name,
@@ -1287,7 +1344,7 @@ class RequestPool(object):
                 'intranight_gap_min': intranight_gap.to(u.minute).value,
                 'exposure_time': exposure_time.to(u.second).value,
                 'total_requests_tonight': total_requests_tonight,
-                'priority': priority})
+                'probability': prob_i})
 
         self.pool = pd.concat([self.pool, pd.DataFrame(request_sets)], 
             ignore_index=True)
