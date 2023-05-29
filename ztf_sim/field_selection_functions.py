@@ -21,8 +21,111 @@ from .utils import RA_to_HA
 
 logger = logging.getLogger(__name__)
 
-def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
-        silent=False):
+msip_cadence = 2
+msip_internight_gap = msip_cadence*u.day
+msip_nobs_per_night = 2
+
+def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
+                             skymaps, silent=False):
+    """Use skymaps to select fields for inclusion."""
+
+    observable_field_ids = fields.select_field_ids(dec_range=[-32,90.],
+                           grid_id=0,
+                           # use a minimal observable hours cut
+                           observable_hours_range=[0.5, 24.])
+
+    msip_requests_allowed = other_program_fields[
+            (PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['requests_allowed']
+    n_fields_to_observe = int(np.round(msip_requests_allowed / msip_nobs_per_night))
+
+    loaded_skymaps = {}
+    if len(skymaps):
+        # loop over skymaps to find the
+        for trigger_name, skymap in skymaps.items():
+            if (time.mjd - skymap.trigger_time) < 7:
+                loaded_skymaps[trigger_name] = skymap.trigger_time 
+    else:
+        logger.info('No loaded skymaps for MSIP field selection')
+
+    if len(loaded_skymaps):
+        sorted_skymaps_by_trigger_time = sorted(loaded_skymaps.items(), 
+                                             key=lambda x:x[1], reverse=True)
+        ordered_skymaps = dict(sorted_skymaps_by_trigger_time)
+    else:
+        logger.info('No recent skymaps for MSIP field selection')
+        ordered_skymaps = {}
+
+    field_ids_to_observe = []
+    def remaining_fields_needed(field_ids_to_observe):
+        return int((msip_requests_allowed - 
+                     (len(field_ids_to_observe) * msip_nobs_per_night)) /
+                        msip_nobs_per_night)
+    n_fields_needed = remaining_fields_needed(field_ids_to_observe)
+
+    for trigger_name, trigger_time in ordered_skymaps.items():
+
+        if n_fields_needed <= 0:
+            break
+
+        logger.info(f'Identifying fields from skymap {trigger_name} ({trigger_time})')
+
+        dfi = skymaps[trigger_name].skymap_fields.copy()
+
+        # only select fields that are observable tonight and in the primary grid
+        w = dfi['field_id'].apply(lambda x: x in observable_field_ids)
+        dfi = dfi.loc[w,:]
+
+        # remove fields that have been observed after the skymap trigger time 
+        # but less than two days ago 
+        last_observed_times = obs_log.select_last_observed_time_by_field(
+            field_ids = dfi['field_id'],
+            filter_ids = [1,2],
+            program_ids = [PROGRAM_NAME_TO_ID['MSIP']],
+            # arbitrary early date; start of night tonight
+            mjd_range = [Time('2001-01-01').mjd,np.floor(time.mjd)])
+
+        # we want an object observed at the end of the night N days ago
+        # to be observed at the start of the night now.
+        # Max night length is 12.2 hours
+        cutoff_time = (time - (msip_internight_gap - 0.6 * u.day)).mjd
+
+        # find fields not observed before the trigger, 
+        # or ready for another MSIP observation
+        wtrigger = (last_observed_times['expMJD'] < trigger_time)
+        wrecent = (last_observed_times['expMJD'] >= cutoff_time)
+        recent_field_ids = last_observed_times.loc[wtrigger | wrecent].index.tolist()
+        w = dfi['field_id'].apply(lambda x: x in recent_field_ids)
+        dfi = dfi.loc[w,:]
+
+        # sort by probability
+        skymap_field_ids = dfi.sort_values(by='probability', ascending=False)['field_id'].values.tolist()
+
+        # cut to the number of allowed requests
+        n_fields_needed = remaining_fields_needed(field_ids_to_observe)
+        if len(skymap_field_ids) > n_fields_needed:
+            skymap_field_ids = skymap_field_ids[:n_fields_needed]
+
+        field_ids_to_observe.extend(skymap_field_ids)
+        logger.info(f'Trigger {trigger_name}: Adding {skymap_field_ids} to MSIP')
+
+        
+    
+    # if there is any time left, fill with regular NSS selection
+    n_fields_needed = remaining_fields_needed(field_ids_to_observe)
+
+    if n_fields_needed > 0:
+        logger.info(f'{n_fields_needed} non-skymap MSIP fields needed}')
+        extra_ids = msip_nss_selection_phaseii(time, obs_log, 
+                                               other_program_fields, fields, 
+                                               skymaps, silent=False):
+        field_ids_to_observe.extend(extra_ids[:n_fields_needed])
+
+    return field_ids_to_observe
+            
+
+
+def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields, 
+                               skymaps, silent=False):
     """Select MSIP NSS fields so we ensure lowdec coverage."""
 
     candidate_nss_field_ids = fields.select_field_ids(dec_range=[-32,90.],
@@ -31,10 +134,6 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
                            observable_hours_range=[2.0, 24.])
     candidate_nss_fields = fields.fields.loc[candidate_nss_field_ids].copy()
 
-
-    msip_cadence = 2
-    msip_internight_gap = msip_cadence*u.day
-    msip_nobs_per_night = 2
 
     nss_requests_allowed = other_program_fields[
             (PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['requests_allowed']
@@ -129,19 +228,20 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
 
     return nss_field_ids_to_observe
 
-def partnership_HC_selection(time, obs_log, other_program_fields, fields):
+def partnership_HC_selection(time, obs_log, other_program_fields, fields,
+                             skymaps):
     """Select partnership HC fields"""
     return phase_II_selection(time, obs_log, other_program_fields, fields,
-                              subprogram='Partnership')
+                              skymaps, subprogram='Partnership')
 
-def Caltech_1DC_selection(time, obs_log, other_program_fields, fields):
+def Caltech_1DC_selection(time, obs_log, other_program_fields, fields, skymaps):
     """Select Caltech 1DC fields"""
     return phase_II_selection(time, obs_log, other_program_fields, fields,
-                              subprogram='Caltech')
+                              skymaps, subprogram='Caltech')
 
 
 def phase_II_selection(time, obs_log, other_program_fields, fields,
-        subprogram='Partnership', silent=False):
+        skymaps, subprogram='Partnership', silent=False):
     """Select partnership HC or Caltech 1DC fields"""
 
     assert (subprogram in ['Partnership', 'Caltech'])
@@ -299,7 +399,7 @@ def phase_II_selection(time, obs_log, other_program_fields, fields,
 
     return field_ids_to_observe
 
-def srg_selection(time, obs_log, other_program_fields, fields):
+def srg_selection(time, obs_log, other_program_fields, fields, skymaps):
     """Select SRG fields."""
 
     # use the fields for multiple days so we can improve the sampling
@@ -328,7 +428,7 @@ def srg_selection(time, obs_log, other_program_fields, fields):
 
 ##################### previous/unused -- for reference
 
-def aam_caltech_june21(time, obs_log, other_program_fields, fields):
+def aam_caltech_june21(time, obs_log, other_program_fields, fields, skymaps):
     """Select Ashish fields, June 2021."""
 
     aam_fields = []
@@ -409,7 +509,7 @@ def aam_caltech_june21(time, obs_log, other_program_fields, fields):
     return aam_fields
 
 
-def msip_nss_selection(time, obs_log, other_program_fields, fields):
+def msip_nss_selection(time, obs_log, other_program_fields, fields, skymaps):
     """Select MSIP NSS fields so they don't overlap with other MSIP subprograms."""
 
     candidate_nss_fields = fields.select_field_ids(dec_range=[-32,90.],
