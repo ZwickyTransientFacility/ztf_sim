@@ -174,7 +174,7 @@ class QueueManager(object):
 
     def assign_nightly_requests(self, current_state, obs_log, 
             time_limit = 30 * u.second, block_use = defaultdict(float),
-            timed_obs_count = defaultdict(int)):
+            timed_obs_count = defaultdict(int), skymaps = None):
 
         # clear previous request pool
         # missed obs and skymap greedy queues don't have observing programs
@@ -197,7 +197,8 @@ class QueueManager(object):
 
             request_sets = program.assign_nightly_requests(
                 current_state['current_time'], self.fields,
-                obs_log, program_fields, block_programs=self.block_programs)
+                obs_log, program_fields, block_programs=self.block_programs,
+                skymaps = skymaps)
             for rs in request_sets:
                 self.rp.add_request_sets(rs['program_id'], 
                             rs['subprogram_name'], rs['program_pi'],
