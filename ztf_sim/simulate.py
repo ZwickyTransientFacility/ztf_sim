@@ -112,7 +112,8 @@ def simulate(scheduler_config_file, sim_config_file,
             scheduler.queues['default'].assign_nightly_requests(
                     tel.current_state_dict(),
                     scheduler.obs_log, block_use = block_use,
-                    timed_obs_count = timed_obs_count, time_limit = time_limit)
+                    timed_obs_count = timed_obs_count, time_limit = time_limit,
+                    skymaps = None)
             current_night_mjd = np.floor(tel.current_time.mjd)
             # log pool stats
             logger.info(calc_pool_stats(
