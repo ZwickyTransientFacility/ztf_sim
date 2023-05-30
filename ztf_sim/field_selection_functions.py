@@ -39,7 +39,7 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
     n_fields_to_observe = int(np.round(msip_requests_allowed / msip_nobs_per_night))
 
     loaded_skymaps = {}
-    if len(skymaps):
+    if (skymaps is not None) and len(skymaps):
         # loop over skymaps to find the
         for trigger_name, skymap in skymaps.items():
             if (time.mjd - skymap.trigger_time) < 7:
@@ -114,10 +114,10 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
     n_fields_needed = remaining_fields_needed(field_ids_to_observe)
 
     if n_fields_needed > 0:
-        logger.info(f'{n_fields_needed} non-skymap MSIP fields needed}')
+        logger.info(f'{n_fields_needed} non-skymap MSIP fields needed')
         extra_ids = msip_nss_selection_phaseii(time, obs_log, 
                                                other_program_fields, fields, 
-                                               skymaps, silent=False):
+                                               skymaps, silent=False)
         field_ids_to_observe.extend(extra_ids[:n_fields_needed])
 
     return field_ids_to_observe
