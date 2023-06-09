@@ -107,6 +107,7 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
 
         field_ids_to_observe.extend(skymap_field_ids)
         logger.info(f'Trigger {trigger_name}: Adding {skymap_field_ids} to MSIP')
+        #TODO: need to deduplicate any overlaps
 
         
     
