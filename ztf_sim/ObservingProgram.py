@@ -51,7 +51,7 @@ class ObservingProgram(object):
 
     def assign_nightly_requests(self, time, fields, obs_log, 
             other_program_fields,
-            block_programs=False, **kwargs):
+            block_programs=False, skymaps = None, **kwargs):
 
         # filters are given in filter_ids:
         # either a set of filters, or a fixed sequence
@@ -91,7 +91,7 @@ class ObservingProgram(object):
         if self.field_selection_function is not None:
             try:
                 selection_function = globals()[self.field_selection_function]
-                field_ids = selection_function(time, obs_log, other_program_fields, fields)
+                field_ids = selection_function(time, obs_log, other_program_fields, fields, skymaps)
                 self.logger.info(f'Program ID {self.program_id}, subprogram {self.subprogram_name}: selected {len(field_ids)} fields')
                 self.logger.debug(f'    {field_ids}')
             except Exception as e:

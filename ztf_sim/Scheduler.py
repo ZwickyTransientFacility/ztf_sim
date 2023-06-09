@@ -31,6 +31,9 @@ class Scheduler(object):
         self.queues = self.scheduler_config.build_queues(self.queue_configs)
         self.timed_queues_tonight = []
 
+        # used to trigger nightly recomputes
+        self.mjd_today = 0
+
         self.skymaps = {}
 
         self.set_queue('default')
@@ -48,6 +51,22 @@ class Scheduler(object):
                 output_path = output_path,
                 clobber=self.run_config['scheduler'].getboolean('clobber_db'),) 
 
+    def assign_nightly_requests(self, current_state_dict, 
+                                time_limit=15.*u.minute):
+        # Look for timed queues that will be valid tonight,
+        # to exclude from the nightly solution
+        block_use = self.find_block_use_tonight(current_state_dict['current_time'])
+        timed_obs_count = self.count_timed_observations_tonight()
+
+        self.logger.info(f'Block use by timed queues: {block_use}')
+
+        self.queues['default'].assign_nightly_requests(
+                        current_state_dict,
+                        self.obs_log, 
+                        time_limit = time_limit,
+                        block_use = block_use,
+                        timed_obs_count = timed_obs_count,
+                        skymaps = self.skymaps)
 
     def set_queue(self, queue_name): 
 

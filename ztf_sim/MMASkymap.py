@@ -38,6 +38,12 @@ class MMASkymap(object):
         queue_config.config['observing_programs'] = []
         queue_config.config['validity_window_mjd'] = validity_window
 
+        # TODO: visibility check
+
+        # TODO: limit to primary grid
+
+        # TODO: limit to # of observable fields
+
         rp = RequestPool()
         for idx, row in self.skymap_fields.iterrows():
             rp.add_request_sets(1,
