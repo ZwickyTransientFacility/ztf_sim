@@ -87,6 +87,14 @@ def previous_18deg_evening_twilight(time):
 def next_18deg_evening_twilight(time):
     return P48_Observer.twilight_evening_astronomical(time, which='next')
 
+def is_night_remaining(time):
+    """For automatically making skymaps from queues, we want to detect when 
+    observations are still possible before the next recompute"""
+    Time_night_start = Time(np.floor(time.mjd), format='mjd')
+    morning_twilight = next_12deg_morning_twilight(Time_night_start)
+
+    return time <= morning_twilight
+
 
 def skycoord_to_altaz(skycoord, time):
     return skycoord.transform_to(coord.AltAz(obstime=time, location=P48_loc))
