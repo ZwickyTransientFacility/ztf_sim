@@ -74,7 +74,7 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
         # only select fields that are observable tonight and in the primary grid
         w = dfi['field_id'].apply(lambda x: x in observable_field_ids)
         dfi = dfi.loc[w,:]
-        logger.info(f"Trigger {trigger_name}: {np.sum(w)} observable field_ids: {dfi['field_id']}")
+        logger.info(f"Trigger {trigger_name}: {np.sum(w)} observable field_ids: {dfi['field_id'].values}")
 
         # remove fields that have been observed after the skymap trigger time 
         # but less than two days ago 
@@ -92,13 +92,18 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
 
         # find fields not observed since the trigger, 
         # or ready for another MSIP observation
+        logger.info('last_observed_times: ', last_observed_times)
         w_before_trigger = (last_observed_times['expMJD'] < trigger_time)
+        logger.info('w_before_trigger: ', w_before_trigger)
         wnotrecent = (last_observed_times['expMJD'] <= cutoff_time)
+        logger.info('wnotrecent: ', wnotrecent)
+        recent_field_ids = last_observed_times.loc[w_before_trigger | wnotrecent].index.tolist()
+        logger.info('recent_field_ids: ', recent_field_ids)
         recent_field_ids = last_observed_times.loc[w_before_trigger | wnotrecent].index.tolist()
         w = dfi['field_id'].apply(lambda x: x in recent_field_ids)
         dfi = dfi.loc[w,:]
 
-        logger.info(f"Trigger {trigger_name}: {np.sum(w)} field_ids pass cadence cuts: {dfi['field_id']}")
+        logger.info(f"Trigger {trigger_name}: {np.sum(w)} field_ids pass cadence cuts: {dfi['field_id'].values}")
 
         # sort by probability
         skymap_field_ids = dfi.sort_values(by='probability', ascending=False)['field_id'].values.tolist()
