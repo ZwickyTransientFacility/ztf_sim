@@ -92,13 +92,9 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
 
         # find fields not observed since the trigger, 
         # or ready for another MSIP observation
-        logger.info(f'last_observed_times: {last_observed_times}')
         w_before_trigger = (last_observed_times['expMJD'] < trigger_time)
-        logger.info(f'w_before_trigger: {w_before_trigger}')
         wnotrecent = (last_observed_times['expMJD'] <= cutoff_time)
-        logger.info(f'wnotrecent: {wnotrecent}')
         recent_field_ids = last_observed_times.loc[w_before_trigger | wnotrecent].index.tolist()
-        logger.info(f'recent_field_ids: {recent_field_ids}')
         recent_field_ids = last_observed_times.loc[w_before_trigger | wnotrecent].index.tolist()
         w = dfi['field_id'].apply(lambda x: x in recent_field_ids)
         dfi = dfi.loc[w,:]
