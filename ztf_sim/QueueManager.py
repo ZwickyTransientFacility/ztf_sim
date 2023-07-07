@@ -487,9 +487,6 @@ class QueueManager(object):
     def return_queue(self):
         """Return queue values, ordered in the expected sequence if possible"""
 
-    def return_queue(self):
-        """Return queue values, ordered in the expected sequence if possible"""
-
         queue = self._return_queue()
 
         cols = ['field_id','filter_id','exposure_time','program_id',
