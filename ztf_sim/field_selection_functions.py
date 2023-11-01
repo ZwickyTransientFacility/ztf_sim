@@ -251,7 +251,8 @@ def phase_II_selection(time, obs_log, other_program_fields, fields,
 
     assert (subprogram in ['Partnership', 'Caltech'])
 
-    candidate_field_ids_prio1 = [473, 525, 624, 651, 671]
+    candidate_field_ids_prio1 = [473, 525, 624, 651, 671, 
+                                 598]
     candidate_field_ids_prio2 = [349, 350, 406, 414, 479, 480, 481, 528, 529, 530, 531, 532, 533, 534, 544,
 545, 546, 576, 577, 578, 579, 580, 581, 582, 583, 584, 585, 596, 597, 600, 601,
 623, 625, 626, 627, 628, 629, 630, 631, 632, 633, 634, 635, 644, 645, 646, 647,
