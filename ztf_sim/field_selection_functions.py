@@ -460,7 +460,7 @@ def Qin_2024A_selection(time, obs_log, other_program_fields, fields,
     nss_selection_function = globals()[other_program_fields[(PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['field_selection_function']]
     nss_field_ids = nss_selection_function(time, 
         obs_log, other_program_fields, fields, skymaps, silent=True)
-    exclude_fields = exclude_fields.extend(nss_field_ids)
+    exclude_fields.extend(nss_field_ids)
 
 
     # do a visibility check (also handles moon exclusion)
