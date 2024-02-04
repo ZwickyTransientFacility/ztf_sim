@@ -453,7 +453,7 @@ def Qin_2024A_selection(time, obs_log, other_program_fields, fields,
     min_hours_visible = 1.5
     nobs_per_night = 2
     requests_allowed = other_program_fields[
-        (PROGRAM_NAME_TO_ID['Caltech'],'Caltech_1DC')]['requests_allowed']
+        (PROGRAM_NAME_TO_ID['Caltech'],'Caltech_Qin_2024A')]['requests_allowed']
     # exclude partnership fields
     exclude_fields = phase_II_selection(time, obs_log, other_program_fields, fields, subprogram='Partnership', silent=False)
     # exclude fields being observed by MSIP
