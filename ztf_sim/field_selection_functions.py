@@ -455,11 +455,11 @@ def Qin_2024A_selection(time, obs_log, other_program_fields, fields,
     requests_allowed = other_program_fields[
         (PROGRAM_NAME_TO_ID['Caltech'],'Caltech_Qin_2024A')]['requests_allowed']
     # exclude partnership fields
-    exclude_fields = phase_II_selection(time, obs_log, other_program_fields, fields, subprogram='Partnership', silent=False)
+    exclude_fields = phase_II_selection(time, obs_log, other_program_fields, fields, skymaps, subprogram='Partnership', silent=False)
     # exclude fields being observed by MSIP
     nss_selection_function = globals()[other_program_fields[(PROGRAM_NAME_TO_ID['MSIP'],'all_sky')]['field_selection_function']]
     nss_field_ids = nss_selection_function(time, 
-        obs_log, other_program_fields, fields, silent=True)
+        obs_log, other_program_fields, fields, skymaps, silent=True)
     exclude_fields = exclude_fields.extend(nss_field_ids)
 
 
