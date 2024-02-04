@@ -486,7 +486,7 @@ def Qin_2024A_selection(time, obs_log, other_program_fields, fields,
             break
 
         if ((field_id in visible_field_ids) and (field_id not in exclude_fields)):
-            field_ids_to_observe.extend(field_id)
+            field_ids_to_observe.append(field_id)
             n_fields_remaining -= 1
 
     if not silent:
