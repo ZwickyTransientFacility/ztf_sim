@@ -113,7 +113,9 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
         logger.info(f'Trigger {trigger_name}: Adding {skymap_field_ids} to MSIP')
         #TODO: need to deduplicate any overlaps
 
-        
+    # ComCam through Dec. 15, '24
+    field_ids_to_observe.extend(252, 1246, 452, 258)      
+    field_ids_to_observe = list(set(field_ids_to_observe))
     
     # if there is any time left, fill with regular NSS selection
     n_fields_needed = remaining_fields_needed(field_ids_to_observe)
