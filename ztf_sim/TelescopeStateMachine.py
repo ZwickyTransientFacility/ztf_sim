@@ -218,6 +218,6 @@ class PTFObservabilityDB(object):
 
         try:
             return self.df.loc[(year, block[0])].values[0] >= nobs_min
-        except TypeError as KeyError:
+        except KeyError:
             # blocks are unfilled if there are no observations
             return False
