@@ -97,6 +97,8 @@ def simulate(scheduler_config_file, sim_config_file,
             #if tel.check_if_ready():
             scheduler.obs_log.prev_obs = None
 
+            scheduler.make_nightly_timed_blocks(tel.current_state_dict())
+
             block_use = scheduler.find_block_use_tonight(
                               tel.current_time)
             timed_obs_count = scheduler.count_timed_observations_tonight()

@@ -12,6 +12,7 @@ from .configuration import SchedulerConfiguration
 from .constants import BASE_DIR, PROGRAM_IDS, EXPOSURE_TIME, READOUT_TIME
 from .utils import block_index, block_use_fraction
 from .utils import next_12deg_evening_twilight, next_12deg_morning_twilight
+from .field_selection.ep import make_ep_blocks
 
 
 
@@ -67,6 +68,40 @@ class Scheduler(object):
                         block_use = block_use,
                         timed_obs_count = timed_obs_count,
                         skymaps = self.skymaps)
+
+    def make_nightly_timed_blocks(self, current_state_dict, 
+                                time_limit=15.*u.minute):
+        """Make any time-blocked observations that are constructed on the fly.
+
+        Only generates Einstein Probe simultaneous observations at present."""
+
+        # this is duplicative but we need it
+        # don't worry about counting timed obs since it will be redone in 
+        # assign_nightly_requests
+        self.queues['default'].determine_allowed_requests(
+                    current_state_dict['current_time'],
+                    self.obs_log)
+
+        programs = self.queues['default'].requests_allowed.keys()
+
+        if (2, 'Einstein_Probe') not in programs:
+            logging.info(f'No additional nightly timed queues to add.')
+            return
+        
+        # TODO: make this more general if desired
+        time_allowed = self.queues['default'].requests_allowed[
+                (2, 'Einstein_Probe')] * (30 * u.second + READOUT_TIME)
+
+        if time_allowed < 0*u.second:
+            logging.info(f'No time available for new timed queues.')
+
+        ep_queues = make_ep_blocks(current_state_dict['current_time'],
+                                   time_allowed,
+                                   time_limit=time_limit)
+
+        for eq in ep_queues:
+            self.add_queue(eq.queue_name, eq)
+            logging.info(f'Added queue {eq.queue_name}')
 
     def set_queue(self, queue_name): 
 

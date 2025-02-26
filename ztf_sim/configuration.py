@@ -130,7 +130,10 @@ class QueueConfiguration(Configuration):
                 field_ids = None
                 field_selection_function = prog['field_selection_function']
                 # check if it exists
-                assert(field_selection_function in globals())
+                # special case the EP selection, which is done by 
+                # make_nightly_timed_blocks
+                if field_selection_function != 'EP-bypass':
+                    assert(field_selection_function in globals())
             if 'nobs_range' not in prog:
                 prog['nobs_range'] = None
             if 'intranight_gap_min' not in prog:
