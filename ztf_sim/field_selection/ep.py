@@ -69,6 +69,8 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
     df_ep_fov = df_ep_fov[cond_night]
     ep_pointing_idxs = df_ep_fov.index.tolist()
 
+    logging.info(f"Looking for overlap with len(ep_pointing_idxs) EP pointings.")
+
     if len(ep_pointing_idxs) == 0:
         raise ValueError("No available EP pointings!")
 
@@ -246,6 +248,9 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
     df_schedule = dfm.loc[dfm['Yfi_val'],['ep_pointing_id','field_id']]
 
     pointing_group = df_schedule.groupby('ep_pointing_id')
+
+    logging.info("EP observations allocated {time_allowed.to(u.hour)}")
+    logging.info("EP-ZTF schedule covers {len(np.unique(df_schedule['ep_pointing_id']))} with {len(df_schedule)} ZTF pointings and {len(np.unique(df_schedule['field_id']))} unique ZTF fields.")
 
 
 
