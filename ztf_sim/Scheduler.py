@@ -75,12 +75,21 @@ class Scheduler(object):
 
         Only generates Einstein Probe simultaneous observations at present."""
 
+        # clean out any lingering EP queues
+        for queue_name in self.queues.keys():
+            if queue_name.startswith('EP_20'):
+                self.delete(queue_name)
+
+        # this won't (yet) include the EP observations
+        block_use = self.find_block_use_tonight(current_state_dict['current_time'])
+        timed_obs_count = self.count_timed_observations_tonight()
+
         # this is duplicative but we need it
         # don't worry about counting timed obs since it will be redone in 
         # assign_nightly_requests
         self.queues['default'].determine_allowed_requests(
                     current_state_dict['current_time'],
-                    self.obs_log)
+                    self.obs_log, timed_obs_count = timed_obs_count)
 
         programs = self.queues['default'].requests_allowed.keys()
 
