@@ -250,7 +250,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
     pointing_group = df_schedule.groupby('ep_pointing_id')
 
     logging.info(f"EP observations allocated {time_allowed.to(u.hour)}")
-    logging.info(f"EP-ZTF schedule covers {len(np.unique(df_schedule['ep_pointing_id']))} with {len(df_schedule)} ZTF pointings and {len(np.unique(df_schedule['field_id']))} unique ZTF fields.")
+    logging.info(f"EP-ZTF schedule covers {len(np.unique(df_schedule['ep_pointing_id']))} EP pointing with {len(df_schedule)} ZTF pointings and {len(np.unique(df_schedule['field_id']))} unique ZTF fields.")
 
 
 
