@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 
-def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
+def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
+                   other_timed_queues_tonight = []):
 
     ##############################
 
@@ -44,6 +45,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
 
     EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov'
     df_ep_fov = pd.read_json(EP_schedule)
+    df_ep_fov.to_json(f'../sims/EP_{time_now.isot}.json')
     # provide a unique index for the pointing
     df_ep_fov['ep_pointing_id'] = df_ep_fov.index
     df_ep_fov['start_mjd'] = [Time(d).mjd for d in df_ep_fov['start_date_UTC']]
@@ -66,7 +68,26 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second):
     cond_sunrise = df_ep_fov.end_date_UTC < sunrise_18
     cond_night = cond_sunrise &  cond_sunset
 
-    df_ep_fov = df_ep_fov[cond_night]
+    # check for interference with other timed queues
+
+    if len(other_timed_queues_tonight) > 0:
+        # make a set of Trues
+        cond_no_intersection = df_ep_fov['ep_pointing_id'] == df_ep_fov['start_mjd']
+        for oq in other_timed_queues_tonight:
+            # https://nedbatchelder.com/blog/201310/range_overlap_in_two_compares.html
+            # timed queue doesn't intersect EP pointing if it ends before the EP 
+            # EP pointing starts or starts after the EP pointing ends
+            cond_no_intersection &= ((oq.validity_range_mjd[1] < df_ep_fov['start_mjd']) | 
+                                     (df_ep_fov['end_mjd'] < oq.validity_range_mjd[0]))
+
+
+            logging.info(f"{np.sum(cond_no_intersection)} potential EP pointings intersect with timed queues.")
+            cond_good = cond_night & cond_no_intersection
+
+    else:
+        cond_good = cond_night
+
+    df_ep_fov = df_ep_fov[cond_good]
     ep_pointing_idxs = df_ep_fov.index.tolist()
 
     logging.info(f"Looking for overlap with {len(ep_pointing_idxs)} EP pointings.")
