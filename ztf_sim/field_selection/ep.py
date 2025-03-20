@@ -45,7 +45,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
 
     EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov'
     df_ep_fov = pd.read_json(EP_schedule)
-    df_ep_fov.to_json(f'../sims/EP_{time_now.isot}.json')
+    #df_ep_fov.to_json(f'../../sims/EP_{time_now.isot}.json')
     # provide a unique index for the pointing
     df_ep_fov['ep_pointing_id'] = df_ep_fov.index
     df_ep_fov['start_mjd'] = [Time(d).mjd for d in df_ep_fov['start_date_UTC']]
