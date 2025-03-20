@@ -106,7 +106,7 @@ class Scheduler(object):
 
         ep_queues = make_ep_blocks(current_state_dict['current_time'],
                                    time_allowed,
-                                   time_limit=time_limit
+                                   time_limit=time_limit,
                                    other_timed_queues=self.timed_queues_tonight)
 
         for eq in ep_queues:
