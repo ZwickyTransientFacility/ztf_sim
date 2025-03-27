@@ -78,7 +78,7 @@ class Scheduler(object):
         # clean out any lingering EP queues
         for queue_name in self.queues.keys():
             if queue_name.startswith('EP_20'):
-                self.delete(queue_name)
+                self.delete_queue(queue_name)
 
         # this won't (yet) include the EP observations
         block_use = self.find_block_use_tonight(current_state_dict['current_time'])
