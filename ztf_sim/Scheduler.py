@@ -75,10 +75,15 @@ class Scheduler(object):
 
         Only generates Einstein Probe simultaneous observations at present."""
 
-        # clean out any lingering EP queues
+        to_delete = []
+        # clean out any lingering EP queues.
+        # don't delete in the loop to avoid "dictionary changed size during iteration" error
         for queue_name in self.queues.keys():
             if queue_name.startswith('EP_20'):
-                self.delete_queue(queue_name)
+                to_delete.append(queue_name)
+
+        for queue_name in to_delete:
+            self.delete_queue(queue_name)
 
         # this won't (yet) include the EP observations
         block_use = self.find_block_use_tonight(current_state_dict['current_time'])
