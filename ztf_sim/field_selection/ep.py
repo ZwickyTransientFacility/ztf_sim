@@ -45,6 +45,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
 
     EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov'
     df_ep_fov = pd.read_json(EP_schedule)
+    logging.info(f"Downloaded {len(df_ep_fov)} EP pointings.")
     #df_ep_fov.to_json(f'../../sims/EP_{time_now.isot}.json')
     # provide a unique index for the pointing
     df_ep_fov['ep_pointing_id'] = df_ep_fov.index
@@ -67,6 +68,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     cond_sunset = df_ep_fov.start_date_UTC > sunset_18
     cond_sunrise = df_ep_fov.end_date_UTC < sunrise_18
     cond_night = cond_sunrise &  cond_sunset
+    logging.info(f"EP: {np.sum(cond_night)} nighttime pointings.")
 
     # check for interference with other timed queues
 
