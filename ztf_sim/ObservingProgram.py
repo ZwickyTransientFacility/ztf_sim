@@ -89,6 +89,8 @@ class ObservingProgram(object):
 
         # if needed, compute the OP fields on a nightly basis
         if self.field_selection_function is not None:
+            if self.field_selection_function == 'EP-bypass':
+                return []
             try:
                 selection_function = globals()[self.field_selection_function]
                 field_ids = selection_function(time, obs_log, other_program_fields, fields, skymaps)

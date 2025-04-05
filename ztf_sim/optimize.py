@@ -10,7 +10,9 @@ import astropy.units as u
 import pandas as pd
 from collections import defaultdict
 from .constants import TIME_BLOCK_SIZE, EXPOSURE_TIME, READOUT_TIME, FILTER_CHANGE_TIME
-from .constants import PROGRAM_NAME_TO_ID
+from .constants import PROGRAM_NAME_TO_ID, slew_time
+from .Fields import Fields
+from .utils import RA_to_HA, HA_to_RA, block_index
 
 max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE / 
                 (EXPOSURE_TIME + READOUT_TIME)).to(
@@ -514,3 +516,86 @@ def tsp_optimize(pairwise_distances):
     assert (len(tour) == n)
 
     return tour, distance
+
+
+def check_limits_and_solve_TSP(unique_fields, time_start, time_end):
+    """Wrapper to TSP solve a set of fields for a standalone queue
+
+    (e.g., the Einstein Probe observations).
+
+    unique_fields: pd.DataFrame
+    time_start: astropy.Time
+    time_end: astropy.Time
+    """
+
+    # this is somewhat expensive to construct each time
+    fld = Fields()
+
+    # check for telescope limits
+    for field in unique_fields:
+        row = fld.fields.loc[int(field)]
+        ra = row['ra']
+        dec = row['dec']
+
+        # TODO: this should be logged rather than printed
+        if dec < -22:
+            for t, limit in zip([time_start, time_end], ['start','end']):
+                ha = RA_to_HA(ra*u.degree,t).to(u.degree).value
+                if ha <= -17.6:
+                    print(f'{field} violates limit A at {t} [{limit}]')
+                if (dec < -45) & (ha >= -17.6):
+                    print(f'{field} violates limit A at {t} [{limit}]')
+                if (dec < -46) & (np.abs(ha) >= 3.):
+                    print(f'{field} violates limits B {t} [{limit}]')
+
+
+    # solve the TSP.  
+    df = fld.fields.loc[list(unique_fields)]
+    fld.compute_blocks(time_start)
+    queue_slot = block_index(time_start)[0]
+
+    az = fld.block_az[queue_slot]
+    az.name = 'azimuth'
+    df = df.join(az, on='field_id')
+    # Need to use correct HA=0
+    df_blockstart = pd.DataFrame({'ra':HA_to_RA(0,
+        time_start).to(u.degree).value,
+        'dec':-48.,'azimuth':180.},index=[0])
+    df_fakestart = pd.concat([df_blockstart,df],sort=True)
+
+    # below copied from QueueManager.py, consider a refactor
+    # compute pairwise slew times by axis for all pointings
+    slews_by_axis = {}
+    def coord_to_slewtime(coord, axis=None):
+        c1, c2 = np.meshgrid(coord, coord)
+        dangle = np.abs(c1 - c2)
+        angle = np.where(dangle < (360. - dangle), dangle, 360. - dangle)
+        return slew_time(axis, angle * u.deg)
+
+    slews_by_axis['dome'] = coord_to_slewtime(
+        df_fakestart['azimuth'], axis='dome')
+    slews_by_axis['dec'] = coord_to_slewtime(
+        df_fakestart['dec'], axis='dec')
+    slews_by_axis['ra'] = coord_to_slewtime(
+        df_fakestart['ra'], axis='ha')
+
+    maxradec = np.maximum(slews_by_axis['ra'], slews_by_axis['dec'])
+    maxslews = np.maximum(slews_by_axis['dome'], maxradec)
+    # impose a penalty on zero-length slews (which by construction
+    # in this mode are from different programs)
+    wnoslew = maxslews == 0
+    maxslews[wnoslew] = READOUT_TIME * 10.
+    overhead_time = np.maximum(maxslews, READOUT_TIME)
+
+    tsp_order, tsp_overhead_time = tsp_optimize(overhead_time.value)
+
+    # remove the fake starting point.  tsp_optimize always starts with
+    # the first observation in df, which by construction is our fake point,
+    # so we can simply cut it off.
+    tsp_order = tsp_order[1:]
+
+    # tsp_order is 0-indexed from overhead time, so I need to
+    # reconstruct the request_id
+    queue_order = df_fakestart.index.values[tsp_order]
+
+    return queue_order

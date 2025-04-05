@@ -198,7 +198,8 @@ class Fields(object):
                       abs_b_range=None,
                       ecliptic_lon_range=None, ecliptic_lat_range=None,
                       grid_id=None,
-                      observable_hours_range=None):
+                      observable_hours_range=None, 
+                      field_ids = None):
         """Select a subset of fields based on their sky positions.
 
         Each _range keyword takes a list[min, max].
@@ -208,6 +209,11 @@ class Fields(object):
 
         # start with a boolean True series:
         cuts = (self.fields['ra'] == self.fields['ra'])
+
+        if field_ids is not None:
+            in_ids = cuts.reset_index()['field_id'].apply(lambda x: x in field_ids)
+            in_ids.index = cuts.index
+            cuts &= in_ids
 
         if observable_hours_range is not None:
             # check that we've computed observable_hours
