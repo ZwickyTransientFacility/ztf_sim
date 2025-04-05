@@ -85,8 +85,8 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
                                      (df_ep_fov['end_mjd'] < oq.validity_window[0].mjd))
 
 
-            logging.info(f"{np.sum(~cond_no_intersection)} potential EP pointings intersect with timed queues.")
-            cond_good = cond_night & cond_no_intersection
+        logging.info(f"{np.sum(~cond_no_intersection)} potential EP pointings intersect with timed queues.")
+        cond_good = cond_night & cond_no_intersection
 
     else:
         cond_good = cond_night
