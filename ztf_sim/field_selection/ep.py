@@ -69,6 +69,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     cond_sunrise = df_ep_fov.end_date_UTC < sunrise_18
     cond_night = cond_sunrise &  cond_sunset
     logging.info(f"EP: {np.sum(cond_night)} nighttime pointings.")
+    logging.info(f"EP: {df_ep_fov.loc[cond_night, ['start_mjd', 'end_mjd']]}"
 
     # check for interference with other timed queues
 
@@ -79,7 +80,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
             # https://nedbatchelder.com/blog/201310/range_overlap_in_two_compares.html
             # timed queue doesn't intersect EP pointing if it ends before the EP 
             # EP pointing starts or starts after the EP pointing ends
-            logging.info(f"{oq.queue_name}, {oq.validity_window}")
+            logging.info(f"{oq.queue_name}, {oq.validity_window[0].mjd} - {oq.validity_window[1].mjd}")
             cond_no_intersection &= ((oq.validity_window[1].mjd < df_ep_fov['start_mjd']) | 
                                      (df_ep_fov['end_mjd'] < oq.validity_window[0].mjd))
 
