@@ -69,7 +69,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     cond_sunrise = df_ep_fov.end_date_UTC < sunrise_18
     cond_night = cond_sunrise &  cond_sunset
     logging.info(f"EP: {np.sum(cond_night)} nighttime pointings.")
-    logging.info(f"EP: {df_ep_fov.loc[cond_night, ['start_mjd', 'end_mjd']]}"
+    logging.info(f"EP: {df_ep_fov.loc[cond_night, ['start_mjd', 'end_mjd']]}")
 
     # check for interference with other timed queues
 
