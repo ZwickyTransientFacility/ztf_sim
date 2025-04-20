@@ -13,11 +13,44 @@ from .constants import BASE_DIR, P48_loc, P48_slew_pars, PROGRAM_IDS, FILTER_IDS
 from .constants import TIME_BLOCK_SIZE, MAX_AIRMASS, EXPOSURE_TIME, READOUT_TIME
 from .constants import slew_time
 
-
 class Fields(object):
-    """Class for accessing field grid."""
+    """
+    Class for accessing and manipulating a grid of fields for astronomical observations.
 
-    def __init__(self, field_filename=BASE_DIR + '../data/ZTF_Fields.txt'):
+    Attributes:
+    -----------
+        loc (EarthLocation): Location of the observatory (Astropy.coords.EarthLocation object).
+        current_block_night_mjd (int): Modified Julian Date of the current block night.
+        current_blocks (list): List of current blocks for the night.
+        block_alt (DataFrame): DataFrame of altitudes for each block.
+        block_az (DataFrame): DataFrame of azimuths for each block.
+        _current_observable_hours_night_mjd (int): Modified Julian Date of the current observable hours night.
+        observable_hours (Series): Series of observable hours for each field.
+        Sky (SkyBrightness): Instance of SkyBrightness class.
+
+    Methods:
+    --------
+        __init__(field_filename):
+            Initializes the Fields object and loads the field grid from the specified file.
+        _load_fields(field_filename):
+            Loads a field grid from a file and processes it.
+        _field_coords(cuts=None):
+            Generates an astropy SkyCoord object for the current fields.
+        compute_blocks(time, time_block_size):
+            Computes and stores altitude and azimuth for tonight in blocks.
+        compute_observability(time, time_block_size):
+            Computes the observability time for each field based on nighttime blocks with non-negative limiting magnitudes.
+        alt_az(time, cuts=None):
+            Returns altitude and azimuth for each field at a given time.
+        overhead_time(current_state, cuts=None):
+            Calculates overhead time in seconds from the current position and returns the current altitude.
+        select_fields(ra_range, dec_range, l_range, b_range, abs_b_range, ecliptic_lon_range, ecliptic_lat_range, grid_id, observable_hours_range):
+            Selects a subset of fields based on their sky positions and other criteria.
+        select_field_ids(**kwargs):
+            Returns a pandas index of field IDs based on selection criteria.
+    """
+
+    def __init__(self, field_filename=BASE_DIR + '../data/LS4_Fields_cleaned.txt'):#ZTF_Fields'):
         self._load_fields(field_filename)
         self.loc = P48_loc
         self.current_block_night_mjd = None  # np.floor(time.mjd)
@@ -39,14 +72,19 @@ class Fields(object):
                 'ecliptic_lon', 'ecliptic_lat'],index_col='field_id',
             skiprows=1)
 
-
+        # For Palomar
         # drop fields below dec of -32 degrees for speed
         # (grid_id = 0 has a row at -31.5)
-        df = df[df['dec'] >= -32]
+        # df = df[df['dec'] >= -32]
+
+        # From Steve, 2025-02-20
+        # For La Silla
+        # drop fields above dec of +20 degrees for speed
+        df = df[df['dec'] <= 20]
 
         # label the grid ids
         grid_id_boundaries = \
-            {0: {'min':1,'max':999},
+            {0: {'min':1,'max':99999},
              1: {'min':1001,'max':1999},
              2: {'min':2001,'max':2999},
              3: {'min':3001,'max':3999}}

@@ -11,6 +11,33 @@ from .constants import BASE_DIR, P48_loc, FILTER_IDS
 from .constants import READOUT_TIME, EXPOSURE_TIME, FILTER_CHANGE_TIME, slew_time
 
 class TelescopeStateMachine(Machine):
+    """
+    TelescopeStateMachine is a state machine for managing the operations of a telescope. It handles various states such as ready, slewing, changing filters, exposing, and cant_observe. The state transitions are defined to manage the telescope's behavior based on different triggers and conditions.
+
+    Attributes:
+    -----------
+        current_time (Time): The current time in UTC.
+        current_ha (Angle): The current hour angle.
+        current_dec (Angle): The current declination.
+        current_domeaz (Angle): The current dome azimuth.
+        current_filter_id (int): The current filter ID.
+        filters (list): List of available filters.
+        current_zenith_seeing (Angle): The current zenith seeing.
+        target_skycoord (SkyCoord): The target sky coordinates.
+        historical_observability_year (int): The year for historical observability data.
+        observability (PTFObservabilityDB): The observability database.
+        logger (Logger): Logger for the class.
+
+    Methods:
+    --------
+        current_state_dict(): Returns the current state parameters in a dictionary.
+        can_observe(): Checks if the telescope can observe based on night and weather conditions.
+        slew_allowed(target_skycoord): Checks if the slew to the target coordinates is within allowed limits.
+        process_slew(target_skycoord, readout_time): Processes the slew to the target coordinates.
+        process_filter_change(target_filter_id, filter_change_time): Processes the filter change.
+        process_exposure(exposure_time): Processes the exposure.
+        wait(wait_time): Waits for the specified time.
+    """
 
     def __init__(self, current_time=Time('2018-01-01', scale='utc',
                                          location=P48_loc),
@@ -87,7 +114,7 @@ class TelescopeStateMachine(Machine):
         self.logger.info(self.current_time.iso)
 
         # start by checking for 12 degree twilight
-        if coord.get_sun(self.current_time).transform_to(
+        if coord.get_body("sun", self.current_time).transform_to(
                 coord.AltAz(obstime=self.current_time,
                             location=P48_loc)).alt.is_within_bounds(
                 upper=-12. * u.deg):
@@ -159,10 +186,10 @@ class TelescopeStateMachine(Machine):
         # modestly during slew,
         # so store the value after the slew is complete.
 
-        target_ha = RA_to_HA(self.target_skycoord.ra, self.current_time)
+        target_ha     = RA_to_HA(self.target_skycoord.ra, self.current_time)
         target_domeaz = skycoord_to_altaz(self.target_skycoord,
                                           self.current_time).az
-        self.current_ha = target_ha
+        self.current_ha  = target_ha
         self.current_dec = self.target_skycoord.dec
         self.current_domeaz = target_domeaz
 
@@ -177,7 +204,7 @@ class TelescopeStateMachine(Machine):
         # variables in the trigger functions themselves
         self.current_time += exposure_time
         # update ha and domeaz for tracking during the exposure
-        target_ha = RA_to_HA(self.target_skycoord.ra, self.current_time)
+        target_ha     = RA_to_HA(self.target_skycoord.ra, self.current_time)
         target_domeaz = skycoord_to_altaz(self.target_skycoord,
                                           self.current_time).az
         self.current_ha = target_ha
@@ -188,9 +215,26 @@ class TelescopeStateMachine(Machine):
 
 
 class PTFObservabilityDB(object):
+    """
+    PTFObservabilityDB is a class that provides methods to check the historical observability of the Palomar Transient Factory (PTF) based on weather data stored in a SQLite database.
+
+    Methods:
+    --------
+    __init__():
+        Initializes the PTFObservabilityDB instance by reading weather data from a SQLite database and setting it as a DataFrame indexed by year and block.
+
+    check_historical_observability(time, year=2015, nobs_min=5):
+        Given a (possibly future) UTC time, looks up whether PTF was observing at that time in the specified year.
+
+            Year to check PTF historical observing
+            Minimum number of observations per block to count as observable
+
+        bool
+            True if the number of observations in the specified block and year is greater than or equal to nobs_min, False otherwise.
+    """
 
     def __init__(self):
-        df = df_read_from_sqlite('weather_blocks')
+        df      = df_read_from_sqlite('weather_blocks')
         self.df = df.set_index(['year', 'block'])
 
     def check_historical_observability(self, time, year=2015, nobs_min=5):

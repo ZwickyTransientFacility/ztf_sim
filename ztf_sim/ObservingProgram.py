@@ -10,6 +10,49 @@ from .field_selection_functions import *
 
 
 class ObservingProgram(object):
+    """
+    A class to represent an observing program.
+
+    Attributes
+    ----------
+    program_id : int
+        The ID of the observing program.
+    subprogram_name : str
+        The name of the subprogram.
+    program_pi : str
+        The principal investigator of the program.
+    program_observing_time_fraction : float
+        The fraction of observing time allocated to the program.
+    subprogram_fraction : float
+        The fraction of the program's observing time allocated to the subprogram.
+    field_ids : list or None
+        The list of field IDs to be observed, or None if a field selection function is used.
+    filter_ids : list
+        The list of filter IDs to be used.
+    internight_gap : float
+        The minimum gap between observations of the same field on different nights.
+    intranight_gap : float
+        The minimum gap between observations of the same field on the same night.
+    n_visits_per_night : int
+        The number of visits per night.
+    exposure_time : float
+        The exposure time for each observation.
+    nobs_range : dict or None
+        The range of number of observations for each field, or None if not used.
+    filter_choice : str
+        The method of choosing filters ('rotate' or 'sequence').
+    active_months : str or list
+        The months during which the program is active, or 'all' if active all year.
+    field_selection_function : str or None
+        The name of the function used to select fields, or None if not used.
+    
+    Methods
+    -------
+    assign_nightly_requests(time, fields, obs_log, other_program_fields, block_programs=False, skymaps=None, **kwargs):
+        Assigns nightly observation requests based on the program's parameters.
+    time_per_exposure():
+        Returns the total time per exposure, including readout time.
+    """
 
     def __init__(self, program_id, subprogram_name, program_pi,
                  program_observing_time_fraction, subprogram_fraction,
@@ -169,7 +212,7 @@ class ObservingProgram(object):
                     mjd_range = mjd_range)
             
             # function above only returns fields that have been observed at
-            # least once.  use the intersection if min_obs > 0:
+            # least once. use the intersection if min_obs > 0:
             w = ((nobs >= self.nobs_range['min_obs']) & 
                     (nobs <= self.nobs_range['max_obs']))
             if self.nobs_range['min_obs'] > 0:

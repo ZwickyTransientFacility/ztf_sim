@@ -15,7 +15,6 @@ from .configuration import SchedulerConfiguration, QueueConfiguration
 from .constants import BASE_DIR, P48_loc
 from .utils import block_index
 
-
 # check aggressively for setting with copy
 import pandas as pd
 pd.options.mode.chained_assignment = 'raise'  # default='warn'

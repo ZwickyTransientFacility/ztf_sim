@@ -12,6 +12,22 @@ from .field_selection_functions import *
 
 
 class Configuration(object):
+    """
+    A class used to represent the Configuration.
+
+    Attributes:
+    -----------
+    config : dict
+        A dictionary to store the configuration settings.
+
+    Methods:
+    --------
+    __init__(self, config_file)
+        Initializes the Configuration object and loads the configuration from the given file if provided.
+    
+    load_configuration(self, config_file)
+        Loads the configuration from the given file and stores it in the config attribute.
+    """
 
     def __init__(self, config_file):
 
@@ -24,6 +40,24 @@ class Configuration(object):
         self.config = config
 
 class SchedulerConfiguration(Configuration):
+    """
+    SchedulerConfiguration is a class that handles the configuration for the scheduler.
+
+    Attributes:
+    -----------
+        scheduler_config_file (pathlib.PurePosixPath): The path to the scheduler configuration file.
+    
+    Methods:
+    --------
+        __init__(config_file):
+            Initializes the SchedulerConfiguration with the given configuration file.
+        check_configuration():
+            Checks if the configuration is valid. Raises ValueError if the configuration is invalid.
+        build_queue_configs():
+            Builds and returns a dictionary of queue configurations from the scheduler configuration.
+        build_queues(queue_configs):
+            Builds and returns a dictionary of queues from the given queue configurations.
+    """
 
     def __init__(self, config_file):
         super().__init__(config_file)

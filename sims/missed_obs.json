@@ -1,6 +1,0 @@
-{
-	"queue_name": "missed_obs",
-	"queue_description": "missed_obs",
-	"queue_manager": "greedy",
-	"observing_programs": []
-}

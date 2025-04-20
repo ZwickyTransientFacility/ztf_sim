@@ -16,6 +16,55 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME, EXPOSURE_TIME, READOUT_TIME
 
 
 class ObsLogger(object):
+    """
+    A class to log observations for a survey.
+
+    Attributes:
+    ----------
+    log_name : str
+        The name of the log.
+    survey_start_time : astropy.time.Time
+        The start time of the survey.
+    prev_obs : dict or None
+        The previous observation record.
+    mjd_tonight : float or None
+        The modified Julian date for tonight.
+    moon_illumination_tonight : float or None
+        The moon illumination for tonight.
+    engine : sqlalchemy.engine.Engine
+        The SQLAlchemy engine for the SQLite database.
+    conn : sqlalchemy.engine.Connection
+        The SQLAlchemy connection to the SQLite database.
+    history : pandas.DataFrame
+        The DataFrame containing the observation history.
+
+    Methods:
+    -------
+    __init__(log_name, survey_start_time=Time('2018-01-01'), output_path=BASE_DIR+'../sims/', clobber=False):
+        Initializes the ObsLogger with the given parameters.
+    create_fields_table(clobber=True):
+        Creates the 'Field' table in the database.
+    create_pointing_log(clobber=True):
+        Creates the 'Summary' table in the database.
+    log_pointing(state, request):
+        Logs a pointing observation to the database.
+    _mjd_filter_history(mjd_range):
+        Filters the observation history by the given MJD range.
+    _equivalent_obs(grp):
+        Converts a group of observations to equivalent standard observations.
+    count_equivalent_obs_by_program(mjd_range=None):
+        Counts the number of equivalent standard exposures by program.
+    count_equivalent_obs_by_subprogram(mjd_range=None):
+        Counts the number of equivalent standard exposures by program and subprogram.
+    count_equivalent_obs_by_program_night(mjd_range=None):
+        Counts the number of equivalent standard exposures by program and night.
+    select_last_observed_time_by_field(field_ids=None, filter_ids=None, program_ids=None, subprogram_names=None, mjd_range=None):
+        Selects the last observed time by field with the given constraints.
+    select_n_obs_by_field(field_ids=None, filter_ids=None, program_ids=None, subprogram_names=None, mjd_range=None):
+        Selects the number of observations by field with the given constraints.
+    return_obs_history(time):
+        Returns one night's observation history.
+    """
 
     def __init__(self, log_name, survey_start_time = Time('2018-01-01'),
             output_path = BASE_DIR+'../sims/',
@@ -134,10 +183,10 @@ class ObsLogger(object):
         #record['obsHistID'] = request['request_id']
         # give request id its own column
         record['requestID'] = request['request_id']
-        record['propID'] = request['target_program_id']
-        record['fieldID'] = request['target_field_id']
-        record['fieldRA'] = np.radians(request['target_ra'])
-        record['fieldDec'] = np.radians(request['target_dec'])
+        record['propID']    = request['target_program_id']
+        record['fieldID']   = request['target_field_id']
+        record['fieldRA']   = np.radians(request['target_ra'])
+        record['fieldDec']  = np.radians(request['target_dec'])
 
         record['filter'] = FILTER_ID_TO_NAME[request['target_filter_id']]
         # times are recorded at start of exposure
@@ -147,9 +196,9 @@ class ObsLogger(object):
         exposure_start.delta_ut1_utc = 0.
 
         record['expDate'] = (exposure_start - self.survey_start_time).sec
-        record['expMJD'] = exposure_start.mjd
+        record['expMJD']  = exposure_start.mjd
 
-        record['night'] = np.floor((exposure_start - self.survey_start_time).jd
+        record['night']   = np.floor((exposure_start - self.survey_start_time).jd
                                    ).astype(int)
         record['visitTime'] = request[
             'target_exposure_time'].to(u.second).value
@@ -175,9 +224,9 @@ class ObsLogger(object):
         record['altitude'] = altaz.alt.to(u.radian).value
         record['azimuth'] = altaz.az.to(u.radian).value
 
-        sun = coord.get_sun(exposure_start)
+        sun = coord.get_body("sun", exposure_start)
         sun_altaz = skycoord_to_altaz(sun, exposure_start)
-        moon = coord.get_moon(exposure_start, P48_loc)
+        moon = coord.get_body("moon", exposure_start, P48_loc)
         moon_altaz = skycoord_to_altaz(moon, exposure_start)
 
         # WORKING AROUND a bug in sc.separation(moon)!

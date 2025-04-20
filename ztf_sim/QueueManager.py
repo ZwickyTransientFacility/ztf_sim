@@ -29,6 +29,71 @@ class QueueEmptyError(Exception):
 
 
 class QueueManager(object):
+    """
+    QueueManager class manages the queue of observing programs and their requests.
+    
+    Attributes:
+    -----------
+    queue_name : str
+        Name of the queue.
+    observing_programs : list
+        List of ObservingPrograms.
+    is_TOO : bool
+        Flag to handle time-windowed queues.
+    validity_window : list
+        Validity window for the queue.
+    requests_in_window : bool
+        Flag for greedy queues.
+    queue_night : float
+        Flag to check if assign_nightly_requests has been called tonight.
+    queue_slot : int
+        Block on which the queue parameters were calculated.
+    requests_allowed : dict
+        Number of allowed requests by subprogram tonight.
+    queue : DataFrame
+        The queue itself.
+    block_programs : bool
+        Flag to consider fields from one program in a given observing block.
+    rp : RequestPool
+        Request pool.
+    fields : Fields
+        Fields object.
+    missed_obs_queue : None
+        Queue for missed observations.
+    
+    Methods:
+    --------
+    __init__(queue_name, queue_configuration, rp=None, fields=None)
+        Initializes the QueueManager with the given parameters.
+    is_valid(time)
+        Checks if the given time is within the validity window.
+    validity_window_mjd()
+        Returns the validity window in MJD format.
+    set_validity_window_mjd(window_start, window_stop)
+        Sets the time at which this queue can run.
+    compute_block_use()
+        Returns a dictionary with the fraction of blocks used by the queue.
+    add_observing_program(observing_program)
+        Adds an observing program to the queue.
+    assign_nightly_requests(current_state, obs_log, time_limit=30*u.second, block_use=defaultdict(float), timed_obs_count=defaultdict(int), skymaps=None)
+        Assigns nightly requests based on the current state and observation log.
+    adjust_program_exposures_tonight(obs_log, mjd_start, mjd_stop)
+        Adjusts the number of exposures per program tonight based on past history.
+    adjust_subprogram_exposures_tonight(obs_log, mjd_start, mjd_stop)
+        Adjusts the number of exposures per subprogram tonight based on past history.
+    determine_allowed_requests(time, obs_log, timed_obs_count=defaultdict(int))
+        Determines the number of allowed requests tonight based on past observations and expected observing time fractions.
+    next_obs(current_state, obs_log)
+        Returns the parameters for the next request based on the current state.
+    update_queue(current_state, obs_log, **kwargs)
+        Recalculates the queue.
+    remove_requests(request_id)
+        Removes a request from both the queue and the request set pool.
+    move_program_to_missed_obs(program_id)
+        Removes all requests from the specified program_id to the missed obs queue.
+    return_queue()
+        Returns queue values, ordered in the expected sequence if possible.
+    """
 
     def __init__(self, queue_name, queue_configuration, rp=None, fields=None):
 
@@ -505,6 +570,39 @@ class QueueManager(object):
         return queue.loc[:,out_cols]
 
 class GurobiQueueManager(QueueManager):
+    """
+    A class to manage the observation queue using Gurobi optimization.
+    
+    Attributes:
+    -----------
+    block_obs_number : int
+        The number of observations in the current block.
+    queue_type : str
+        The type of queue, set to 'gurobi'.
+    
+    Methods:
+    --------
+    __init__(queue_name, queue_configuration, **kwargs):
+        Initializes the GurobiQueueManager with the given queue name and configuration.
+    _assign_nightly_requests(current_state, time_limit=30.*u.second, block_use=defaultdict(float)):
+        Assigns nightly requests to slots based on the current state and time limit.
+    _next_obs(current_state, obs_log):
+        Selects the highest value request for the next observation.
+    _slot_metric(limiting_mag, dec):
+        Calculates the metric for assigning fields to slots, penalizing volume for extinction and FWHM penalty.
+    _assign_slots(current_state, time_limit=30*u.second, block_use=defaultdict(float)):
+        Assigns requests in the pool to slots based on the current state and time limit.
+    _sequence_requests_in_block(current_state):
+        Solves the TSP for requests in the current slot to sequence the requests.
+    _move_requests_to_missed_obs(queue_slot, program_id=None):
+        Moves any unobserved requests in the expired block to the missed_obs queue.
+    _remove_requests(request_set_id):
+        Removes a request from both the queue and the pool.
+    _move_program_to_missed_obs(program_id):
+        Moves all requests from the specified program to the missed_obs queue.
+    _return_queue():
+        Returns the current queue, including upcoming slots.
+    """
 
     def __init__(self, queue_name, queue_configuration, **kwargs):
         super().__init__(queue_name, queue_configuration, **kwargs)
@@ -910,6 +1008,36 @@ class GurobiQueueManager(QueueManager):
 
 
 class GreedyQueueManager(QueueManager):
+    """
+    A queue manager that implements a greedy algorithm for selecting observations.
+
+    Attributes:
+    -----------
+        time_of_last_filter_change (datetime): The time of the last filter change.
+        min_time_before_filter_change (Quantity): Minimum time before a filter change is allowed.
+        queue_type (str): Type of the queue, set to 'greedy'.
+
+    Methods:
+    --------
+        __init__(queue_name, queue_configuration, **kwargs):
+            Initializes the GreedyQueueManager with the given queue name and configuration.
+        _assign_nightly_requests(current_state, time_limit=30.*u.second, block_use=defaultdict(float)):
+            Assigns nightly requests based on the current state.
+        _next_obs(current_state, obs_log):
+            Selects the highest value request based on the current state and observation log.
+        _metric(df):
+            Calculates the metric for prioritizing fields.
+        _update_overhead(current_state, df=None):
+            Recalculates overhead values without regenerating the whole queue.
+        _update_queue(current_state, obs_log):
+            Calculates greedy weighting of requests in the pool using the current telescope state.
+        _remove_requests(request_id):
+            Removes a request from both the queue and the request pool.
+        _move_program_to_missed_obs(program_id):
+            Raises NotImplementedError.
+        _return_queue():
+            Returns the queue sorted by value.
+    """
 
     def __init__(self, queue_name, queue_configuration, **kwargs):
         super().__init__(queue_name, queue_configuration, **kwargs)
@@ -1232,6 +1360,7 @@ class ListQueueManager(QueueManager):
             if airmass >= self.queue.iloc[idx].max_airmass:
                 idx += 1
                 continue
+            """
             # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
             # fields not hit by the airmass cut)
             if np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value:
@@ -1253,7 +1382,7 @@ class ListQueueManager(QueueManager):
             if (dec > 87.5):
                 idx += 1
                 continue
-
+            """
             break
 
         
@@ -1297,6 +1426,44 @@ class ListQueueManager(QueueManager):
         return queue
 
 class RequestPool(object):
+    """
+    RequestPool is a class that manages a pool of observation requests for a telescope queue.
+
+    Methods:
+    -------
+    __init__():
+        Initializes an empty request pool as a pandas DataFrame.
+
+    add_request_sets(program_id, subprogram_name, program_pi, field_ids, filter_ids, intranight_gap, exposure_time, total_requests_tonight, probability=1):
+        Adds a set of requests to the pool. Each request set is defined by the given parameters.
+        Parameters:
+            program_id (scalar): Identifier for the program.
+            subprogram_name (scalar): Name of the subprogram.
+            program_pi (str): Principal Investigator of the program.
+            field_ids (scalar or list): Field identifiers for the observations.
+            filter_ids (list): List of filter identifiers.
+            intranight_gap (astropy.Quantity): Gap between observations within a night.
+            exposure_time (astropy.Quantity): Exposure time for each observation.
+            total_requests_tonight (int): Total number of requests for the night.
+            probability (scalar or list, optional): Probability of each request being executed. Default is 1.
+
+    n_request_sets():
+        Returns the number of request sets in the pool.
+
+    remove_request_sets(request_set_ids):
+        Removes specified request sets from the pool.
+        Parameters:
+            request_set_ids (scalar or list): Indices of the request sets to remove.
+
+    remove_request(request_set_id, filter_id):
+        Removes a single completed request from a request set. If the request set becomes empty, it is removed from the pool.
+        Parameters:
+            request_set_id (scalar): Index of the request set to modify.
+            filter_id (scalar): Identifier of the completed filter.
+
+    clear_all_request_sets():
+        Clears all request sets from the pool.
+    """
 
     def __init__(self):
         # initialize empty dataframe to add to

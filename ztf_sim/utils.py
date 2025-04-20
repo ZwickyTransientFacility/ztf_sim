@@ -336,9 +336,9 @@ def compute_limiting_mag(df, time, sky, filter_id=None):
 
     # compute inputs for sky brightness
     sc = coord.SkyCoord(df['ra'], df['dec'], frame='icrs', unit='deg')
-    sun = coord.get_sun(time)
+    sun = coord.get_body("sun", time)
     sun_altaz = skycoord_to_altaz(sun, time)
-    moon = coord.get_moon(time, location=P48_loc)
+    moon = coord.get_body("moon", time, location=P48_loc)
     moon_altaz = skycoord_to_altaz(moon, time)
     df.loc[:, 'moonillf'] = astroplan.moon.moon_illumination(time)
     
@@ -416,6 +416,7 @@ def compute_limiting_mag(df, time, sky, filter_id=None):
     ha_vals_end = ha_vals_end.wrap_at(180.*u.degree)
     ha_end = pd.Series(ha_vals_end.to(u.degree).value, index=df.index, name='ha')
 
+    """
     # lock out TCS limits
     
     # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
@@ -442,6 +443,7 @@ def compute_limiting_mag(df, time, sky, filter_id=None):
     # dec > 87.5 is rejected
     w4 = (df['dec'] > 87.5)
     df.loc[w4, 'limiting_mag'] = -99
+    """
 
     return df['limiting_mag'], df['sky_brightness']
 

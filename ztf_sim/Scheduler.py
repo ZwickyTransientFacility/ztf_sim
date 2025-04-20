@@ -13,11 +13,58 @@ from .constants import BASE_DIR, PROGRAM_IDS, EXPOSURE_TIME, READOUT_TIME
 from .utils import block_index, block_use_fraction
 from .utils import next_12deg_evening_twilight, next_12deg_morning_twilight
 
-
-
-
-
 class Scheduler(object):
+    """
+    A class to manage scheduling of observations.
+
+    Attributes:
+    -----------
+    logger : logging.Logger
+        Logger for the Scheduler class.
+    scheduler_config : SchedulerConfiguration
+        Configuration for the scheduler.
+    queue_configs : dict
+        Configuration for the queues.
+    queues : dict
+        Dictionary of queues.
+    timed_queues_tonight : list
+        List of timed queues for tonight.
+    mjd_today : int
+        Modified Julian Date for today.
+    skymaps : dict
+        Dictionary of skymaps.
+    run_config : configparser.ConfigParser
+        Configuration for the run.
+    obs_log : ObsLogger
+        Logger for observations.
+
+    Methods:
+    --------
+    __init__(scheduler_config_file_fullpath, run_config_file_fullpath, other_queue_configs=None, output_path=BASE_DIR+'../sims/'):
+        Initializes the Scheduler with configuration files and optional queue configurations.
+    assign_nightly_requests(current_state_dict, time_limit=15.*u.minute):
+        Assigns nightly requests based on the current state and time limit.
+    set_queue(queue_name):
+        Sets the current queue to the specified queue name.
+    add_queue(queue_name, queue, clobber=True):
+        Adds a new queue to the scheduler.
+    delete_queue(queue_name):
+        Deletes a queue from the scheduler.
+    add_skymap(trigger_name, skymap, clobber=True):
+        Adds a skymap to the scheduler.
+    delete_skymap(trigger_name):
+        Deletes a skymap from the scheduler.
+    find_block_use_tonight(time_now):
+        Finds block use for tonight and sets up timed queues for tonight.
+    count_timed_observations_tonight():
+        Counts the number of timed observations for tonight.
+    check_for_TOO_queue_and_switch(time_now):
+        Checks if a TOO (Target of Opportunity) queue is now valid and switches to it if necessary.
+    check_for_timed_queue_and_switch(time_now):
+        Checks if a timed queue is now valid and switches to it if necessary.
+    remove_empty_and_expired_queues(time_now):
+        Removes empty and expired queues from the scheduler.
+    """
 
     def __init__(self, scheduler_config_file_fullpath, 
             run_config_file_fullpath, other_queue_configs = None,

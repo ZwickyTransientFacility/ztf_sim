@@ -11,10 +11,17 @@ import astroplan
 BASE_DIR = os.path.dirname(os.path.abspath(inspect.getfile(
                 inspect.currentframe()))) + '/'
 
-
+# Palomar
+# Defined by Eric Bellm
 P48_loc = coords.EarthLocation(lat=coords.Latitude('33d21m26.2s'),
                                lon=coords.Longitude('-116d51m35.5s'),
                                height=1707.)
+# From Steve, 2025-01-20
+# La Silla
+# Taken from https://en.wikipedia.org/wiki/La_Silla_Observatory
+P48_loc = coords.EarthLocation(lat=coords.Latitude('-29d15m27s'),
+                              lon=coords.Longitude('-70d44m15s'),
+                              height=2400.)
 
 # use UTC only
 P48_Observer = astroplan.Observer(location=P48_loc)
@@ -34,6 +41,7 @@ P48_slew_pars = {
     'dome': {'coord': 'az', 'accel': 0.5 * u.deg * u.second**(-2.),
              'decel': 0.5 * u.deg * u.second**(-2.),
              'vmax': 3. * u.deg / u.second}}
+
 P48_slew_pars_goal = {
     'ha': {'coord': 'ra', 'accel': 0.50 * u.deg * u.second**(-2.),
            'decel': 0.50 * u.deg * u.second**(-2.),
@@ -44,6 +52,10 @@ P48_slew_pars_goal = {
     'dome': {'coord': 'az', 'accel': 0.5 * u.deg * u.second**(-2.),
              'decel': 0.5 * u.deg * u.second**(-2.),
              'vmax': 5. * u.deg / u.second}}
+
+# From Steve, 2025-01-20
+# LS4 Camera/telescope properties
+
 # PTF configuration
 # P48_slew_pars = {
 #    'ha': {'coord': 'ra', 'accel': 0.27 * u.deg * u.second**(-2.),
@@ -56,17 +68,30 @@ P48_slew_pars_goal = {
 #             'decel': 0.6 * u.deg * u.second**(-2.),
 #             'vmax': 3. * u.deg / u.second}}
 
+# ZTF
 EXPOSURE_TIME = 30. * u.second
 READOUT_TIME = 8. * u.second
 FILTER_CHANGE_TIME = 135. * u.second
 SETTLE_TIME = 1. * u.second
-
 MAX_AIRMASS = 2.5
+
+
+# From Steve, 2025-01-20
+# LS4
+EXPOSURE_TIME = 45. * u.second                  # from 2023 CfP
+READOUT_TIME  = 15. * u.second                  # Assuming read-out in two directions.
+FILTER_CHANGE_TIME = 0. * u.second
+SETTLE_TIME = 1. * u.second
+MAX_AIRMASS = 2.0
 
 TIME_BLOCK_SIZE = 30. * u.min
 
 PROGRAM_NAME_TO_ID = {'engineering': 0, 
                       'MSIP':1, 'collaboration': 2, 'Caltech': 3}
+
+#PROGRAM_NAME_TO_ID = {'engineering': 0, 
+#                      'public':1, 'collaboration': 2, 'ToO': 3}
+
 PROGRAM_NAMES = list(PROGRAM_NAME_TO_ID.keys())
 PROGRAM_ID_TO_NAME = {v: k for k, v in list(PROGRAM_NAME_TO_ID.items())}
 PROGRAM_IDS = list(PROGRAM_ID_TO_NAME.keys())

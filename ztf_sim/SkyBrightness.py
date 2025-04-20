@@ -13,20 +13,52 @@ from .constants import FILTER_NAME_TO_ID, BASE_DIR
 
 class SkyBrightness(object):
 
+    """
+    A class to predict sky brightness based on various parameters.
+
+    Attributes:
+    -----------
+    clf_r : sklearn model
+        The pre-trained model for predicting sky brightness in the 'r' filter.
+    clf_g : sklearn model
+        The pre-trained model for predicting sky brightness in the 'g' filter.
+    clf_i : sklearn model
+        The pre-trained model for predicting sky brightness in the 'i' filter.
+
+    Methods:
+    --------
+    __init__():
+        Initializes the SkyBrightness class with pre-trained models.
+    predict(df):
+        Predicts sky brightness for the given dataframe with specific columns.
+    """
+
     def __init__(self):
         self.clf_r = joblib.load(BASE_DIR + '../data/sky_model/sky_model_r.pkl')
         self.clf_g = joblib.load(BASE_DIR + '../data/sky_model/sky_model_g.pkl')
         self.clf_i = joblib.load(BASE_DIR + '../data/sky_model/sky_model_i.pkl')
 
     def predict(self, df):
-        """df is a dataframe with columns:
-        mooonillf: 0-1
-        moonalt: degrees
-        moon_dist: degrees
-        azimuth: degrees
-        altitude: degrees
-        sunalt: degrees
-        filterkey: 1, 2, 3"""
+        """
+        Predicts sky brightness for the given dataframe.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            A dataframe with the following columns:
+            - mooonillf: float, 0-1
+            - moonalt: float, degrees
+            - moon_dist: float, degrees
+            - azimuth: float, degrees
+            - altitude: float, degrees
+            - sunalt: float, degrees
+            - filterkey: int, 1, 2, 3
+
+        Returns
+        -------
+        pandas.Series
+            A series with the predicted sky brightness values.
+        """
 
         filter_ids = df['filter_id'].unique()
         assert(np.sum(filter_ids > 3) == 0)

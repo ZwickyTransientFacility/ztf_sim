@@ -14,8 +14,32 @@ from .utils import approx_hours_of_darkness
 from .Fields import Fields
 from .QueueManager import GreedyQueueManager, RequestPool
 
-
 class MMASkymap(object):
+    """
+    A class to handle operations related to Multi-Messenger Astrophysics (MMA) skymaps.
+
+    Attributes:
+    -----------
+    trigger_name : str
+        The name of the trigger event.
+    trigger_time : float
+        The time of the trigger event.
+    skymap_fields : pandas.DataFrame
+        A DataFrame containing the skymap fields with 'field_id' and 'probability' columns.
+    fields : Fields, optional
+        An instance of the Fields class. If not provided, a new instance is created.
+    
+    Methods:
+    --------
+    make_queue(validity_window, observing_fraction=0.5):
+        Creates an observation queue based on the skymap fields and the specified validity window and observing fraction.
+    return_skymap():
+        Returns the skymap fields DataFrame.
+    persist_skymap():
+        Placeholder method to persist the skymap.
+    archive_persisted_skymap():
+        Placeholder method to archive the persisted skymap.
+    """
 
     def __init__(self, trigger_name, trigger_time, skymap_fields, fields=None):
 
