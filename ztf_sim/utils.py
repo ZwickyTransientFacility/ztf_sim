@@ -68,9 +68,19 @@ def RA_to_HA(ra, time):
     return ha
 
 
+def next_10deg_evening_twilight(time):
+    return P48_Observer.sun_set_time(time, which='next',
+                                     horizon=-10*u.degree)
+
+def next_10deg_morning_twilight(time):
+    return P48_Observer.sun_rise_time(time, which='next',
+                                     horizon=-10*u.degree)
+
+def next_10deg_morning_twilight(time):
+    return P48_Observer.twilight_morning_nautical(time, which='next')
+
 def previous_12deg_evening_twilight(time):
     return P48_Observer.twilight_evening_nautical(time, which='previous')
-
 
 def next_12deg_evening_twilight(time):
     return P48_Observer.twilight_evening_nautical(time, which='next')
