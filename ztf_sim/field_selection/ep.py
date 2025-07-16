@@ -77,6 +77,12 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
         # make a set of Trues
         cond_no_intersection = df_ep_fov['ep_pointing_id'] == df_ep_fov['ep_pointing_id']
         for oq in other_timed_queues_tonight:
+            # Neutrino TOOs tend to be short but have long validity windows
+            # I could compute the exposure time in the queue and do a cut, 
+            # but I think I'll just exclude all ToOs since they will preempt EP anyway
+            if oq.queue_name.startswith('ToO'):
+                continue
+
             # https://nedbatchelder.com/blog/201310/range_overlap_in_two_compares.html
             # timed queue doesn't intersect EP pointing if it ends before the EP 
             # EP pointing starts or starts after the EP pointing ends
@@ -84,7 +90,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
             cond_no_intersection &= ((oq.validity_window[1].mjd < df_ep_fov['start_mjd']) | 
                                      (df_ep_fov['end_mjd'] < oq.validity_window[0].mjd))
 
-        logging.info(f"{np.sum(~cond_no_intersection)} potential EP pointings intersect with timed queues.")
+        logging.info(f"{np.sum(~cond_no_intersection & cond_night)} potential nighttime EP pointings intersect with timed queues.")
         cond_good = cond_night & cond_no_intersection
 
     else:
