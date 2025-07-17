@@ -3,6 +3,7 @@ import glob, re
 import pandas as pd
 import requests
 import os
+import time
 from scipy.stats import mode
 
 from gurobipy import *
@@ -42,9 +43,18 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     coord_ztf_centers = f._field_coords(cuts=cuts)
 
     # Download the EP schedule
-
     EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov'
-    df_ep_fov = pd.read_json(EP_schedule)
+    df_ep_fov = None
+    for i in range(5):
+        try:
+            logging.info(f"Attempting EP download, attempt {i}")
+            df_ep_fov = pd.read_json(EP_schedule)
+        except Exception as e:
+            logging.exception(e)
+            time.sleep(30)
+        else:
+            break
+
     logging.info(f"Downloaded {len(df_ep_fov)} EP pointings.")
     #df_ep_fov.to_json(f'../../sims/EP_{time_now.isot}.json')
     # provide a unique index for the pointing
