@@ -55,6 +55,9 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
         else:
             break
 
+    if df_ep_fov is None:
+        raise ValueError("EP pointings failed to download!")
+
     logging.info(f"Downloaded {len(df_ep_fov)} EP pointings.")
     #df_ep_fov.to_json(f'../../sims/EP_{time_now.isot}.json')
     # provide a unique index for the pointing
