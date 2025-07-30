@@ -47,7 +47,7 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     day_end = (time_now + 1.* u.day).iso.split()[0]
 
     # Download the EP schedule
-    EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov/{day_start}/{day_end}'
+    EP_schedule = f'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov/{day_start}/{day_end}'
     df_ep_fov = None
     for i in range(5):
         try:
