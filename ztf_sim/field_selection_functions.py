@@ -137,7 +137,7 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
                                skymaps, silent=False):
     """Select MSIP NSS fields so we ensure lowdec coverage."""
 
-    candidate_nss_field_ids = fields.select_field_ids(dec_range=[-32,90.],
+    candidate_nss_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
                            # lowest rung fields are above airmass 2.5 for 2 hrs
                            observable_hours_range=[2.0, 24.])
