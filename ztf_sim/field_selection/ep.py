@@ -42,8 +42,12 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
     # index of ztf_fields are the field_ids matching coord_ztf_centers
     coord_ztf_centers = f._field_coords(cuts=cuts)
 
+    # provide the date start and date end
+    day_start = time_now.iso.split()[0]
+    day_end = (time_now + 1.* u.day).iso.split()[0]
+
     # Download the EP schedule
-    EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov'
+    EP_schedule = 'https://ep.bao.ac.cn/ep/observation_plan/download_obsplan_fov/{day_start}/{day_end}'
     df_ep_fov = None
     for i in range(5):
         try:
