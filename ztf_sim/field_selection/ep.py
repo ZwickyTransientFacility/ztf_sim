@@ -314,9 +314,10 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
         targets = []
         for field in ordered_fields:
             targets.append({
-                        "program_id": 2,
+                        "program_id": 3,
                         "subprogram_name": "Einstein_Probe",
-                        "program_pi": "Kasliwal/Graham",
+                        #"program_pi": "Kasliwal/Graham",
+                        "program_pi": "Ahumada",
                         "field_id": field,
                         "max_airmass": 2.5,
                         "filter_id": 2,
