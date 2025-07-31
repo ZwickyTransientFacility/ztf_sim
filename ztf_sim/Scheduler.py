@@ -104,7 +104,7 @@ class Scheduler(object):
         
         # TODO: make this more general if desired
         time_allowed = self.queues['default'].requests_allowed[
-                (2, 'Einstein_Probe')] * (30 * u.second + READOUT_TIME)
+                (3, 'Einstein_Probe')] * (30 * u.second + READOUT_TIME)
 
         if time_allowed < 0*u.second:
             logging.info(f'No time available for new timed queues.')
