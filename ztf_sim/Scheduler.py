@@ -98,7 +98,7 @@ class Scheduler(object):
 
         programs = self.queues['default'].requests_allowed.keys()
 
-        if (2, 'Einstein_Probe') not in programs:
+        if (3, 'Einstein_Probe') not in programs:
             logging.info(f'No additional nightly timed queues to add.')
             return
         
