@@ -29,7 +29,7 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
                              skymaps, silent=False):
     """Use skymaps to select fields for inclusion."""
 
-    observable_field_ids = fields.select_field_ids(dec_range=[-32,90.],
+    observable_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
                            # use a minimal observable hours cut
                            observable_hours_range=[0.5, 24.])
@@ -326,7 +326,7 @@ def phase_II_selection(time, obs_log, other_program_fields, fields,
 
 
     # do a visibility check (also handles moon exclusion)
-    visible_field_ids = fields.select_field_ids(dec_range=[-32,90.],
+    visible_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
                            observable_hours_range=[min_hours_visible, 24.])
 
@@ -434,11 +434,12 @@ def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
 
 
 
-    label = 'Caltech_Qin_2024B'
+    #label = 'Caltech_Qin_2024B'
+    label = 'Caltech_Jacobson-Galan_2026A'
     min_hours_visible = 1.5
     nobs_per_night = 2
     requests_allowed = other_program_fields[
-        (PROGRAM_NAME_TO_ID['Caltech'],'Caltech_Qin_2024B')]['requests_allowed']
+        (PROGRAM_NAME_TO_ID['Caltech'],label)]['requests_allowed']
     # exclude partnership fields
     #exclude_fields = phase_II_selection(time, obs_log, other_program_fields, fields, skymaps, subprogram='Partnership', silent=False)
     exclude_fields = []
@@ -451,7 +452,7 @@ def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
 
 
     # do a visibility check (also handles moon exclusion)
-    visible_field_ids = fields.select_field_ids(dec_range=[-32,90.],
+    visible_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
                            observable_hours_range=[min_hours_visible, 24.])
 
@@ -595,7 +596,7 @@ def aam_caltech_june21(time, obs_log, other_program_fields, fields, skymaps):
 def msip_nss_selection(time, obs_log, other_program_fields, fields, skymaps):
     """Select MSIP NSS fields so they don't overlap with other MSIP subprograms."""
 
-    candidate_nss_fields = fields.select_field_ids(dec_range=[-32,90.],
+    candidate_nss_fields = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
                            observable_hours_range=[1.0, 24.])
 
