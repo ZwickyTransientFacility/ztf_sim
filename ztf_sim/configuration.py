@@ -94,13 +94,14 @@ class QueueConfiguration(Configuration):
 
         if self.config['queue_manager'] != 'list' and len(self.config['observing_programs']):
             for month in range(1,13):
-                if not np.isclose(np.sum(
+                op_sum = np.sum(
                     [prog['program_observing_fraction']*prog['subprogram_fraction'] 
                     for prog in self.config['observing_programs']
                     if ((prog['active_months'] == 'all') or 
                     (month in np.atleast_1d(prog['active_months'])))
-                    ]), 1.0):
-                    raise ValueError(f"Observing fractions must sum to 1: {[(prog['subprogram_name'], prog['program_observing_fraction']*prog['subprogram_fraction']) for prog in self.config['observing_programs']]}")
+                    ])
+                if not np.isclose(op_sum, 1.0):
+                    raise ValueError(f"Observing fractions must sum to 1 ({op_sum}): {[(prog['subprogram_name'], prog['program_observing_fraction']*prog['subprogram_fraction']) for prog in self.config['observing_programs']]}")
 
             # could do this via schema validation
             for prog in self.config['observing_programs']:
