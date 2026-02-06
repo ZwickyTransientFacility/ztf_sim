@@ -90,7 +90,7 @@ def phase_IV_selection(time, obs_log, other_program_fields, fields,
         # to prevent fields from thrashing back and forth between programs
         # we place a buffer in the priority list
         offset = 15
-        exclude_fields = phase_IV_selection(time, obs_log, other_program_fields, fields, skymaps, subprogram='Partnership', silent=False)
+        exclude_fields = phase_IV_selection(time, obs_log, other_program_fields, fields, skymaps, subprogram='Partnership', silent=True)
 
     else:
         raise ValueError(f'Unknown subprogram {subprogram}')
