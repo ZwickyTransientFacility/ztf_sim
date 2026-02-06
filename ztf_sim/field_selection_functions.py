@@ -25,6 +25,174 @@ msip_cadence = 2
 msip_internight_gap = msip_cadence*u.day
 msip_nobs_per_night = 2
 
+def phase_IV_partnership_selection(time, obs_log, other_program_fields, fields,
+                             skymaps):
+    """Select partnership fields"""
+    return phase_IV_selection(time, obs_log, other_program_fields, fields,
+                              skymaps, subprogram='Partnership')
+
+def phase_IV_Caltech_selection(time, obs_log, other_program_fields, fields, skymaps):
+    """Select Caltech fields"""
+    return phase_IV_selection(time, obs_log, other_program_fields, fields,
+                              skymaps, subprogram='Caltech')
+
+
+def phase_IV_selection(time, obs_log, other_program_fields, fields,
+        skymaps, subprogram='Partnership', silent=False):
+    """Select partnership HC or Caltech 1DC fields"""
+
+    assert (subprogram in ['Partnership', 'Caltech'])
+
+    # all IDs outside of the Rubin 1DC footprint
+    candidate_field_ids = [542, 543, 544, 545, 546, 547, 548, 550, 574, 
+                           578, 579, 580, 581,
+       582, 583, 584, 585, 586, 587, 588, 589, 590, 591, 592, 593, 594,
+       595, 596, 597, 598, 599, 600, 601, 602, 603, 621, 622, 623, 624,
+       625, 626, 627, 628, 629, 630, 631, 632, 633, 634, 635, 636, 637,
+       638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 648, 649, 650,
+       651, 652, 653, 654, 665, 666, 667, 668, 669, 670, 671, 672, 673,
+       674, 675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686,
+       687, 688, 689, 690, 691, 692, 693, 694, 695, 696, 697, 698, 699,
+       700, 701, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712,
+       713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725,
+       726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737, 738,
+       739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750, 751,
+       752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764,
+       765, 766, 767, 768, 769, 770, 771, 772, 773, 774, 775, 776, 777,
+       778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788, 789, 790,
+       791, 792, 793, 794, 795, 796, 797, 798, 799, 800, 801, 802, 803,
+       804, 805, 806, 807, 808, 809, 810, 811, 812, 813, 814, 815, 816,
+       817, 818, 819, 820, 821, 822, 823, 824, 825, 826, 827, 828, 829,
+       830, 831, 832, 833, 834, 835, 836, 837, 838, 839, 840, 841, 842,
+       843, 844, 845, 846, 847, 848, 849, 850, 851, 852, 853, 854, 855,
+       856, 857, 858, 859, 860, 861, 862, 863, 864, 865, 866, 867, 868,
+       869, 870, 871, 872, 873, 874, 875, 876, 877, 878, 879, 880, 881]
+
+    nearby_galaxy_fields = [788,718,818,859,624,574,836,789,653,860,699,858,793,676,819,583,654,671,675,871]
+
+    # define the parameters that vary
+    if subprogram == 'Partnership':
+        label = 'Partnership_non_Rubin'
+        min_hours_visible = 1.5
+        nobs_per_night = 2
+        requests_allowed = other_program_fields[
+            (PROGRAM_NAME_TO_ID['collaboration'],label)]['requests_allowed']
+        offset = 0
+        exclude_fields = []
+
+
+    elif subprogram == 'Caltech':
+        label = 'Caltech_Jacobson-Galan_2026A'
+        min_hours_visible = 1.5
+        nobs_per_night = 2
+        requests_allowed = other_program_fields[
+            (PROGRAM_NAME_TO_ID['Caltech'],label)]['requests_allowed']
+        # to prevent fields from thrashing back and forth between programs
+        # we place a buffer in the priority list
+        offset = 15
+        exclude_fields = phase_IV_selection(time, obs_log, other_program_fields, fields, skymaps, subprogram='Partnership', silent=False)
+
+    else:
+        raise ValueError(f'Unknown subprogram {subprogram}')
+
+    # drop fields to exclude if any
+    candidate_field_ids = np.setdiff1d(candidate_field_ids, exclude_fields).tolist()
+
+    last_observed_times = obs_log.select_last_observed_time_by_field(
+        field_ids = candidate_field_ids,
+        filter_ids = [1,2],
+        program_ids = [PROGRAM_NAME_TO_ID['collaboration']],
+        # arbitrary early date; start of night tonight
+        mjd_range = [Time('2001-01-01').mjd,np.floor(time.mjd)])
+    days_ago = last_observed_times.apply(lambda x: time.mjd - x)
+
+    # do a visibility check (also handles moon exclusion)
+    w_visible = fields.select_field_ids(field_ids=candidate_field_ids,
+                           observable_hours_range=[min_hours_visible, 24.])
+    visible_fields = fields.fields.loc[w_visible]
+    visible_fields = visible_fields.join(fields.observable_hours)
+    visible_fields['days_ago'] = days_ago['expMJD']
+    # unobserved fields have nan values
+    visible_fields['days_ago'] = visible_fields['days_ago'].fillna(1000)
+    # order by observable hours
+    visible_fields.sort_values('observable_hours', ascending=False, inplace=True)
+    visible_field_ids = visible_fields.index.to_list()
+
+    n_fields_to_observe = int(np.round(requests_allowed / nobs_per_night))
+    n_fields_remaining = n_fields_to_observe
+
+    if not silent:
+        logger.info(f'{label}: need {n_fields_to_observe} fields')
+
+    field_ids_to_observe = []
+
+
+    if subprogram == 'Partnership':
+        # divide into terciles
+        n_fields_allowed_t = int(np.round(requests_allowed/3/nobs_per_night))
+        n_fields_remaining_t1 = n_fields_allowed_t
+
+        # for Partnership 
+        #   select top 1/3: observe Galaxy-targeted fields if available, 
+        visible_galaxy_fields = np.intersect1d(visible_field_ids, nearby_galaxy_fields)
+        if len(visible_galaxy_fields) >= n_fields_allowed_t:
+            # ids should already by sorted by observability
+            field_ids_to_observe.extend(visible_galaxy_fields[:n_fields_allowed_t])
+            n_fields_remaining_t1 = 0
+
+        else:
+            field_ids_to_observe.extend(visible_galaxy_fields)
+            n_fields_remaining_t1 -= len(visible_galaxy_fields)
+            logger.info(f'{label}: added nearby galaxy fields {visible_galaxy_fields}')
+
+        # then most visible fields with any past observing time
+        # remove any chosen galaxy fields.  
+        # assume_unique=True keeps the sorting by observable hours
+        visible_field_ids = np.setdiff1d(visible_field_ids, field_ids_to_observe, 
+                                         assume_unique=True)
+        odc_ids = visible_field_ids[:n_fields_remaining_t1]
+        field_ids_to_observe.extend(odc_ids)
+        logger.info(f'{label}: added 1DC fields {odc_ids}')
+
+
+        # select next 1/3: most visible fields observed more than 1 night ago
+        w_2DC = visible_fields['days_ago'] > 1.5
+        tdc_fields = visible_fields.loc[w_2DC, :].copy()
+        tdc_fields.sort_values('observable_hours', ascending=False, inplace=True)
+        tdc_field_ids = tdc_fields.index.to_list()
+
+        available_tdc_fields = np.setdiff1d(tdc_field_ids, field_ids_to_observe, 
+                                         assume_unique=True)
+        tdc_ids = available_tdc_fields[:n_fields_allowed_t]
+        field_ids_to_observe.extend(tdc_ids)
+        logger.info(f'{label}: added 2DC fields {tdc_ids}')
+
+        # select last 1/3: of fields observed more than 4 nights ago 
+        w_4DC = visible_fields['days_ago'] > 3.5
+        fdc_fields = visible_fields.loc[w_4DC, :].copy()
+        fdc_fields.sort_values('observable_hours', ascending=False, inplace=True)
+        fdc_field_ids = fdc_fields.index.to_list()
+
+        available_fdc_fields = np.setdiff1d(fdc_field_ids, field_ids_to_observe, 
+                                         assume_unique=True)
+        fdc_ids = available_fdc_fields[:n_fields_allowed_t]
+        field_ids_to_observe.extend(fdc_ids)
+        logger.info(f'{label}: added 4DC fields {fdc_ids}')
+
+    else:
+        # for Caltech
+        # select best fields not observed by Partnership tonight
+        odc_fields = visible_field_ids[:n_fields_to_observe]
+        field_ids_to_observe.extend(odc_fields)
+        logger.info(f'{label}: added 1DC fields {odc_fields}')
+
+    if not silent:
+        logger.info(f'{label}: requesting {field_ids_to_observe}')
+
+    return field_ids_to_observe
+
+##################### previous/unused -- for reference
+
 def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
                              skymaps, silent=False):
     """Use skymaps to select fields for inclusion."""
@@ -482,7 +650,6 @@ def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
 
     return field_ids_to_observe
 
-##################### previous/unused -- for reference
 
 def srg_selection(time, obs_log, other_program_fields, fields, skymaps):
     """Select SRG fields."""
