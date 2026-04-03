@@ -21,12 +21,64 @@ max_exps_per_slot = np.ceil((TIME_BLOCK_SIZE /
 logger = logging.getLogger(__name__)
 
 def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
-        block_use = defaultdict(float)):
-    """Determine which requests to observe and in what slots.
+        block_use=defaultdict(float)):
+    """Assign request sets to time slots using integer linear programming.
 
-    Decision variable is yes/no per request_id, slot, filter,
-    with an additional decision variable on which filter to use in which slot
-    and another for which request sets are observed at all."""
+    Formulates and solves a binary ILP that assigns each request set to one
+    or more 30-minute time slots, maximising a
+    weighted observability metric subject to time-capacity, program-balance,
+    and single-filter-per-slot constraints.
+
+    Parameters
+    ----------
+    df_metric : pandas.DataFrame
+        Multi-level column DataFrame indexed by ``request_set_id``. Columns
+        are ``(slot, filter_id)`` pairs; values are the per-(request, slot,
+        filter) priority metric.
+    df : pandas.DataFrame
+        Request pool DataFrame indexed by ``request_set_id``. Required
+        columns: ``program_id``, ``subprogram_name``,
+        ``total_requests_tonight``, ``exposure_time``, ``dec``, and
+        ``n_reqs_{fid}`` for each filter ID.
+    requests_allowed : dict
+        Mapping ``(program_id, subprogram_name) -> int`` giving the maximum
+        (or exact, for MSIP) number of slot-observations allowed tonight.
+    time_limit : astropy.units.Quantity, optional
+        Wall-clock time budget for the Gurobi solver. Default is 30 s.
+    block_use : collections.defaultdict, optional
+        Mapping ``slot_index -> float`` giving the fraction of each slot
+        already consumed by timed programmes. Default is all zeros.
+
+    Returns
+    -------
+    request_sets_tonight : pandas.Index
+        IDs of request sets selected by the optimiser.
+    df_slots : pandas.DataFrame
+        Tidy assignment table with columns ``'slot'``,
+        ``'metric_filter_id'``, and ``'request_id'`` for every
+        selected (request, slot, filter) triple.
+    dft : pandas.DataFrame
+        Full ``(request, slot, filter)`` DataFrame including the binary
+        decision variable values (``'Yrtf_val'``).
+
+    Raises
+    ------
+    ValueError
+        If the optimiser cannot satisfy constraints after 10 iterations.
+
+    Notes
+    -----
+    Decision variables:
+
+    * ``Yr[r]`` — binary; request set *r* is observed tonight.
+    * ``Yrtf[r,t,f]`` — binary; *r* assigned to slot *t* with filter *f*.
+    * ``Ytf[t,f]`` — binary; filter *f* used in slot *t*.
+    * ``Ydfds[s]`` — binary; filter change between slot *s* and *s+1*.
+
+    Objective: maximise the weighted metric sum minus a filter-change
+    penalty. MSIP programme balance is enforced with an equality constraint
+    (relaxed to ≤ if infeasible); other programmes use an upper bound.
+    """
 
     # these are fragile when columns get appended
     slots = np.unique(df_metric.columns.get_level_values(0).values)
@@ -393,12 +445,46 @@ def night_optimize(df_metric, df, requests_allowed, time_limit=30*u.second,
     return dfr.loc[dfr['Yr_val'],'program_id'].index, df_schedule, dft
 
 def tsp_optimize(pairwise_distances):
+    """Solve the Travelling Salesman Problem for a set of telescope pointings.
+
+    Finds the minimum-cost Hamiltonian cycle through *n* nodes using a
+    Gurobi MIP formulation with lazy subtour-elimination constraints.
+
+    Parameters
+    ----------
+    pairwise_distances : numpy.ndarray, shape (n, n)
+        Symmetric matrix of pairwise travel costs (e.g. slew times in
+        seconds). Diagonal should be zero.
+
+    Returns
+    -------
+    tour : list of int
+        Node visit order as a list of 0-based indices of length *n*.
+    distance : float
+        Total tour cost.
+
+    Raises
+    ------
+    ValueError
+        If the Gurobi optimisation fails to find an optimal solution.
+
+    Notes
+    -----
+    Degree-2 constraint: each node is incident to exactly two edges.
+    Subtour elimination is enforced lazily via a
+    ``GRB.callback.MIPSOL`` callback (``subtourelim``): whenever the
+    solver finds a solution containing a proper sub-cycle of length < n,
+    a cut is added requiring at most ``|subtour| - 1`` edges within that
+    subset. Special cases: n = 1 returns ``([0], [READOUT_TIME])``;
+    n = 2 returns the single edge without calling Gurobi.
+    """
     # core algorithmic code from
     # http://examples.gurobi.com/traveling-salesman-problem/
 
-    # Callback - use lazy constraints to eliminate sub-tours 
-    def subtourelim(model, where): 
-        if where == GRB.callback.MIPSOL: 
+    # Callback - use lazy constraints to eliminate sub-tours
+    def subtourelim(model, where):
+        """Gurobi lazy-constraint callback that adds subtour elimination cuts."""
+        if where == GRB.callback.MIPSOL:
             selected = [] 
             # make a list of edges selected in the solution 
             for i in range(n): 
@@ -414,9 +500,10 @@ def tsp_optimize(pairwise_distances):
                         expr += model._vars[tour[i], tour[j]] 
                 model.cbLazy(expr <= len(tour)-1) 
 
-    # Given a list of edges, finds the shortest subtour 
-    def subtour(edges): 
-        visited = [False]*n 
+    # Given a list of edges, finds the shortest subtour
+    def subtour(edges):
+        """Find the shortest cycle in a list of directed edges."""
+        visited = [False]*n
         cycles = [] 
         lengths = [] 
         selected = [[] for i in range(n)] 
@@ -489,6 +576,7 @@ def tsp_optimize(pairwise_distances):
                 edges[i].append(j)
 
     def unwrap_tour(edges, start_node=None):
+        """Convert an edge adjacency dict into an ordered tour list."""
         if start_node is None:
             start_node = 0
         
@@ -519,13 +607,27 @@ def tsp_optimize(pairwise_distances):
 
 
 def check_limits_and_solve_TSP(unique_fields, time_start, time_end):
-    """Wrapper to TSP solve a set of fields for a standalone queue
+    """Check telescope pointing limits and solve the TSP for a standalone queue.
 
-    (e.g., the Einstein Probe observations).
+    Intended for time-windowed queues such as Einstein Probe observations.
+    Validates each field against the P48 pointing limits at both the start
+    and end of the window, builds a pairwise slew-time matrix, prepends a
+    fake starting node at the CALSTOW position (HA = 0, Dec = −48°), solves
+    the TSP, then removes the fake node from the result.
 
-    unique_fields: pd.DataFrame
-    time_start: astropy.Time
-    time_end: astropy.Time
+    Parameters
+    ----------
+    unique_fields : list of int or array-like of int
+        ZTF field IDs to sequence.
+    time_start : astropy.time.Time
+        Start of the observation window.
+    time_end : astropy.time.Time
+        End of the observation window.
+
+    Returns
+    -------
+    queue_order : numpy.ndarray of int
+        Field IDs in optimised visit order (fake start node removed).
     """
 
     # this is somewhat expensive to construct each time

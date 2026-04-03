@@ -16,8 +16,46 @@ from .QueueManager import GreedyQueueManager, RequestPool
 
 
 class MMASkymap(object):
+    """Multi-messenger skymap queue builder.
+
+    Wraps a gravitational-wave (or other multi-messenger) probability sky map
+    and generates a ``GreedyQueueManager`` follow-up queue sorted by field
+    probability.
+
+    Attributes
+    ----------
+    trigger_name : str
+        Unique identifier for the alert event.
+    trigger_time : astropy.time.Time
+        UTC time of the alert.
+    skymap_fields : pandas.DataFrame
+        Per-field probabilities with columns ``'field_id'`` and
+        ``'probability'``.
+    fields : Fields
+        ZTF field grid used for observability checks.
+    """
 
     def __init__(self, trigger_name, trigger_time, skymap_fields, fields=None):
+        """Initialise an MMA skymap.
+
+        Parameters
+        ----------
+        trigger_name : str
+            Unique identifier for the alert.
+        trigger_time : astropy.time.Time
+            UTC time of the gravitational-wave (or other) alert.
+        skymap_fields : dict or pandas.DataFrame
+            Per-field probabilities. Must contain columns ``'field_id'``
+            and ``'probability'``.
+        fields : Fields or None, optional
+            Pre-loaded field grid. If ``None``, a new `Fields` instance is
+            created. Default is ``None``.
+
+        Raises
+        ------
+        AssertionError
+            If *skymap_fields* does not contain the required columns.
+        """
 
         self.logger = logging.getLogger(__name__)
 
@@ -33,6 +71,32 @@ class MMASkymap(object):
             self.fields = fields
 
     def make_queue(self, validity_window, observing_fraction=0.5):
+        """Build a greedy follow-up queue for this skymap.
+
+        Selects the highest-probability observable fields up to a number
+        proportional to *observing_fraction* of the available dark time,
+        sorted by descending probability. Restricts to primary grid (grid_id
+        = 0) fields with at least 0.5 hours of observability.
+
+        Parameters
+        ----------
+        validity_window : list of float
+            ``[start_mjd, stop_mjd]`` defining the queue's active window.
+        observing_fraction : float, optional
+            Fraction of dark time (18-degree twilight) to allocate to this
+            event. Default is 0.5.
+
+        Returns
+        -------
+        GreedyQueueManager
+            Follow-up queue containing the selected fields with their skymap
+            probabilities as request weights.
+
+        Raises
+        ------
+        AssertionError
+            If *observing_fraction* is not in [0, 1].
+        """
 
         assert (0 <= observing_fraction <= 1)
 
@@ -98,11 +162,27 @@ class MMASkymap(object):
 
 
     def return_skymap(self):
+        """Return the skymap field probability table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            The ``skymap_fields`` DataFrame with columns ``'field_id'`` and
+            ``'probability'``.
+        """
         return self.skymap_fields
 
     def persist_skymap(self):
+        """Persist the skymap to disk.
+
+        Not yet implemented; reserved for future use.
+        """
         pass
-    
+
     def archive_persisted_skymap(self):
+        """Move a persisted skymap to a dated archive directory.
+
+        Not yet implemented; reserved for future use.
+        """
         pass
 

@@ -19,10 +19,47 @@ from .field_selection.ep import make_ep_blocks
 
 
 class Scheduler(object):
+    """Top-level scheduler that owns all queues, the observation log, and skymaps.
 
-    def __init__(self, scheduler_config_file_fullpath, 
-            run_config_file_fullpath, other_queue_configs = None,
-            output_path = BASE_DIR+'../sims/'):
+    Orchestrates nightly queue assignment, Einstein Probe timed-block setup,
+    queue switching (TOO and timed), and accounting for timed program time
+    commitments.
+
+    Attributes
+    ----------
+    queues : dict
+        Mapping ``queue_name -> QueueManager`` for all active queues.
+    Q : QueueManager
+        Currently active queue.
+    obs_log : ObsLogger
+        Observation history and output database.
+    skymaps : dict
+        Mapping ``trigger_name -> MMASkymap`` for registered skymaps.
+    timed_queues_tonight : list of str
+        Queue names that have valid timed windows tonight.
+    """
+
+    def __init__(self, scheduler_config_file_fullpath,
+            run_config_file_fullpath, other_queue_configs=None,
+            output_path=BASE_DIR+'../sims/'):
+        """Initialise the scheduler from configuration files.
+
+        Parameters
+        ----------
+        scheduler_config_file_fullpath : str
+            Absolute path to the JSON scheduler configuration file.
+        run_config_file_fullpath : str
+            Absolute path to the INI simulation/run configuration file.
+            Must contain a ``[scheduler]`` section with at least
+            ``clobber_db``; optionally ``log_name``.
+        other_queue_configs : dict or None, optional
+            Additional ``{queue_name: QueueConfiguration}`` entries to merge
+            into the built queues. Reserved for future use. Default is
+            ``None``.
+        output_path : str, optional
+            Directory where the output SQLite database and log file are
+            written. Default is ``../sims/`` relative to the package root.
+        """
 
         self.logger = logging.getLogger(__name__)
 
@@ -52,8 +89,23 @@ class Scheduler(object):
                 output_path = output_path,
                 clobber=self.run_config['scheduler'].getboolean('clobber_db'),) 
 
-    def assign_nightly_requests(self, current_state_dict, 
+    def assign_nightly_requests(self, current_state_dict,
                                 time_limit=15.*u.minute):
+        """Trigger the nightly ILP scheduling for the default queue.
+
+        Computes block-level time commitments from timed queues and timed
+        observation counts, then delegates to the default queue's
+        ``assign_nightly_requests``.
+
+        Parameters
+        ----------
+        current_state_dict : dict
+            Telescope state dict as returned by
+            ``TelescopeStateMachine.current_state_dict()``.
+        time_limit : astropy.units.Quantity, optional
+            Gurobi wall-clock time limit for the ILP solver. Default is
+            15 minutes.
+        """
         # Look for timed queues that will be valid tonight,
         # to exclude from the nightly solution
         block_use = self.find_block_use_tonight(current_state_dict['current_time'])
@@ -69,11 +121,26 @@ class Scheduler(object):
                         timed_obs_count = timed_obs_count,
                         skymaps = self.skymaps)
 
-    def make_nightly_timed_blocks(self, current_state_dict, 
+    def make_nightly_timed_blocks(self, current_state_dict,
                                 time_limit=15.*u.minute):
-        """Make any time-blocked observations that are constructed on the fly.
+        """Set up time-windowed queues for tonight, currently Einstein Probe only.
 
-        Only generates Einstein Probe simultaneous observations at present."""
+        Clears any EP queues left over from the previous night, checks whether
+        the Einstein Probe programme has a non-zero allocation tonight, and if
+        so calls `field_selection.ep.make_ep_blocks` to create
+        ``ListQueueManager`` objects for each EP observation window. The
+        resulting queues are added to ``self.queues`` and tracked in
+        ``self.timed_queues_tonight``.
+
+        Parameters
+        ----------
+        current_state_dict : dict
+            Telescope state dict as returned by
+            ``TelescopeStateMachine.current_state_dict()``.
+        time_limit : astropy.units.Quantity, optional
+            Gurobi time limit passed to ``make_ep_blocks``. Default is
+            15 minutes.
+        """
 
         to_delete = []
         # clean out any lingering EP queues.
@@ -120,14 +187,43 @@ class Scheduler(object):
             self.add_queue(eq.queue_name, eq)
             logging.info(f'Added queue {eq.queue_name}')
 
-    def set_queue(self, queue_name): 
+    def set_queue(self, queue_name):
+        """Switch the active queue to *queue_name*.
+
+        Parameters
+        ----------
+        queue_name : str
+            Name of the queue to activate. Must exist in ``self.queues``.
+
+        Raises
+        ------
+        ValueError
+            If *queue_name* is not in ``self.queues``.
+        """
 
         if queue_name not in self.queues:
             raise ValueError(f'Requested queue {queue_name} not available!')
 
         self.Q = self.queues[queue_name]
         
-    def add_queue(self,  queue_name, queue, clobber=True):
+    def add_queue(self, queue_name, queue, clobber=True):
+        """Register a new queue with the scheduler.
+
+        Parameters
+        ----------
+        queue_name : str
+            Key under which to store the queue.
+        queue : QueueManager
+            Queue instance to register.
+        clobber : bool, optional
+            If ``True`` (default), silently replace any existing queue with
+            the same name. If ``False``, raise ``ValueError`` on conflict.
+
+        Raises
+        ------
+        ValueError
+            If *clobber* is ``False`` and *queue_name* already exists.
+        """
 
         if clobber or (queue_name not in self.queues):
             self.queues[queue_name] = queue 
@@ -135,6 +231,21 @@ class Scheduler(object):
             raise ValueError(f"Queue {queue_name} already exists!")
 
     def delete_queue(self, queue_name):
+        """Remove a queue from the scheduler.
+
+        If the deleted queue is the currently active queue, the scheduler
+        automatically switches to the ``'default'`` queue.
+
+        Parameters
+        ----------
+        queue_name : str
+            Name of the queue to delete.
+
+        Raises
+        ------
+        ValueError
+            If *queue_name* does not exist in ``self.queues``.
+        """
 
         if (queue_name in self.queues):
             if self.Q.queue_name == queue_name:
@@ -144,6 +255,23 @@ class Scheduler(object):
             raise ValueError(f"Queue {queue_name} does not exist!")
 
     def add_skymap(self, trigger_name, skymap, clobber=True):
+        """Register a multi-messenger skymap with the scheduler.
+
+        Parameters
+        ----------
+        trigger_name : str
+            Unique identifier for the event (e.g. ``'S190814bv'``).
+        skymap : MMASkymap
+            Skymap object to register.
+        clobber : bool, optional
+            If ``True`` (default), replace any existing skymap with the same
+            name. If ``False``, raise ``ValueError`` on conflict.
+
+        Raises
+        ------
+        ValueError
+            If *clobber* is ``False`` and *trigger_name* already exists.
+        """
 
         if clobber or (trigger_name not in self.skymaps):
             self.skymaps[trigger_name] = skymap
@@ -151,6 +279,18 @@ class Scheduler(object):
             raise ValueError(f"Skymap {trigger_name} already exists!")
 
     def delete_skymap(self, trigger_name):
+        """Remove a skymap from the scheduler.
+
+        Parameters
+        ----------
+        trigger_name : str
+            Name of the skymap to remove.
+
+        Raises
+        ------
+        ValueError
+            If *trigger_name* does not exist in ``self.skymaps``.
+        """
 
         if (trigger_name in self.skymaps):
             del self.skymaps[trigger_name] 
@@ -158,6 +298,23 @@ class Scheduler(object):
             raise ValueError(f"Skymap {trigger_name} does not exist!")
 
     def find_block_use_tonight(self, time_now):
+        """Compute the fraction of each block already committed to timed queues.
+
+        Also populates ``self.timed_queues_tonight`` with the names of queues
+        that have valid windows tonight.
+
+        Parameters
+        ----------
+        time_now : astropy.time.Time
+            Current simulation time (used to identify tonight).
+
+        Returns
+        -------
+        block_use : collections.defaultdict
+            Mapping ``block_index -> fraction_used`` (0–1). Includes the
+            fractions of the twilight blocks consumed by daytime, plus any
+            fractions consumed by timed queues.
+        """
         # also sets up timed_queues_tonight
 
         # start of the night
@@ -214,6 +371,15 @@ class Scheduler(object):
         return block_use
 
     def count_timed_observations_tonight(self):
+        """Count equivalent standard exposures in timed queues for each programme.
+
+        Returns
+        -------
+        dict
+            Mapping ``program_id -> int`` equivalent-observation count summed
+            across all timed queues valid tonight. Programmes with no timed
+            observations return 0.
+        """
         # determine how many equivalent obs are in timed queues
         
         timed_obs = {prog:0 for prog in PROGRAM_IDS} 
@@ -234,6 +400,17 @@ class Scheduler(object):
         return timed_obs
 
     def check_for_TOO_queue_and_switch(self, time_now):
+        """Switch to an active Target-of-Opportunity queue if one is available.
+
+        Activates the first valid TOO queue with a non-empty observation list.
+        If the current queue is already a TOO queue and it has become empty,
+        switches to the next available TOO queue.
+
+        Parameters
+        ----------
+        time_now : astropy.time.Time
+            Current simulation time.
+        """
         # check if a TOO queue is now valid
         for qq_name, qq in self.queues.items():
             if qq.is_TOO:
@@ -247,27 +424,48 @@ class Scheduler(object):
                         self.set_queue(qq_name)
 
     def check_for_timed_queue_and_switch(self, time_now):
-            # drop out of a timed queue if it's no longer valid
-            if self.Q.queue_name != 'default':
-                if not self.Q.is_valid(time_now):
-                    self.set_queue('default')
+        """Switch into or out of a timed queue based on validity windows.
 
-            # only switch from default or fallback queues
-            if self.Q.queue_name in ['default', 'fallback']:
-                # check if a timed queue is now valid
-                for qq_name, qq in self.queues.items():
-                    if (qq.validity_window is not None) and (qq.is_valid(time_now)): 
-                        if (qq.queue_type == 'list'): 
-                            # list queues should have items in them
-                            if len(qq.queue):
-                                self.set_queue(qq_name)
-                        else:
-                            # don't have a good way to check length of non-list
-                            # queues before nightly assignments
-                            if qq.requests_in_window:
-                                self.set_queue(qq_name)
+        Drops back to the ``'default'`` queue if the current non-default queue
+        is no longer valid. From the default or fallback queue, switches to
+        the first valid timed queue that has observations available.
+
+        Parameters
+        ----------
+        time_now : astropy.time.Time
+            Current simulation time.
+        """
+        # drop out of a timed queue if it's no longer valid
+        if self.Q.queue_name != 'default':
+            if not self.Q.is_valid(time_now):
+                self.set_queue('default')
+
+        # only switch from default or fallback queues
+        if self.Q.queue_name in ['default', 'fallback']:
+            # check if a timed queue is now valid
+            for qq_name, qq in self.queues.items():
+                if (qq.validity_window is not None) and (qq.is_valid(time_now)): 
+                    if (qq.queue_type == 'list'): 
+                        # list queues should have items in them
+                        if len(qq.queue):
+                            self.set_queue(qq_name)
+                    else:
+                        # don't have a good way to check length of non-list
+                        # queues before nightly assignments
+                        if qq.requests_in_window:
+                            self.set_queue(qq_name)
 
     def remove_empty_and_expired_queues(self, time_now):
+        """Delete expired or empty non-default queues.
+
+        A queue is removed if its validity window has passed or if it is a
+        ``ListQueueManager`` with no remaining observations.
+
+        Parameters
+        ----------
+        time_now : astropy.time.Time
+            Current simulation time used to check validity windows.
+        """
         queues_for_deletion = []
         for qq_name, qq in self.queues.items():
             if qq.queue_name in ['default', 'fallback']:

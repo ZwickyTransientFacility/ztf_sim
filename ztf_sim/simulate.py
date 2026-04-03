@@ -29,11 +29,64 @@ logging.getLogger("ztf_sim.field_selection_functions").setLevel(logging.INFO)
 
 
 def simulate(scheduler_config_file, sim_config_file,
-        scheduler_config_path = BASE_DIR + '../../ztf_survey_configuration/',
-        sim_config_path = BASE_DIR+'../config/',
-        output_path = BASE_DIR+'../sims/',
-        profile=False, raise_queue_empty=False, fallback=True, 
-        time_limit = 30*u.second):
+        scheduler_config_path=BASE_DIR + '../../ztf_survey_configuration/',
+        sim_config_path=BASE_DIR+'../config/',
+        output_path=BASE_DIR+'../sims/',
+        profile=False, raise_queue_empty=False, fallback=True,
+        time_limit=30*u.second):
+    """Run a ZTF survey simulation from start to finish.
+
+    Reads configuration files, initialises the telescope state machine and
+    scheduler, then steps through time night by night. Each night the ILP
+    solver assigns requests to time slots; each timestep the scheduler
+    selects the next observation, the state machine advances the clock, and
+    the observation is logged.
+
+    Parameters
+    ----------
+    scheduler_config_file : str
+        Filename (not full path) of the JSON queue/programme configuration,
+        resolved relative to *scheduler_config_path*.
+    sim_config_file : str
+        Filename (not full path) of the INI simulation configuration,
+        resolved relative to *sim_config_path*. Required keys:
+        ``[simulation] start_time``, ``weather_year``,
+        ``survey_duration_days``; ``[scheduler] clobber_db``,
+        optionally ``log_name``.
+    scheduler_config_path : str, optional
+        Directory containing the scheduler JSON configuration. Default is
+        ``../../ztf_survey_configuration/`` relative to the package root.
+    sim_config_path : str, optional
+        Directory containing the simulation INI configuration. Default is
+        ``../config/``.
+    output_path : str, optional
+        Directory for the output SQLite database and log file. Default is
+        ``../sims/``.
+    profile : bool, optional
+        If ``True``, enable ``pyinstrument`` profiling. Automatically
+        disabled for surveys longer than one day. Default is ``False``.
+    raise_queue_empty : bool, optional
+        If ``True``, raise ``QueueEmptyError`` when all queues are empty
+        instead of waiting. Default is ``False``.
+    fallback : bool, optional
+        If ``True`` (default), fall back to the ``'fallback'`` queue when
+        both the default and ``missed_obs`` queues are empty.
+    time_limit : astropy.units.Quantity, optional
+        Gurobi wall-clock time limit per nightly ILP optimisation. Default
+        is 30 s.
+
+    Notes
+    -----
+    Queue fallback hierarchy each timestep:
+
+    1. Active timed queue (e.g. EP window)
+    2. ``'default'`` queue (Gurobi-scheduled)
+    3. ``'missed_obs'`` queue (greedy, requests that were not reached)
+    4. ``'fallback'`` queue (if *fallback* is ``True``)
+
+    If all queues are empty and *raise_queue_empty* is ``False``, the
+    simulation waits one timestep and retries.
+    """
 
     if profile:
         try:

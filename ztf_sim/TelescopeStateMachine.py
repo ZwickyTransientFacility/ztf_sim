@@ -11,6 +11,43 @@ from .constants import BASE_DIR, P48_loc, FILTER_IDS
 from .constants import READOUT_TIME, EXPOSURE_TIME, FILTER_CHANGE_TIME, slew_time
 
 class TelescopeStateMachine(Machine):
+    """State machine modelling the P48 telescope during simulated observations.
+
+    Built on the ``transitions`` library. Tracks the physical state of the
+    telescope and advances simulated time as it slews, changes filters, and
+    exposes. Also handles night/weather checks via `can_observe`.
+
+    States
+    ------
+    ready
+        Telescope is idle and can accept the next command.
+    slewing
+        Telescope axes are moving to a new field.
+    changing_filters
+        The filter wheel is rotating to a new filter.
+    exposing
+        Detector is integrating.
+    cant_observe
+        Telescope cannot observe (daytime or weather).
+
+    Attributes
+    ----------
+    current_time : astropy.time.Time
+        Simulated UTC clock.
+    current_ha : astropy.units.Quantity
+        Current hour angle of the telescope pointing.
+    current_dec : astropy.units.Quantity
+        Current declination of the telescope pointing.
+    current_domeaz : astropy.units.Quantity
+        Current dome azimuth.
+    current_filter_id : int
+        Currently mounted filter (1 = g, 2 = r, 3 = i).
+    current_zenith_seeing : astropy.units.Quantity
+        Current zenith seeing FWHM.
+    historical_observability_year : int or None
+        PTF historical weather year used for weather simulation (2009–2015),
+        or ``None`` for perfect-weather runs.
+    """
 
     def __init__(self, current_time=Time('2018-01-01', scale='utc',
                                          location=P48_loc),
@@ -20,6 +57,31 @@ class TelescopeStateMachine(Machine):
                  current_zenith_seeing=2.0 * u.arcsec,
                  target_skycoord=None,
                  historical_observability_year=2015):
+        """Initialise the telescope state machine.
+
+        Parameters
+        ----------
+        current_time : astropy.time.Time, optional
+            Starting simulation time. Default is 2018-01-01 UTC at P48.
+        current_ha : astropy.units.Quantity, optional
+            Starting hour angle. Default is 0 deg (on meridian).
+        current_dec : astropy.units.Quantity, optional
+            Starting declination. Default is 33.36 deg (Palomar latitude).
+        current_domeaz : astropy.units.Quantity, optional
+            Starting dome azimuth. Default is 180 deg (south).
+        current_filter_id : int, optional
+            Starting filter. Default is 2 (r-band).
+        filters : list of int, optional
+            All valid filter IDs. Default is ``FILTER_IDS``.
+        current_zenith_seeing : astropy.units.Quantity, optional
+            Starting zenith seeing FWHM. Default is 2.0 arcsec.
+        target_skycoord : astropy.coordinates.SkyCoord or None, optional
+            Sky coordinate of the current target. Default is ``None``.
+        historical_observability_year : int or None, optional
+            PTF observing year (2009–2015) to use for weather simulation. Set
+            to ``None`` for perfect-weather (twilight-only) simulations.
+            Default is 2015.
+        """
 
         # Define some states.
         states = ['ready', 'cant_observe',
@@ -72,7 +134,20 @@ class TelescopeStateMachine(Machine):
         #self.logger = logging.getLogger('transitions')
 
     def current_state_dict(self):
-        """Return current state parameters in a dictionary"""
+        """Return a snapshot of the current telescope state as a dictionary.
+
+        Returns
+        -------
+        dict
+            Keys: ``'current_time'`` (astropy.time.Time),
+            ``'current_ha'`` (astropy.units.Quantity),
+            ``'current_dec'`` (astropy.units.Quantity),
+            ``'current_domeaz'`` (astropy.units.Quantity),
+            ``'current_filter_id'`` (int),
+            ``'current_zenith_seeing'`` (astropy.units.Quantity),
+            ``'filters'`` (list of int),
+            ``'target_skycoord'`` (astropy.coordinates.SkyCoord or None).
+        """
         return {'current_time': self.current_time,
                 'current_ha': self.current_ha,
                 'current_dec': self.current_dec,
@@ -83,7 +158,19 @@ class TelescopeStateMachine(Machine):
                 'target_skycoord': self.target_skycoord}
 
     def can_observe(self):
-        """Check for night and weather"""
+        """Check whether the telescope can currently observe.
+
+        First tests the 12-degree evening/morning twilight constraint. If the
+        Sun is above −12°, fast-forwards ``current_time`` to the next 12-degree
+        evening twilight. If a ``historical_observability_year`` is set, also
+        consults the PTF weather database; on a weathered-out block,
+        fast-forwards to the end of the current block.
+
+        Returns
+        -------
+        bool
+            ``True`` if the telescope can observe at ``current_time``.
+        """
         self.logger.info(self.current_time.iso)
 
         # start by checking for 12 degree twilight
@@ -117,7 +204,19 @@ class TelescopeStateMachine(Machine):
             return False
 
     def slew_allowed(self, target_skycoord):
-        """Check that slew is within allowed limits"""
+        """Check whether a slew to *target_skycoord* is within telescope limits.
+
+        Parameters
+        ----------
+        target_skycoord : astropy.coordinates.SkyCoord
+            Target sky coordinate.
+
+        Returns
+        -------
+        bool
+            ``True`` if the target is reachable. ``False`` if the target
+            altitude is below 10° or the declination is outside [−35°, +90°].
+        """
 
         if (skycoord_to_altaz(target_skycoord, self.current_time).alt
             < (10. * u.deg)):
@@ -130,6 +229,24 @@ class TelescopeStateMachine(Machine):
 
     def process_slew(self, target_skycoord,
                      readout_time=READOUT_TIME):
+        """Advance time and update pointing after a slew.
+
+        Evaluates the HA, Dec, and dome axes independently using the P48 slew
+        model and takes the maximum. Advances ``current_time`` by
+        ``max(axis_slew_times, readout_time)``. Updates ``current_ha``,
+        ``current_dec``, and ``current_domeaz`` to the post-slew values (HA
+        and dome Az are recomputed after the slew completes, accounting for
+        sky rotation during the slew).
+
+        Parameters
+        ----------
+        target_skycoord : astropy.coordinates.SkyCoord
+            Sky position to slew to.
+        readout_time : astropy.units.Quantity, optional
+            Readout time of the previous exposure, which runs concurrently
+            with the slew. Sets the minimum inter-exposure gap. Default is
+            ``READOUT_TIME``.
+        """
         # if readout_time is nonzero, assume we are reading during the slew,
         # which sets the lower limit for the time between exposures.
 
@@ -168,11 +285,35 @@ class TelescopeStateMachine(Machine):
 
     def process_filter_change(self, target_filter_id,
                               filter_change_time=FILTER_CHANGE_TIME):
+        """Execute a filter change, advancing the clock if the filter differs.
+
+        If ``current_filter_id`` already equals *target_filter_id*, no time
+        is added.
+
+        Parameters
+        ----------
+        target_filter_id : int
+            Filter to switch to (1 = g, 2 = r, 3 = i).
+        filter_change_time : astropy.units.Quantity, optional
+            Time required to change the filter. Default is
+            ``FILTER_CHANGE_TIME`` (135 s).
+        """
         if self.current_filter_id != target_filter_id:
             self.current_filter_id = target_filter_id
             self.current_time += filter_change_time
 
     def process_exposure(self, exposure_time):
+        """Advance time by *exposure_time* and update HA/dome for tracking.
+
+        After the exposure completes, recalculates the current HA and dome
+        azimuth of ``target_skycoord`` at the new ``current_time`` to account
+        for sky rotation during the integration.
+
+        Parameters
+        ----------
+        exposure_time : astropy.units.Quantity
+            Duration of the exposure.
+        """
         # annoyingly, transitions doesn't let me modify object
         # variables in the trigger functions themselves
         self.current_time += exposure_time
@@ -184,12 +325,38 @@ class TelescopeStateMachine(Machine):
         self.current_domeaz = target_domeaz
 
     def wait(self, wait_time=EXPOSURE_TIME):
+        """Advance the simulation clock without taking an observation.
+
+        Used when the queue is empty, a slew fails, or the telescope is in
+        ``cant_observe`` state.
+
+        Parameters
+        ----------
+        wait_time : astropy.units.Quantity, optional
+            Duration to wait. Default is ``EXPOSURE_TIME`` (30 s).
+        """
         self.current_time += wait_time
 
 
 class PTFObservabilityDB(object):
+    """Historical PTF weather database for realistic weather simulation.
+
+    Loads PTF observing records binned into 20-minute time blocks
+    (``data/weather_blocks_20min.db``) and checks whether PTF was actively
+    observing at the equivalent time in a specified historical year.
+
+    Attributes
+    ----------
+    df : pandas.DataFrame
+        Block-level PTF observation counts, indexed by ``(year, block)``.
+    """
 
     def __init__(self):
+        """Load the PTF weather database into memory.
+
+        Reads ``data/weather_blocks_20min.db`` via `df_read_from_sqlite` and
+        sets the index to ``(year, block)``.
+        """
         df = df_read_from_sqlite('weather_blocks')
         self.df = df.set_index(['year', 'block'])
 
@@ -207,8 +374,11 @@ class PTFObservabilityDB(object):
             minimum number of observations per block to count as observable
 
         Returns
-        ----------
-        boolean if nobs > nobs_min
+        -------
+        bool
+            ``True`` if the number of PTF observations in the matching block
+            is greater than or equal to *nobs_min*; ``False`` if the block is
+            absent (no observations) or below the threshold.
         """
 
         assert((year >= 2009) and (year <= 2015))

@@ -83,6 +83,37 @@ PIXEL_SCALE = 1.006  # arcsec/pixel
 
 
 def slew_time(axis, angle):
+    """Compute slew time for one telescope axis given a slew angle.
+
+    Uses a trapezoidal velocity profile: the telescope accelerates to v_max,
+    travels at constant speed, then decelerates. When the angle is too small
+    to reach v_max a triangular profile is used instead.
+
+    Parameters
+    ----------
+    axis : str
+        Telescope axis to slew. One of ``'ha'``, ``'dec'``, or ``'dome'``.
+    angle : astropy.units.Quantity
+        Angular distance to slew, in degrees. May be a scalar or array.
+
+    Returns
+    -------
+    astropy.units.Quantity
+        Slew duration(s) in seconds with the same shape as *angle*. A
+        ``SETTLE_TIME`` is added to every non-zero slew.
+
+    Notes
+    -----
+    Trapezoidal profile (angle large enough to reach v_max)::
+
+        t = 0.5 * (2 * angle / v_max + t_acc + t_dec)
+
+    Triangular profile (angle too small to reach v_max)::
+
+        t = sqrt(2 * angle * (1/accel + 1/decel))
+
+    Axis parameters are read from ``P48_slew_pars``.
+    """
     vmax = P48_slew_pars[axis]['vmax']
     acc = P48_slew_pars[axis]['accel']
     dec = P48_slew_pars[axis]['decel']
