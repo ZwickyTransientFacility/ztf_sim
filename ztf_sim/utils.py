@@ -18,6 +18,23 @@ from .magnitudes import limiting_mag
 
 def df_write_to_sqlite(df, dbname, tablename=None,
                        directory='data', **kwargs):
+    """Write a DataFrame to a SQLite database table.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Data to write.
+    dbname : str
+        Base name of the SQLite file (without ``.db`` extension). The file
+        path is constructed as ``BASE_DIR/../{directory}/{dbname}.db``.
+    tablename : str or None, optional
+        Table name inside the database. Defaults to *dbname* if ``None``.
+    directory : str, optional
+        Subdirectory relative to the package data root. Default is
+        ``'data'``.
+    **kwargs
+        Passed to ``pandas.DataFrame.to_sql``.
+    """
 
     if tablename is None:
         tablename = dbname
@@ -28,6 +45,25 @@ def df_write_to_sqlite(df, dbname, tablename=None,
 
 def df_read_from_sqlite(dbname, tablename=None,
                         directory='data', **kwargs):
+    """Read a table from a SQLite database into a DataFrame.
+
+    Parameters
+    ----------
+    dbname : str
+        Base name of the SQLite file (without ``.db`` extension).
+    tablename : str or None, optional
+        Table name inside the database. Defaults to *dbname* if ``None``.
+    directory : str, optional
+        Subdirectory relative to the package data root. Default is
+        ``'data'``.
+    **kwargs
+        Passed to ``pandas.read_sql``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Contents of the requested table.
+    """
 
     if tablename is None:
         tablename = dbname
@@ -39,7 +75,23 @@ def df_read_from_sqlite(dbname, tablename=None,
 
 
 def HA_to_RA(ha, time):
-    """convert hour angle to ra. """
+    """Convert hour angle to right ascension at the given time.
+
+    Uses ``RA = LST - HA`` at Palomar Observatory.
+
+    Parameters
+    ----------
+    ha : astropy.units.Quantity
+        Hour angle in degrees (or any angular unit).
+    time : astropy.time.Time
+        Observation time. If ``time.location`` is ``None``, it is set to
+        ``P48_loc`` in-place.
+
+    Returns
+    -------
+    astropy.coordinates.Angle
+        Right ascension in degrees, wrapped to [0°, 360°].
+    """
 
     if time.location is None:
         time.location = P48_loc
@@ -54,7 +106,23 @@ def HA_to_RA(ha, time):
 
 
 def RA_to_HA(ra, time):
-    """convert ra to hour angle. """
+    """Convert right ascension to hour angle at the given time.
+
+    Uses ``HA = LST - RA`` at Palomar Observatory.
+
+    Parameters
+    ----------
+    ra : astropy.units.Quantity
+        Right ascension in degrees (or any angular unit).
+    time : astropy.time.Time
+        Observation time. If ``time.location`` is ``None``, it is set to
+        ``P48_loc`` in-place.
+
+    Returns
+    -------
+    astropy.coordinates.Angle
+        Hour angle in degrees, wrapped to [0°, 360°].
+    """
 
     if time.location is None:
         time.location = P48_loc
@@ -69,34 +137,141 @@ def RA_to_HA(ra, time):
 
 
 def next_10deg_evening_twilight(time):
+    """Return the next 10-degree evening twilight time at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −10° at sunset.
+    """
     return P48_Observer.sun_set_time(time, which='next',
                                      horizon=-10*u.degree)
 
 def next_10deg_morning_twilight(time):
+    """Return the next 10-degree morning twilight time at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −10° at sunrise.
+    """
     return P48_Observer.sun_rise_time(time, which='next',
                                      horizon=-10*u.degree)
 
 def previous_12deg_evening_twilight(time):
+    """Return the most recent 12-degree (nautical) evening twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the previous Sun altitude = −12° at sunset.
+    """
     return P48_Observer.twilight_evening_nautical(time, which='previous')
 
 def next_12deg_evening_twilight(time):
+    """Return the next 12-degree (nautical) evening twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −12° at sunset.
+    """
     return P48_Observer.twilight_evening_nautical(time, which='next')
 
 def next_12deg_morning_twilight(time):
+    """Return the next 12-degree (nautical) morning twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −12° at sunrise.
+    """
     return P48_Observer.twilight_morning_nautical(time, which='next')
 
 def next_18deg_morning_twilight(time):
+    """Return the next 18-degree (astronomical) morning twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −18° at sunrise.
+    """
     return P48_Observer.twilight_morning_astronomical(time, which='next')
 
 def previous_18deg_evening_twilight(time):
+    """Return the most recent 18-degree (astronomical) evening twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the previous Sun altitude = −18° at sunset.
+    """
     return P48_Observer.twilight_evening_astronomical(time, which='previous')
 
 def next_18deg_evening_twilight(time):
+    """Return the next 18-degree (astronomical) evening twilight at Palomar.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Reference time.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time of the next Sun altitude = −18° at sunset.
+    """
     return P48_Observer.twilight_evening_astronomical(time, which='next')
 
 def is_night_remaining(time):
-    """For automatically making skymaps from queues, we want to detect when 
-    observations are still possible before the next recompute"""
+    """Check whether dark time still remains before the next morning twilight.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Current simulation time.
+
+    Returns
+    -------
+    bool
+        ``True`` if *time* is before the next 12-degree morning twilight for
+        the night beginning at ``floor(time.mjd)``.
+    """
     Time_night_start = Time(np.floor(time.mjd), format='mjd')
     morning_twilight = next_12deg_morning_twilight(Time_night_start)
 
@@ -104,32 +279,115 @@ def is_night_remaining(time):
 
 
 def skycoord_to_altaz(skycoord, time):
+    """Transform an astropy SkyCoord to altitude–azimuth at Palomar.
+
+    Parameters
+    ----------
+    skycoord : astropy.coordinates.SkyCoord
+        ICRS sky coordinate.
+    time : astropy.time.Time
+        Observation time.
+
+    Returns
+    -------
+    astropy.coordinates.SkyCoord
+        Coordinate in the AltAz frame at ``P48_loc``.
+    """
     return skycoord.transform_to(coord.AltAz(obstime=time, location=P48_loc))
 
 
 def airmass_to_zenith_angle(airmass):
+    """Convert airmass to zenith angle.
+
+    Uses the plane-parallel approximation ``X = 1 / cos(z)``.
+
+    Parameters
+    ----------
+    airmass : float or array-like
+        Airmass value(s).
+
+    Returns
+    -------
+    astropy.units.Quantity
+        Zenith angle in degrees.
+    """
     return np.degrees(np.arccos(1. / airmass)) * u.deg
 
 # cf altaz.secz.value
 
 
 def airmass_to_altitude(airmass):
+    """Convert airmass to altitude above the horizon.
+
+    Parameters
+    ----------
+    airmass : float or array-like
+        Airmass value(s).
+
+    Returns
+    -------
+    astropy.units.Quantity
+        Altitude in degrees (= 90° − zenith angle).
+    """
     return 90. * u.deg - airmass_to_zenith_angle(airmass)
 
 
 def zenith_angle_to_airmass(zenith_angle):
+    """Convert zenith angle to airmass using the plane-parallel approximation.
+
+    Parameters
+    ----------
+    zenith_angle : float or array-like
+        Zenith angle in degrees.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Airmass ``X = 1 / cos(zenith_angle)``.
+    """
     return 1. / np.cos(np.radians(zenith_angle))
 
 
 def altitude_to_airmass(altitude):
+    """Convert altitude to airmass using the plane-parallel approximation.
+
+    Parameters
+    ----------
+    altitude : float or array-like
+        Pointing altitude in degrees.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Airmass ``X = 1 / cos(90° − altitude)``.
+    """
     za = 90. - altitude  # if I make 90 a Quantity I have DataFrame troubles
     return zenith_angle_to_airmass(za)
 
 def maximum_altitude(dec, lat=P48_loc.lat.degree):
-    """Compute the altitude of a source with declination dec as it transits the
-    meridian.
-    
-    dec: Pandas DataFrame, which may be Multi-Indexed"""
+    """Compute the transit altitude for a source at the given declination.
+
+    Parameters
+    ----------
+    dec : float or pandas.Series
+        Source declination in degrees.
+    lat : float, optional
+        Observer latitude in degrees. Default is the P48 latitude.
+
+    Returns
+    -------
+    float or pandas.Series
+        Transit altitude in degrees. Same type and shape as *dec*.
+
+    Notes
+    -----
+    Let ``px = 90 - dec`` and ``pz = 90 - lat``.
+
+    * If ``px >= pz`` (source transits south of zenith):
+      ``alt = 90 - lat + dec``
+    * If ``px < pz`` (source transits north of zenith):
+      ``alt = 90 + lat - dec``
+    """
 
     px = 90 - dec
     pz = 90 - lat
@@ -148,23 +406,71 @@ def maximum_altitude(dec, lat=P48_loc.lat.degree):
 
 
 def seeing_at_zenith(pointing_seeing, altitude):
-    """Convert seeing at current pointing to zenith by multiplying by X^-3/5"""
+    """Convert seeing at the pointing altitude to zenith seeing.
+
+    Parameters
+    ----------
+    pointing_seeing : float or array-like
+        Seeing FWHM at the pointing altitude (arcsec).
+    altitude : float or array-like
+        Pointing altitude in degrees.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Zenith seeing FWHM in the same units as *pointing_seeing*.
+    """
     X = altitude_to_airmass(altitude)
     return pointing_seeing * (X**(-3. / 5.))
 
 
 def seeing_at_pointing(zenith_seeing, altitude):
-    """Convert zenith seeing to seeing at current altitude by multiplying by
-    X^3/5"""
+    """Convert zenith seeing to seeing at the pointing altitude.
+
+    Parameters
+    ----------
+    zenith_seeing : float or array-like
+        Zenith seeing FWHM (arcsec, or any consistent unit).
+    altitude : float or array-like
+        Pointing altitude in degrees.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Seeing FWHM at the pointing altitude, in the same units as
+        *zenith_seeing*.
+    """
     X = altitude_to_airmass(altitude)
     return zenith_seeing * (X**(3. / 5.))
 
 
 def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
                              latitude=P48_loc.lat, twilight=coord.Angle(12. * u.degree)):
-    """Compute the hours of darkness (greater than t degrees twilight)
+    """Estimate the hours of darkness (Sun below −twilight) for a given night.
 
-    The main approximation is a casual treatment of the time since the solstice"""
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Any time within the night of interest.
+    axis : astropy.coordinates.Angle, optional
+        Obliquity of the ecliptic (Earth's axial tilt). Default is 23.44°.
+    latitude : astropy.coordinates.Angle, optional
+        Observer latitude. Default is the P48 latitude.
+    twilight : astropy.coordinates.Angle, optional
+        Twilight depression angle. Default is 12° (nautical twilight).
+
+    Returns
+    -------
+    astropy.units.Quantity
+        Approximate hours of darkness as an array (same shape as *time*
+        after ``np.atleast_1d``).
+
+    Notes
+    -----
+    Uses a day-of-year approximation relative to the 2016 winter solstice.
+    Accurate to roughly ±15 minutes for typical use; prefer
+    ``astroplan`` twilight functions for precision work.
+    """
 
     # would be better to actually compute a recent solstice
     solstice = Time('2016-12-21')
@@ -188,6 +494,34 @@ def approx_hours_of_darkness(time, axis=coord.Angle(23.44 * u.degree),
 
 
 def altitude_to_fwhm(altitude, filternum):
+    """Estimate seeing FWHM from pointing altitude using an empirical fit to PTF data.
+
+    Parameters
+    ----------
+    altitude : float
+        Pointing altitude in degrees.
+    filternum : int
+        Filter identifier (1 = g, 2 = r, 3 = i). g and i use the same fit
+        as they have sparse PTF data.
+
+    Returns
+    -------
+    float
+        Predicted FWHM in arcseconds.
+
+    Raises
+    ------
+    NotImplementedError
+        If *filternum* is not 1, 2, or 3.
+
+    Notes
+    -----
+    Coefficients from a linear fit to PTF DIQ data (see
+    ``notebooks/plot_sky_brightness_model.ipynb``):
+
+    * g / i : ``FWHM = 3.258 - 0.00925 * altitude``
+    * r     : ``FWHM = 3.049 - 0.0117 * altitude``
+    """
     # values from linear fit to PTF data: in
     # notebooks/plot_sky_brightness_model.ipynb
 
@@ -202,9 +536,19 @@ def altitude_to_fwhm(altitude, filternum):
 
 
 def bin_ptf_obstimes(time_block_size=TIME_BLOCK_SIZE):
-    """bin an input list of PTF exposure times (all filters,
-    including H-alpha) into
-    blocks to use for weather analysis."""
+    """Bin PTF exposure times into blocks and write to the weather SQLite database.
+
+    Reads PTF MJD timestamps from ``data/mjd.txt.gz``, assigns each exposure
+    to a ``(year, block_index)`` bin, counts the number of exposures per bin,
+    and writes the result to ``data/weather_blocks.db`` via
+    `df_write_to_sqlite`. This is a one-time utility used to build the
+    historical weather database consumed by `PTFObservabilityDB`.
+
+    Parameters
+    ----------
+    time_block_size : astropy.units.Quantity, optional
+        Duration of each time block. Default is ``TIME_BLOCK_SIZE`` (30 min).
+    """
 
     df = pd.read_table(BASE_DIR + '../data/mjd.txt.gz', sep='|',
                        names=['expMJD'],
@@ -222,8 +566,29 @@ def bin_ptf_obstimes(time_block_size=TIME_BLOCK_SIZE):
 
 
 def block_index(time, time_block_size=TIME_BLOCK_SIZE):
-    """convert an astropy time object into a bin index for years broken up
-    in time_block_size chunks."""
+    """Convert an astropy Time to an integer block index within the current year.
+
+    The block index counts 30-minute (or *time_block_size*) bins since the
+    start of the calendar year.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Input time(s).
+    time_block_size : astropy.units.Quantity, optional
+        Block duration. Default is ``TIME_BLOCK_SIZE`` (30 min).
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Block index for each element of *time*.
+
+    Notes
+    -----
+    Formula::
+
+        block = floor((time.mjd - year_start_mjd) * (1440 / block_size_min))
+    """
 
     # get the time at the start of each year
     year = np.floor(time.decimalyear)
@@ -240,13 +605,29 @@ def block_index(time, time_block_size=TIME_BLOCK_SIZE):
 
 def block_index_to_time(block, time_year, where='mid',
                         time_block_size=TIME_BLOCK_SIZE):
-    """Convert a block index (or array of indicies) back into astropy Time.
+    """Convert a block index (or array of indices) back to astropy Time.
 
-    block : integer or array of integers
-    time_year : astropy.Time
-        any time in the current year
-    where : {'start', 'mid', 'end'}
-        position in block to compute the time"""
+    Parameters
+    ----------
+    block : int or array-like of int
+        Block index within the year.
+    time_year : astropy.time.Time
+        Any time in the target year (only the year component is used).
+    where : {'start', 'mid', 'end'}, optional
+        Which part of the block to return. Default is ``'mid'``.
+    time_block_size : astropy.units.Quantity, optional
+        Block duration. Default is ``TIME_BLOCK_SIZE``.
+
+    Returns
+    -------
+    astropy.time.Time
+        Time at the requested position within the block(s).
+
+    Raises
+    ------
+    AssertionError
+        If *where* is not one of ``'start'``, ``'mid'``, ``'end'``.
+    """
 
     assert (where in ['start', 'mid', 'end'])
 
@@ -265,7 +646,26 @@ def block_index_to_time(block, time_year, where='mid',
 
 
 def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
-    """Return block numbers and midpoint times for a given night."""
+    """Return block indices and midpoint times for the night containing *time*.
+
+    The night is defined from 12-degree evening twilight to 12-degree morning
+    twilight at Palomar. If the night has already started (evening twilight is
+    in the past), the previous evening twilight is used.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Any time associated with the night of interest.
+    time_block_size : astropy.units.Quantity, optional
+        Block duration. Default is ``TIME_BLOCK_SIZE``.
+
+    Returns
+    -------
+    blocks : numpy.ndarray of int
+        Block indices from evening to morning twilight (inclusive).
+    times : astropy.time.Time
+        Midpoint times of each block.
+    """
 
     evening_twilight = next_12deg_evening_twilight(time)
     morning_twilight = next_12deg_morning_twilight(time)
@@ -289,9 +689,35 @@ def nightly_blocks(time, time_block_size=TIME_BLOCK_SIZE):
     return blocks, times
 
 def block_use_fraction(block_index, obs_start_time, obs_end_time):
-    """Given a block index and Times specifying the start and end of an observation window, return the fraction of the block covered by the window.
-    
-    Scalars only for now"""
+    """Compute the fraction of a block covered by an observation window.
+
+    Handles four cases: the window completely covers the block, the window
+    is entirely within the block, the window starts inside and ends later,
+    and the window starts earlier and ends inside.
+
+    Parameters
+    ----------
+    block_index : int
+        Index of the block to evaluate.
+    obs_start_time : astropy.time.Time
+        Start of the observation window.
+    obs_end_time : astropy.time.Time
+        End of the observation window.
+
+    Returns
+    -------
+    float
+        Fraction of the block (0–1) occupied by the observation window.
+
+    Raises
+    ------
+    AssertionError
+        If no case matches (should never occur for valid inputs).
+
+    Notes
+    -----
+    Only scalar block indices are supported.
+    """
 
     # obs_start_time is just providing the year here
     block_tstart = block_index_to_time(block_index, obs_start_time,
@@ -326,15 +752,58 @@ def block_use_fraction(block_index, obs_start_time, obs_end_time):
 
 
 def scalar_len(x):
-    """Convenience function to sanitize potential scalars or arrays
-    so they can return a len"""
+    """Return ``len(np.atleast_1d(x))`` to handle scalar or array inputs.
+
+    Parameters
+    ----------
+    x : scalar or array-like
+        Input value.
+
+    Returns
+    -------
+    int
+        Length of *x* after promoting it to a 1-D array.
+    """
     return len(np.atleast_1d(x))
 
 
 def compute_limiting_mag(df, time, sky, filter_id=None):
-    """compute limiting magnitude based on sky brightness and seeing
-    
-    df is a DataFrame of fields"""
+    """Compute the 5σ limiting magnitude for all fields in a DataFrame.
+
+    Predicts sky brightness with *sky*, computes the seeing at each pointing
+    altitude, and calls `limiting_mag`. Applies a per-filter renormalisation
+    so that g- and i-band magnitudes span the same dynamic range as r-band
+    for use in the Gurobi metric. Also locks out fields that are too low
+    (below MAX_AIRMASS altitude), within 20° of the Moon, or violate the
+    P48 Reed pointing limits.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Fields to evaluate. Required columns: ``ra``, ``dec``, ``altitude``,
+        ``azimuth``, ``filter_id`` (unless overridden by *filter_id*).
+    time : astropy.time.Time
+        Block midpoint time (used for Sun/Moon position).
+    sky : SkyBrightness or FakeSkyBrightness
+        Sky brightness model.
+    filter_id : int or None, optional
+        If provided, override the ``'filter_id'`` column in *df*. Default is
+        ``None`` (use the column as-is).
+
+    Returns
+    -------
+    limiting_mag : pandas.Series of float
+        5σ limiting AB magnitude per field. Fields violating any constraint
+        receive a value of −99.
+    sky_brightness : pandas.Series of float
+        Predicted sky surface brightness in AB mag arcsec⁻².
+
+    Raises
+    ------
+    ValueError
+        If any pointing has a Sun altitude above −6° (inside 6-degree
+        twilight).
+    """
 
     # copy df so we can edit the filter id if desired
     if filter_id is not None:
@@ -453,11 +922,26 @@ def compute_limiting_mag(df, time, sky, filter_id=None):
     return df['limiting_mag'], df['sky_brightness']
 
 def _ptf_to_sqlite():
-    """Convert observation history SQL dump from IPAC db to OpSim db format.
+    """Convert PTF observation history from an IPAC SQL dump to OpSim format.
 
+    Reads the main PTF dump (``data/opsim_dump.txt.gz``), sky-brightness
+    dump (``data/opsim_dump_sky.txt.gz``), and limiting-magnitude dump, then
+    merges them, adds OpSim-compatible derived columns, and writes the result
+    to ``data/ptf.db`` via `df_write_to_sqlite`.
+
+    This is a one-time utility function and is not part of the normal
+    simulation workflow. It is fragile and assumes specific column formats.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Merged PTF observation table.
+
+    Notes
+    -----
+    Schema reference:
     https://confluence.lsstcorp.org/display/SIM/Summary+Table+Column+Descriptions
-
-    Fragile, as it assumes the formats below--not for general use."""
+    """
 
     # main dump
     # e.expid, e.prid, f.ptffield, f.objrad, f.objdecd, e.fid, e.obsmjd,
@@ -533,7 +1017,19 @@ def _ptf_to_sqlite():
 
 
 def export_pointings_to_surace(dbname, **kwargs):
-    """put pointing data in format Jason Surace wants for his image simulator"""
+    """Export pointing data to a space-delimited text file for the image simulator.
+
+    Reads the ``Summary`` table from ``../sims/{dbname}.db`` and writes
+    selected columns (``ra``, ``dec``, ``fieldID``, ``filter``,
+    ``imagetype``, ``expMJD``) to ``../sims/{dbname}.txt``.
+
+    Parameters
+    ----------
+    dbname : str
+        Base name of the simulation database (without ``.db`` extension).
+    **kwargs
+        Passed to ``pandas.read_sql`` (e.g., ``chunksize``).
+    """
 
     engine = create_engine('sqlite:///../sims/{}.db'.format(dbname))
     df = pd.read_sql('Summary', engine, **kwargs)

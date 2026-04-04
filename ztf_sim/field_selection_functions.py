@@ -27,19 +27,109 @@ msip_nobs_per_night = 2
 
 def phase_IV_partnership_selection(time, obs_log, other_program_fields, fields,
                              skymaps):
-    """Select partnership fields"""
+    """Select ZTF fields for the Phase IV collaboration partnership program.
+
+    Delegates to `phase_IV_selection` with ``subprogram='Partnership'``.
+    Excludes fields in the Rubin 1DC footprint (IDs 542–881) and divides the
+    remaining candidates into galaxy-targeted, 1-day cadence, 2-day cadence,
+    and 4-day cadence tiers.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Mapping ``(program_id, subprogram_name) -> dict`` with at least key
+        ``'requests_allowed'``.
+    fields : Fields
+        Pre-initialised ZTF field grid (observability already computed).
+    skymaps : dict
+        Registered skymaps (not used by this function).
+
+    Returns
+    -------
+    list of int
+        Field IDs selected for tonight's partnership observations.
+    """
     return phase_IV_selection(time, obs_log, other_program_fields, fields,
                               skymaps, subprogram='Partnership')
 
 def phase_IV_Caltech_selection(time, obs_log, other_program_fields, fields, skymaps):
-    """Select Caltech fields"""
+    """Select ZTF fields for the Phase IV Caltech program.
+
+    Delegates to `phase_IV_selection` with ``subprogram='Caltech'``.
+    Uses the Jacobson-Galan 2026A candidate field list and excludes fields
+    already selected by `phase_IV_partnership_selection`.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Mapping ``(program_id, subprogram_name) -> dict`` with at least key
+        ``'requests_allowed'``.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used by this function).
+
+    Returns
+    -------
+    list of int
+        Field IDs selected for tonight's Caltech observations.
+    """
     return phase_IV_selection(time, obs_log, other_program_fields, fields,
                               skymaps, subprogram='Caltech')
 
 
 def phase_IV_selection(time, obs_log, other_program_fields, fields,
         skymaps, subprogram='Partnership', silent=False):
-    """Select partnership HC or Caltech 1DC fields"""
+    """Select fields for Phase IV partnership or Caltech programs.
+
+    Filters the candidate pool by observability, then divides it into tiers
+    based on how recently each field was last observed:
+
+    * **Partnership** – galaxy-targeted fields first (top third), then
+      2-day-cadence (fields observed > 1.5 days ago), then 4-day-cadence
+      (> 3.5 days ago).
+    * **Caltech** – selects the most observable fields not already chosen by
+      the Partnership program tonight, optionally offset in the priority
+      list to reduce inter-program field thrashing.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Mapping ``(program_id, subprogram_name) -> dict`` with at least key
+        ``'requests_allowed'``.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used by this function).
+    subprogram : str, optional
+        ``'Partnership'`` or ``'Caltech'``. Default is ``'Partnership'``.
+    silent : bool, optional
+        If ``True``, suppress logging output. Used when called recursively to
+        obtain the Partnership list for Caltech exclusion. Default is
+        ``False``.
+
+    Returns
+    -------
+    list of int
+        Field IDs selected for tonight.
+
+    Raises
+    ------
+    ValueError
+        If *subprogram* is not ``'Partnership'`` or ``'Caltech'``.
+    """
 
     assert (subprogram in ['Partnership', 'Caltech'])
 
@@ -195,7 +285,33 @@ def phase_IV_selection(time, obs_log, other_program_fields, fields,
 
 def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
                              skymaps, silent=False):
-    """Use skymaps to select fields for inclusion."""
+    """Select MSIP fields using a gravitational-wave skymap probability map.
+
+    Requires a skymap registered within the last 7 days. Selects observable
+    primary-grid fields with high localisation probability, applying a 2-day
+    internight cadence constraint.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Mapping ``(program_id, subprogram_name) -> dict``.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps. If empty or all older than 7 days, falls back to
+        `msip_nss_selection_phaseii`.
+    silent : bool, optional
+        Suppress logging output. Default is ``False``.
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Field IDs selected for tonight's MSIP GW follow-up observations.
+    """
 
     observable_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
@@ -301,9 +417,34 @@ def msip_o4_skymap_selection(time, obs_log, other_program_fields, fields,
             
 
 
-def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields, 
+def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
                                skymaps, silent=False):
-    """Select MSIP NSS fields so we ensure lowdec coverage."""
+    """Select MSIP Northern Sky Survey fields for Phase II and later.
+
+    Selects observable primary-grid fields near the meridian tonight,
+    balancing fields that have never been observed (higher priority) against
+    those due for repeat visits according to a 2-day cadence.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Mapping ``(program_id, subprogram_name) -> dict``.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used by this function).
+    silent : bool, optional
+        Suppress logging output. Default is ``False``.
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Field IDs selected for tonight's MSIP NSS observations.
+    """
 
     candidate_nss_field_ids = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,
@@ -407,19 +548,90 @@ def msip_nss_selection_phaseii(time, obs_log, other_program_fields, fields,
 
 def partnership_HC_selection(time, obs_log, other_program_fields, fields,
                              skymaps):
-    """Select partnership HC fields"""
+    """Select high-cadence partnership fields (Phase II strategy).
+
+    Requires at least 2.5 hours of observability per field and schedules
+    4 visits per night.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
     return phase_II_selection(time, obs_log, other_program_fields, fields,
                               skymaps, subprogram='Partnership')
 
 def Caltech_1DC_selection(time, obs_log, other_program_fields, fields, skymaps):
-    """Select Caltech 1DC fields"""
+    """Select Caltech 1-day cadence fields (Phase II strategy).
+
+    Requires at least 1.5 hours of observability per field and schedules
+    2 visits per night. Delegates to `phase_II_selection` with
+    ``subprogram='Caltech'``.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
     return phase_II_selection(time, obs_log, other_program_fields, fields,
                               skymaps, subprogram='Caltech')
 
 
 def phase_II_selection(time, obs_log, other_program_fields, fields,
         skymaps, subprogram='Partnership', silent=False):
-    """Select partnership HC or Caltech 1DC fields"""
+    """Select partnership or Caltech fields using the Phase II strategy.
+
+    Ranks observable fields by priority tier and HA near midnight, selecting
+    the top *n* fields to fill the program's nightly allocation.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+    subprogram : str, optional
+        ``'Partnership'`` or ``'Caltech'``. Default is ``'Partnership'``.
+    silent : bool, optional
+        Suppress logging output. Default is ``False``.
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
 
     assert (subprogram in ['Partnership', 'Caltech'])
 
@@ -578,7 +790,31 @@ def phase_II_selection(time, obs_log, other_program_fields, fields,
 
 def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
         skymaps, silent=False):
-    """Select unobserved prioritized fields for Qin 2024"""
+    """Select fields from a priority-ordered candidate list (Qin 2024B program).
+
+    Prioritises fields that have never been observed, followed by fields due
+    for repeat visits according to their cadence requirements.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history for cadence queries.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+    silent : bool, optional
+        Suppress logging output. Default is ``False``.
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
 
     # candidate field IDS in priority order
     candidate_field_ids = [699, 372, 574, 651, 698, 650, 624, 575, 652, 321, 691, 322, 626, 653, 266, 406,
@@ -652,7 +888,31 @@ def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
 
 
 def srg_selection(time, obs_log, other_program_fields, fields, skymaps):
-    """Select SRG fields."""
+    """Select ZTF fields overlapping the SRG/eROSITA scanning footprint.
+
+    Delegates to `field_selection.srg.get_srg_fields` to compute the SRG
+    pointing for tonight (loaded from a pre-computed plan if available, or
+    computed from the antisolar spiral model as a fallback) and returns ZTF
+    fields within 5.25° of the SRG pointing centres.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history (not used directly).
+    other_program_fields : dict
+        Program allocation dict (not used directly).
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+
+    Returns
+    -------
+    list of int
+        Field IDs covering tonight's SRG footprint.
+    """
 
     # use the fields for multiple days so we can improve the sampling
     SRG_PAD_DAYS = 2
@@ -680,7 +940,26 @@ def srg_selection(time, obs_log, other_program_fields, fields, skymaps):
 
 
 def aam_caltech_june21(time, obs_log, other_program_fields, fields, skymaps):
-    """Select Ashish fields, June 2021."""
+    """Select Caltech fields for the June 2021 Ashish Mahabal program.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
 
     aam_fields = []
 
@@ -761,7 +1040,30 @@ def aam_caltech_june21(time, obs_log, other_program_fields, fields, skymaps):
 
 
 def msip_nss_selection(time, obs_log, other_program_fields, fields, skymaps):
-    """Select MSIP NSS fields so they don't overlap with other MSIP subprograms."""
+    """Select MSIP Northern Sky Survey fields (legacy Phase I strategy).
+
+    .. deprecated::
+        Superseded by `msip_nss_selection_phaseii`. Retained for
+        reproducibility of Phase I simulations.
+
+    Parameters
+    ----------
+    time : astropy.time.Time
+        Start of the current night.
+    obs_log : ObsLogger
+        Observation history.
+    other_program_fields : dict
+        Program allocation dict.
+    fields : Fields
+        Pre-initialised ZTF field grid.
+    skymaps : dict
+        Registered skymaps (not used).
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Selected field IDs.
+    """
 
     candidate_nss_fields = fields.select_field_ids(dec_range=[-30,90.],
                            grid_id=0,

@@ -16,10 +16,46 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME, EXPOSURE_TIME, READOUT_TIME
 
 
 class ObsLogger(object):
+    """Observation logger that writes pointings to a SQLite database.
+
+    The database schema follows the 2017 LSST OpSim format with ZTF-specific
+    additions. All history is also mirrored in the in-memory ``self.history``
+    DataFrame for fast cadence queries.
+
+    Attributes
+    ----------
+    log_name : str
+        Base name of the output database file (without ``.db`` extension).
+    survey_start_time : astropy.time.Time
+        Reference epoch; ``expDate`` is stored as seconds elapsed since this
+        time.
+    history : pandas.DataFrame
+        In-memory copy of the ``Summary`` table, updated after each
+        `log_pointing` call.
+    engine : sqlalchemy.engine.Engine
+        SQLAlchemy connection to the output SQLite database.
+    """
 
     def __init__(self, log_name, survey_start_time = Time('2018-01-01'),
             output_path = BASE_DIR+'../sims/',
             clobber = False):
+        """Open (or create) the observation log database.
+
+        Parameters
+        ----------
+        log_name : str
+            Base name for the output SQLite file. The file is written to
+            ``output_path/{log_name}.db``.
+        survey_start_time : astropy.time.Time, optional
+            Survey epoch used to compute ``expDate`` (seconds elapsed).
+            Default is 2018-01-01.
+        output_path : str, optional
+            Directory in which to write the database. Default is
+            ``../sims/`` relative to the package root.
+        clobber : bool, optional
+            If ``True``, drop and recreate the ``Field`` and ``Summary``
+            tables on open. Default is ``False``.
+        """
         self.log_name = log_name
         self.survey_start_time = survey_start_time
         self.prev_obs = None
@@ -34,6 +70,18 @@ class ObsLogger(object):
         self.history = pd.read_sql('Summary', self.engine)
 
     def create_fields_table(self, clobber=True):
+        """Create (or recreate) the ``Field`` reference table.
+
+        Populates the table from the ZTF field grid via `Fields`. If the
+        table already exists and *clobber* is ``False``, the method does
+        nothing.
+
+        Parameters
+        ----------
+        clobber : bool, optional
+            If ``True``, drop the existing ``Field`` table before creating a
+            new one. Default is ``True``.
+        """
 
         if clobber:
             # Drop table if it exists
@@ -76,6 +124,18 @@ class ObsLogger(object):
             df_min.to_sql('Field', self.engine, if_exists='replace')
 
     def create_pointing_log(self, clobber=True):
+        """Create (or recreate) the ``Summary`` pointing log table.
+
+        The table schema follows the 2017 LSST OpSim ``Summary`` format with
+        additional ZTF-specific columns (``totalRequestsTonight``,
+        ``metricValue``, ``subprogram``).
+
+        Parameters
+        ----------
+        clobber : bool, optional
+            If ``True``, drop the existing ``Summary`` table before creating
+            a new one. Default is ``True``.
+        """
 
         if clobber:
             # Drop table if it exists
@@ -127,6 +187,30 @@ class ObsLogger(object):
             )"""))
 
     def log_pointing(self, state, request):
+        """Record one completed observation to the database and in-memory history.
+
+        Derives all auxiliary quantities (celestial coordinates, Moon/Sun
+        positions, seeing at pointing, limiting magnitude) from *state* and
+        *request*, then appends a row to ``self.history`` and writes it to
+        the ``Summary`` table. Moon illumination is cached per night to avoid
+        repeated expensive recomputations.
+
+        Parameters
+        ----------
+        state : dict
+            Telescope state dict as returned by
+            ``TelescopeStateMachine.current_state_dict()`` *after* the
+            exposure completes. Must include ``'current_time'`` and optionally
+            ``'current_zenith_seeing'``.
+        request : dict
+            Observation specification returned by a queue manager. Required
+            keys: ``'request_id'``, ``'target_program_id'``,
+            ``'target_field_id'``, ``'target_ra'``, ``'target_dec'``,
+            ``'target_filter_id'``, ``'target_exposure_time'``,
+            ``'target_sky_brightness'``, ``'target_limiting_mag'``,
+            ``'target_total_requests_tonight'``, ``'target_metric_value'``,
+            ``'target_subprogram_name'``.
+        """
 
         record = {}
         # don't use request_id here, but
@@ -250,7 +334,19 @@ class ObsLogger(object):
         self.prev_obs = record
 
     def _mjd_filter_history(self, mjd_range):
-        """If mjd_range is not `None`, return a dataframe for the provided range"""
+        """Return a time-filtered slice of the observation history.
+
+        Parameters
+        ----------
+        mjd_range : list of float or None
+            ``[start_mjd, stop_mjd]`` (inclusive). If ``None``, the full
+            history is returned.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Filtered rows of ``self.history``.
+        """
 
         if mjd_range is not None:
             assert mjd_range[0] <= mjd_range[1]
@@ -263,8 +359,22 @@ class ObsLogger(object):
         return hist
 
     def _equivalent_obs(self, grp):
-        """Given a dataframe groupby object, convert to equivalent standard obserations
-        Returns a dict with keys determined by the group"""
+        """Convert grouped observations to equivalent standard-exposure counts.
+
+        Accounts for both exposure time and per-observation readout overhead
+        when computing the equivalent number of 30-s standard exposures.
+
+        Parameters
+        ----------
+        grp : pandas.core.groupby.DataFrameGroupBy
+            Grouped observations. Must contain columns ``'visitExpTime'``
+            and ``'requestID'``.
+
+        Returns
+        -------
+        collections.defaultdict
+            Mapping from group key to equivalent exposure count (int).
+        """
 
         total_exposure_time = grp['visitExpTime'].agg(np.sum)
         count_nobs = grp['requestID'].agg(len)
@@ -278,8 +388,20 @@ class ObsLogger(object):
 
 
     def count_equivalent_obs_by_program(self, mjd_range = None):
-        """Count of number of equivalent standard exposures by program."""
-        
+        """Count equivalent standard exposures grouped by program.
+
+        Parameters
+        ----------
+        mjd_range : list of float or None, optional
+            ``[start_mjd, stop_mjd]`` filter. Default is ``None`` (all time).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``'program_id'`` and ``'n_obs'`` (equivalent exposure
+            count).
+        """
+
 
         hist = self._mjd_filter_history(mjd_range)
 
@@ -292,7 +414,18 @@ class ObsLogger(object):
         return s
 
     def count_equivalent_obs_by_subprogram(self, mjd_range = None):
-        """Count of number of equivalent standard exposures by program and subprogram."""
+        """Count equivalent standard exposures grouped by program and subprogram.
+
+        Parameters
+        ----------
+        mjd_range : list of float or None, optional
+            ``[start_mjd, stop_mjd]`` filter. Default is ``None`` (all time).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``'program_id'``, ``'subprogram_name'``, and ``'n_obs'``.
+        """
 
         hist = self._mjd_filter_history(mjd_range)
 
@@ -309,7 +442,18 @@ class ObsLogger(object):
         return s
 
     def count_equivalent_obs_by_program_night(self, mjd_range = None):
-        """Count of number of equivalent standard exposures by program, subprogram, and night."""
+        """Count equivalent standard exposures grouped by program and night.
+
+        Parameters
+        ----------
+        mjd_range : list of float or None, optional
+            ``[start_mjd, stop_mjd]`` filter. Default is ``None`` (all time).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Columns ``'program_id'``, ``'night'``, and ``'n_obs'``.
+        """
 
         hist = self._mjd_filter_history(mjd_range)
 
@@ -322,9 +466,35 @@ class ObsLogger(object):
         return s
 
     def select_last_observed_time_by_field(self,
-            field_ids = None, filter_ids = None, 
-            program_ids = None, subprogram_names = None, 
+            field_ids = None, filter_ids = None,
+            program_ids = None, subprogram_names = None,
             mjd_range = None):
+        """Return the most recent observation time for each qualifying field.
+
+        All non-``None`` filter arguments are applied with AND logic. Only
+        fields that have been observed under the specified constraints are
+        returned.
+
+        Parameters
+        ----------
+        field_ids : set or list of int, optional
+            Restrict to these field IDs.
+        filter_ids : list of int, optional
+            Restrict to these filter IDs (1 = g, 2 = r, 3 = i).
+        program_ids : list of int, optional
+            Restrict to these program IDs.
+        subprogram_names : list of str, optional
+            Restrict to these subprogram names.
+        mjd_range : list of float or None, optional
+            ``[start_mjd, stop_mjd]`` (inclusive).
+
+        Returns
+        -------
+        pandas.DataFrame
+            Indexed by ``fieldID`` with a single column ``'expMJD'``
+            containing the maximum (most recent) MJD for each field. Fields
+            with no matching observations are absent.
+        """
 
         # start with "True" 
         w = self.history['expMJD'] > 0
@@ -356,11 +526,36 @@ class ObsLogger(object):
                 w,['fieldID','expMJD']].groupby('fieldID').agg(np.max)
 
     def select_n_obs_by_field(self,
-            field_ids = None, filter_ids = None, 
-            program_ids = None, subprogram_names = None, 
+            field_ids = None, filter_ids = None,
+            program_ids = None, subprogram_names = None,
             mjd_range = None):
+        """Return the observation count for each qualifying field.
 
-        # start with "True" 
+        All non-``None`` filter arguments are applied with AND logic. Only
+        fields that have been observed at least once under the specified
+        constraints are returned.
+
+        Parameters
+        ----------
+        field_ids : set or list of int, optional
+            Restrict to these field IDs.
+        filter_ids : list of int, optional
+            Restrict to these filter IDs.
+        program_ids : list of int, optional
+            Restrict to these program IDs.
+        subprogram_names : list of str, optional
+            Restrict to these subprogram names.
+        mjd_range : list of float or None, optional
+            ``[start_mjd, stop_mjd]`` (inclusive).
+
+        Returns
+        -------
+        pandas.Series
+            Indexed by ``fieldID``, named ``'n_obs'``, containing the
+            observation count. Fields with no matching observations are absent.
+        """
+
+        # start with "True"
         w = self.history['expMJD'] > 0
 
         if field_ids is not None:
@@ -368,15 +563,15 @@ class ObsLogger(object):
 
         if filter_ids is not None:
             filter_names = [FILTER_ID_TO_NAME[fi] for fi in filter_ids]
-            w &= self.history['filter'].apply(lambda x: 
+            w &= self.history['filter'].apply(lambda x:
                     x in filter_names)
 
         if program_ids is not None:
-            w &= self.history['propID'].apply(lambda x: 
+            w &= self.history['propID'].apply(lambda x:
                     x in program_ids)
 
         if subprogram_names is not None:
-            w &= self.history['subprogram'].apply(lambda x: 
+            w &= self.history['subprogram'].apply(lambda x:
                     x in subprogram_names)
 
         if mjd_range is not None:
@@ -394,7 +589,22 @@ class ObsLogger(object):
         return nobs
 
     def return_obs_history(self, time):
-        """Return one night's observation history"""
+        """Return the observation history for the night containing *time*.
+
+        Parameters
+        ----------
+        time : astropy.time.Time
+            Any time within the night of interest. The night is defined as
+            the 24-hour period starting at ``floor(time.mjd)``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Rows from ``self.history`` within the night, with columns
+            ``'requestID'``, ``'propID'``, ``'fieldID'``, ``'fieldRA'``,
+            ``'fieldDec'``, ``'filter'``, ``'expMJD'``, ``'visitExpTime'``,
+            ``'airmass'``, ``'subprogram'``.
+        """
 
         mjd_range = [np.floor(time.mjd), np.floor(time.mjd)+1.]
         w = ((self.history['expMJD'] >= mjd_range[0]) & 

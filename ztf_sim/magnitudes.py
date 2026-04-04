@@ -8,7 +8,24 @@ from .constants import BASE_DIR, FILTER_ID_TO_NAME, PIXEL_SCALE
 
 
 def interp_R20_airmass(filter_id=2):
-    """Returns function to interpolate electrons/sec of a 20th mag source as a function of altitude."""
+    """Build an interpolator for the 20th-magnitude electron rate vs. airmass.
+
+    Reads a pre-computed lookup table from
+    ``data/R20_absorbed_ZTF{filter}.txt`` and returns a callable that maps
+    pointing altitude (degrees) to the electron rate (e⁻/s) for a 20th AB
+    magnitude point source observed through the full ZTF optical path.
+
+    Parameters
+    ----------
+    filter_id : int, optional
+        Filter identifier: 1 = g, 2 = r, 3 = i. Default is 2.
+
+    Returns
+    -------
+    scipy.interpolate.interp1d
+        Callable that takes altitude in degrees and returns electron rate
+        (e⁻/s) for a 20th AB mag source.
+    """
     R20_file = BASE_DIR + '../data/R20_absorbed_ZTF{}.txt'.format(
         FILTER_ID_TO_NAME[filter_id])
     data = np.loadtxt(R20_file)
@@ -23,7 +40,31 @@ R20_interp_alt = {1: interp_R20_airmass(filter_id=1),
 
 def limiting_mag(exposure_time, seeing_fwhm, sky_brightness,
                  filter_id=2, altitude=90., SNR=5.):
-    """Calculate limiting magnitude."""
+    """Compute the point-source limiting AB magnitude for a given exposure.
+
+    Assumes the sky-limited regime. Uses the SNR-maximising extraction
+    aperture (radius = 1.346 × FWHM, see `n_pixels`).
+
+    Parameters
+    ----------
+    exposure_time : float
+        Exposure duration in seconds.
+    seeing_fwhm : float or array-like
+        Seeing FWHM at the pointing altitude in arcseconds.
+    sky_brightness : float or array-like
+        Sky surface brightness in mag arcsec⁻².
+    filter_id : int or array-like, optional
+        Filter identifier(s): 1 = g, 2 = r, 3 = i. Default is 2.
+    altitude : float or array-like, optional
+        Pointing altitude in degrees. Default is 90 (zenith).
+    SNR : float, optional
+        Required signal-to-noise ratio. Default is 5.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        5σ limiting AB magnitude.
+    """
 
     npix = n_pixels(seeing_fwhm)
     Rsky = sky_electrons_per_pixel(sky_brightness, filter_id=filter_id)
@@ -38,7 +79,41 @@ def limiting_mag(exposure_time, seeing_fwhm, sky_brightness,
 
 def Rstar20(filter_id=2, altitude=90.,
             aperture_cut=True, absorb=True):
-    """Compute electrons per second for a 20th mag source."""
+    """Compute the electron rate for a 20th AB magnitude point source.
+
+    Parameters
+    ----------
+    filter_id : int or array-like
+        Filter identifier(s): 1 = g, 2 = r, 3 = i. Default is 2.
+    altitude : float or array-like, optional
+        Pointing altitude in degrees. Scalar or same length as *filter_id*.
+        Default is 90 (zenith).
+    aperture_cut : bool, optional
+        If ``True``, apply the finite-aperture correction (default). Must be
+        paired with ``absorb=True``; the ``True``/``False`` and
+        ``False``/``True`` combinations raise ``NotImplementedError``.
+    absorb : bool, optional
+        If ``True``, include atmospheric absorption (default). See note above.
+
+    Returns
+    -------
+    numpy.ndarray
+        Electron rate (e⁻/s) with the same length as *filter_id*.
+
+    Raises
+    ------
+    NotImplementedError
+        If an unknown filter ID is encountered.
+
+    Notes
+    -----
+    ``aperture_cut=True, absorb=True``: reads altitude-dependent values from
+    ``data/R20_absorbed_ZTF{filter}.txt`` via ``interp_R20_airmass``.
+
+    ``aperture_cut=False, absorb=False``: returns fixed zenith values
+    (g = 123.73, r = 77.98, i = 46.41 e⁻/s). Used for sky electron
+    calculations.
+    """
 
     # make these arrays so we can handle input dataframes
     filter_id = np.atleast_1d(filter_id)
@@ -76,8 +151,32 @@ def Rstar20(filter_id=2, altitude=90.,
 
 def AB_to_Rstar(source_mag, filter_id=2, altitude=90.,
                 aperture_cut=True, absorb=True):
-    """Convert AB mag to electrons per second using a lookup table of 
-    electrons per second for a 20th mag source."""
+    """Convert an AB magnitude to an electron count rate.
+
+    Parameters
+    ----------
+    source_mag : float or array-like
+        AB magnitude of the source.
+    filter_id : int or array-like, optional
+        Filter identifier(s): 1 = g, 2 = r, 3 = i. Default is 2.
+    altitude : float or array-like, optional
+        Pointing altitude in degrees. Default is 90 (zenith).
+    aperture_cut : bool, optional
+        Passed to `Rstar20`. Default is ``True``.
+    absorb : bool, optional
+        Passed to `Rstar20`. Default is ``True``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Electron rate (e⁻/s) for the source.
+
+    Notes
+    -----
+    Scaling relation::
+
+        Rstar = R20 * 10^(0.4 * (20 - source_mag))
+    """
 
     R20 = Rstar20(filter_id=filter_id, altitude=altitude,
                   aperture_cut=True, absorb=True)
@@ -86,14 +185,18 @@ def AB_to_Rstar(source_mag, filter_id=2, altitude=90.,
 
 
 def n_pixels(seeing_fwhm):
-    """Calculate number of pixels in aperture extraction region.
+    """Count the pixels within the SNR-maximising extraction aperture.
 
-    Uses the SNR-maximizing extraction radius
-        (1.346 FWHM)--see LSST SNR doc eq. 19
+    Parameters
+    ----------
+    seeing_fwhm : float or array-like
+        Seeing FWHM at the pointing altitude in arcseconds.
 
-    seeing_fwhm:  float
-        seeing in arcsec
-        """
+    Returns
+    -------
+    numpy.ndarray
+        Number of pixels (rounded, minimum 1) within the extraction aperture.
+    """
 
     npix_extract = np.pi * (0.673 * seeing_fwhm / PIXEL_SCALE)**2.
 
@@ -107,7 +210,20 @@ def n_pixels(seeing_fwhm):
 
 
 def sky_electrons_per_pixel(mag_per_sq_arcsec, filter_id=2):
-    # returns electrons per pixel per second
+    """Convert sky surface brightness to electron rate per pixel per second.
+
+    Parameters
+    ----------
+    mag_per_sq_arcsec : float or array-like
+        Sky surface brightness in AB mag arcsec⁻².
+    filter_id : int or array-like, optional
+        Filter identifier(s): 1 = g, 2 = r, 3 = i. Default is 2.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Sky background electron rate in e⁻ pixel⁻¹ s⁻¹.
+    """
     # area of one pixel in arcsec^2.
     pixarea = PIXEL_SCALE**2.
     mag_per_pix = mag_per_sq_arcsec - 2.5 * np.log10(pixarea)

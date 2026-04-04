@@ -19,9 +19,25 @@ logger = logging.getLogger(__name__)
 
 
 def get_theta_given_phi(a, b, c, phi):
-    """
-    ax + by + cz defines a plane
-    point coordinate (theta, phi)
+    """Solve for the polar angle θ on the plane ax + by + cz = 0 at azimuth φ.
+
+    Given the plane equation ``a*x + b*y + c*z = 0`` (perpendicular to the
+    Sun) and a fixed azimuthal angle φ, computes the polar angle θ such that
+    the unit-sphere point ``(sin θ cos φ, sin θ sin φ, cos θ)`` lies on the
+    plane.
+
+    Parameters
+    ----------
+    a, b, c : float
+        Coefficients of the plane equation (direction cosines of the Sun
+        in Cartesian coordinates).
+    phi : float
+        Azimuthal angle in radians.
+
+    Returns
+    -------
+    float
+        Polar angle θ in radians, adjusted to lie in [0, π].
     """
     a_prime = a * np.cos(phi)
     b_prime = b * np.sin(phi)
@@ -34,9 +50,22 @@ def get_theta_given_phi(a, b, c, phi):
 
 
 def cos_in_sphere(theta1, phi1, theta2, phi2):
-    """
-    Here we use te cosine rule in Spherical trigonometry
-    https://en.wikipedia.org/wiki/Spherical_trigonometry
+    """Compute the cosine of the great-circle angular distance between two points.
+
+    Uses the spherical law of cosines:
+    ``cos(d) = cos(θ2)*cos(θ1) + sin(θ2)*sin(θ1)*cos(φ1 − φ2)``.
+
+    Parameters
+    ----------
+    theta1, theta2 : float
+        Polar (co-latitude) angles in radians.
+    phi1, phi2 : float
+        Azimuthal angles in radians.
+
+    Returns
+    -------
+    float
+        Cosine of the angular separation between the two points.
     """
     term1 = np.cos(theta2) * np.cos(theta1)
     term2 = np.sin(theta2) * np.sin(theta1) * np.cos(phi1-phi2)
@@ -44,6 +73,31 @@ def cos_in_sphere(theta1, phi1, theta2, phi2):
     return cos_rad
 
 def load_SRG_pointing(tnow):
+    """Load the pre-computed SRG pointing plan for the current night.
+
+    Reads all CSV files from ``ztf_survey_configuration/srg_plan/``,
+    concatenates them, and filters to rows whose MJD falls within the
+    current night (``[tnow.mjd, tnow.mjd + 1)``).
+
+    Parameters
+    ----------
+    tnow : astropy.time.Time
+        Any time within the night of interest.
+
+    Returns
+    -------
+    alphas : numpy.ndarray of float
+        Right ascensions of SRG pointing centres in degrees.
+    deltas : numpy.ndarray of float
+        Declinations of SRG pointing centres in degrees.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no CSV files are found in the SRG plan directory.
+    ValueError
+        If no rows in the plan files cover the requested date.
+    """
     csvfiles = glob(f"{BASE_DIR}../../ztf_survey_configuration/srg_plan/*.csv")
     if len(csvfiles) == 0:
         raise FileNotFoundError('No detailed SRG pointing plans found')
@@ -66,17 +120,36 @@ def load_SRG_pointing(tnow):
     return alphas, deltas
 
 def SRG_pointing(tnow):
-    """
-    tnow: astropy.time.Time
+    """Compute the SRG/eROSITA scanning footprint for the current night.
 
-    Sun's movement during the year:
-        http://community.dur.ac.uk/john.lucey/users/solar_year.html#:~:text=At%20the%20equinoxes%20at%20every,is%20on%20the%20celestial%20equator.&text=(September)%20equinox.-,At%20this%20time%20the%20Sun%20is%20at%20RA,h%2C%20Dec%20%3D%200.0%C2%B0.
-    
-    SRG real-time tracking:
-        http://plan.srg.cosmos.ru/monthplan/tracking
-        
-    SRG obs strategy:
-        1 sq FoV, 1 sq per day drift, one full circle every four hours
+    Models the SRG great-circle scan as a spiral perpendicular to the Sun,
+    uniformly sampling ~360 points around the full circle. Near the spring
+    or autumn equinox (when the scan passes through the poles), a finer
+    step size is used to ensure adequate coverage.
+
+    Parameters
+    ----------
+    tnow : astropy.time.Time
+        Any time within the night of interest. The Sun position is evaluated
+        at Palomar midnight (UTC 07:00).
+
+    Returns
+    -------
+    alphas : numpy.ndarray of float
+        Right ascensions of SRG pointing centres in degrees.
+    decs : numpy.ndarray of float
+        Declinations of SRG pointing centres in degrees.
+
+    Notes
+    -----
+    SRG observing strategy: 1 sq deg FoV, ~1 sq deg per day drift, one full
+    great-circle scan every ~4 hours. The scan plane is perpendicular to the
+    Sun direction: ``a*x + b*y + c*z = 0`` where (a, b, c) are the Cartesian
+    coordinates of the Sun.
+
+    References
+    ----------
+    SRG real-time tracking: http://plan.srg.cosmos.ru/monthplan/tracking
     """
     # Palomar midnight = UTC 7am
     midnight_mjd = np.floor(tnow.mjd) + 7/24.
@@ -138,6 +211,26 @@ def SRG_pointing(tnow):
     return alphas/np.pi*180, decs/np.pi*180
 
 def get_srg_fields(tnow, fields):
+    """Return ZTF field IDs overlapping the SRG scanning footprint tonight.
+
+    First attempts to load a pre-computed pointing plan from disk via
+    `load_SRG_pointing`; falls back to the analytical `SRG_pointing` model
+    on any exception. Matches SRG pointing centres to ZTF fields within
+    5.25° (field centre-to-corner distance for the 7.5° × 7.3° ZTF FoV).
+
+    Parameters
+    ----------
+    tnow : astropy.time.Time
+        Any time within the night of interest.
+    fields : Fields
+        Pre-initialised ZTF field grid with observability already computed.
+
+    Returns
+    -------
+    list of int
+        ZTF field IDs whose centres lie within 5.25° of at least one SRG
+        pointing centre tonight.
+    """
 
     try:
         srg_ra, srg_dec = load_SRG_pointing(tnow)

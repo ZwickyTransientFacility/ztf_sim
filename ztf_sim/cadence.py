@@ -8,14 +8,51 @@ from .constants import FILTER_IDS, TIME_BLOCK_SIZE
 
 
 def no_cadence(*args):
-    """No cadence requirement--can be observed at any time."""
+    """Return True unconditionally, indicating no cadence constraint.
+
+    Drop-in replacement for `enough_gap_since_last_obs` for programs that
+    have no intranight gap requirement.
+
+    Parameters
+    ----------
+    *args
+        Accepted but ignored, for signature compatibility.
+
+    Returns
+    -------
+    bool
+        Always ``True``.
+    """
     return True
 
 
 def enough_gap_since_last_obs(df, current_state, obs_log):
-    """
-    Determine if a sufficient time has passed since the last observation
-    in this subprogram (in any filter):
+    """Check whether sufficient intranight time has elapsed since each field's last observation.
+
+    Groups candidates by ``(program_id, subprogram_name)`` and queries the
+    observation log for the most recent exposure of each field within the
+    current night. Fields that have never been observed tonight are always
+    treated as eligible.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Candidate observations. Required columns: ``program_id`` (int),
+        ``subprogram_name`` (str), ``field_id`` (int),
+        ``intranight_gap_min`` (float, minutes).
+    current_state : dict
+        Telescope state dict as returned by
+        ``TelescopeStateMachine.current_state_dict()``. Must contain key
+        ``'current_time'`` (astropy.time.Time).
+    obs_log : ObsLogger
+        Observation history used to look up the last observed time per field.
+
+    Returns
+    -------
+    pandas.Series of bool
+        Boolean Series with the same index as *df*. ``True`` where the
+        elapsed time since the last observation meets or exceeds
+        ``intranight_gap_min``.
     """
 
     now = current_state['current_time'].mjd

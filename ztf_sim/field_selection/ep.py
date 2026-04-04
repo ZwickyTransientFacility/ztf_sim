@@ -30,6 +30,41 @@ logger = logging.getLogger(__name__)
 
 def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
                    other_timed_queues_tonight = []):
+    """Build ListQueueManagers for ZTF+Einstein Probe simultaneous observations.
+
+    Downloads the EP WXT observation plan for tonight from the EP web service,
+    filters to nighttime windows that do not overlap other timed queues,
+    matches ZTF fields within 3° of each EP FoV centre, solves the TSP for
+    field sequencing within each window, and packages the result as one
+    ``ListQueueManager`` per EP pointing.
+
+    Parameters
+    ----------
+    time_now : astropy.time.Time
+        Current UTC time (used to identify tonight's date).
+    time_allowed : astropy.units.Quantity
+        Total ZTF time budget for EP observations tonight (in seconds).
+    time_limit : astropy.units.Quantity, optional
+        Wall-clock time limit for the Gurobi EP optimisation. Default is
+        300 s.
+    other_timed_queues_tonight : list of QueueManager, optional
+        Timed queues already scheduled tonight. EP windows that overlap
+        these queues are excluded (ToO queues are always excluded). Default
+        is an empty list.
+
+    Returns
+    -------
+    list of ListQueueManager
+        One queue per EP observation window, each named
+        ``EP_{date}_{pointing_id}`` and containing the TSP-ordered ZTF
+        fields for that window.
+
+    Raises
+    ------
+    ValueError
+        If the EP schedule cannot be downloaded after 5 attempts, or if
+        no nighttime EP pointings are found after filtering.
+    """
 
     ##############################
 
@@ -306,6 +341,25 @@ def make_ep_blocks(time_now, time_allowed, time_limit=300*u.second,
 
 
     def make_list_queue(fields, time_start_mjd, time_end_mjd, pointing_id):
+        """Build one ListQueueManager for a single EP observation window.
+
+        Parameters
+        ----------
+        fields : list of int
+            ZTF field IDs to observe, in TSP-optimised order.
+        time_start_mjd : float
+            Start of the EP window in MJD.
+        time_end_mjd : float
+            End of the EP window in MJD.
+        pointing_id : int
+            EP pointing identifier, used in the queue name.
+
+        Returns
+        -------
+        ListQueueManager
+            Queue named ``EP_{date}_{pointing_id}`` with the r-band
+            observations for this window.
+        """
 
         # solve TSP
         ordered_fields = check_limits_and_solve_TSP(fields,

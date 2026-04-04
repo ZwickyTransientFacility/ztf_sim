@@ -12,25 +12,75 @@ from .field_selection_functions import *
 
 
 class Configuration(object):
+    """Base class for loading JSON scheduler configuration files.
+
+    Attributes
+    ----------
+    config : dict
+        Parsed JSON configuration.
+    """
 
     def __init__(self, config_file):
+        """Load a JSON configuration file.
+
+        Parameters
+        ----------
+        config_file : str or pathlib.Path or None
+            Path to the JSON configuration file. If ``None``, no file is
+            loaded (used by `MMASkymap` to build synthetic configurations).
+        """
 
         if config_file is not None:
             self.load_configuration(config_file)
 
     def load_configuration(self, config_file):
+        """Parse a JSON file and store the result in ``self.config``.
+
+        Parameters
+        ----------
+        config_file : str or pathlib.Path
+            Path to the JSON configuration file.
+        """
         with open(config_file, 'r') as f:
             config = json.load(f)
         self.config = config
 
 class SchedulerConfiguration(Configuration):
+    """Top-level scheduler configuration specifying which queues to run.
+
+    Parses a JSON file that lists one or more queue configurations. Exactly
+    one queue must be named ``'default'``.
+    """
 
     def __init__(self, config_file):
+        """Load and validate the scheduler configuration.
+
+        Parameters
+        ----------
+        config_file : str or pathlib.Path
+            Path to the JSON scheduler configuration file.
+
+        Raises
+        ------
+        ValueError
+            If ``'queues'`` is absent or no queue is named ``'default'``.
+        """
         super().__init__(config_file)
         self.scheduler_config_file = pathlib.PurePosixPath(config_file)
         self.check_configuration()
 
     def check_configuration(self):
+        """Validate the scheduler configuration.
+
+        Raises
+        ------
+        ValueError
+            If the ``'queues'`` key is missing or no queue entry has
+            ``queue_name == 'default'``.
+        AssertionError
+            If any queue entry is missing ``'queue_name'`` or
+            ``'config_file'``.
+        """
         if 'queues' not in self.config:
             raise ValueError("Scheduler configuration must give queues")
         has_default = False
@@ -43,6 +93,19 @@ class SchedulerConfiguration(Configuration):
             raise ValueError("Scheduler configuration must specify a default queue")
 
     def build_queue_configs(self):
+        """Load each queue's configuration file into a `QueueConfiguration`.
+
+        Returns
+        -------
+        dict
+            Mapping ``queue_name (str) -> QueueConfiguration``.
+
+        Raises
+        ------
+        Exception
+            Re-raised from `QueueConfiguration` if a config file cannot be
+            read or parsed.
+        """
 
         queue_configs = {}
 
@@ -59,7 +122,28 @@ class SchedulerConfiguration(Configuration):
         return queue_configs
 
     def build_queues(self, queue_configs):
-        
+        """Instantiate queue managers from their configurations.
+
+        Parameters
+        ----------
+        queue_configs : dict
+            Mapping ``queue_name -> QueueConfiguration`` as returned by
+            `build_queue_configs`.
+
+        Returns
+        -------
+        dict
+            Mapping ``queue_name (str) -> QueueManager`` subclass instance
+            (``ListQueueManager``, ``GreedyQueueManager``, or
+            ``GurobiQueueManager``).
+
+        Raises
+        ------
+        AssertionError
+            If ``queue_manager`` value is not one of ``'list'``,
+            ``'greedy'``, ``'gurobi'``.
+        """
+
         queues = {}
         for queue_name, queue_config in queue_configs.items():
             
@@ -85,12 +169,40 @@ class SchedulerConfiguration(Configuration):
 
 
 class QueueConfiguration(Configuration):
+    """Per-queue configuration specifying observing programs and scheduling mode.
+
+    Parses the JSON file for a single queue. Validates that observing fractions
+    sum to 1 for every active month and that all program names are recognised.
+    """
 
     def __init__(self, config_file):
+        """Load and validate a queue configuration file.
+
+        Parameters
+        ----------
+        config_file : str or pathlib.Path
+            Path to the JSON queue configuration file.
+
+        Raises
+        ------
+        ValueError
+            If observing fractions do not sum to 1 for any active month, or
+            if an unknown program name is encountered.
+        """
         super().__init__(config_file)
         self.check_configuration()
 
     def check_configuration(self):
+        """Validate observing fractions and program names.
+
+        Raises
+        ------
+        ValueError
+            If ``program_observing_fraction × subprogram_fraction`` values do
+            not sum to 1.0 for any calendar month in which at least one
+            program is active, or if a program name is not in
+            ``PROGRAM_NAMES``.
+        """
 
         if self.config['queue_manager'] != 'list' and len(self.config['observing_programs']):
             for month in range(1,13):
@@ -110,6 +222,27 @@ class QueueConfiguration(Configuration):
                         prog['program_name']))
 
     def build_observing_programs(self):
+        """Instantiate `ObservingProgram` objects from the queue configuration.
+
+        Resolves field sources: converts ``field_selections`` dicts to
+        explicit field ID lists via `Fields.select_field_ids`, validates
+        ``field_ids`` against the field grid, and checks that
+        ``field_selection_function`` names exist in
+        ``field_selection_functions``.
+
+        Returns
+        -------
+        list of ObservingProgram
+            One entry per program defined in ``self.config['observing_programs']``.
+
+        Raises
+        ------
+        ValueError
+            If a ``field_ids`` entry is not a valid ZTF field ID.
+        AssertionError
+            If a program provides more than one field source, or if a
+            ``field_selection_function`` name is not defined.
+        """
 
         OPs = []
         f = Fields()
