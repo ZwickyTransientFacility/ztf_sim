@@ -60,7 +60,7 @@ def phase_IV_Caltech_selection(time, obs_log, other_program_fields, fields, skym
     """Select ZTF fields for the Phase IV Caltech program.
 
     Delegates to `phase_IV_selection` with ``subprogram='Caltech'``.
-    Uses the Jacobson-Galan 2026A candidate field list and excludes fields
+    Uses the Jacobson-Galan 2026B candidate field list and excludes fields
     already selected by `phase_IV_partnership_selection`.
 
     Parameters
@@ -172,7 +172,7 @@ def phase_IV_selection(time, obs_log, other_program_fields, fields,
 
 
     elif subprogram == 'Caltech':
-        label = 'Caltech_Jacobson-Galan_2026A'
+        label = 'Caltech_Jacobson-Galan_2026B'
         min_hours_visible = 1.5
         nobs_per_night = 2
         requests_allowed = other_program_fields[
@@ -839,7 +839,7 @@ def Qin_2024B_selection(time, obs_log, other_program_fields, fields,
 
 
     #label = 'Caltech_Qin_2024B'
-    label = 'Caltech_Jacobson-Galan_2026A'
+    label = 'Caltech_Jacobson-Galan_2026B'
     min_hours_visible = 1.5
     nobs_per_night = 2
     requests_allowed = other_program_fields[
