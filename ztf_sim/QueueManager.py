@@ -1635,6 +1635,8 @@ class ListQueueManager(QueueManager):
         **kwargs
             Passed to the `QueueManager` base class.
         """
+        self.logger = logging.getLogger(__name__)
+
         self.queue_type = 'list'
 
         # queue name (useful in Scheduler object when swapping queues)
