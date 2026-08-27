@@ -1635,6 +1635,8 @@ class ListQueueManager(QueueManager):
         **kwargs
             Passed to the `QueueManager` base class.
         """
+        self.logger = logging.getLogger(__name__)
+
         self.queue_type = 'list'
 
         # queue name (useful in Scheduler object when swapping queues)
@@ -1706,6 +1708,10 @@ class ListQueueManager(QueueManager):
             queue['n_repeats'] = 1
         if 'mode_num' not in queue.columns:
             queue['mode_num'] = 0
+        if 'ra_rate' not in queue.columns:
+            queue['ra_rate'] = 0.0
+        if 'dec_rate' not in queue.columns:
+            queue['dec_rate'] = 0.0
         if 'ewr_num_images' not in queue.columns:
             queue['num_images'] = 1
         else:
@@ -1767,27 +1773,33 @@ class ListQueueManager(QueueManager):
                     skycoord_to_altaz(sc, 
                         current_state['current_time']).alt.to(u.deg).value)
             if airmass >= self.queue.iloc[idx].max_airmass:
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} at airmass > max_airmass {self.queue.iloc[idx].max_airmass}, skipping')
                 idx += 1
                 continue
             # Reed limits |HA| to < 5.95 hours (most relevant for circumpolar
             # fields not hit by the airmass cut)
             if np.abs(ha) >= (5.95 * u.hourangle).to(u.degree).value:
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} at |HA| {ha} > 5.95 hours, skipping')
                 idx += 1
                 continue
             # 1) HA < -17.6 deg && Dec < -22 deg is rejected for both track & stow because of interference with FFI.
             if (ha <= -17.6) & (dec <= -22):
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} at HA {ha} > 17.6 for dec < -22, skipping')
                 idx += 1
                 continue
              # West of HA -17.6 deg, Dec < -45 deg is rejected for tracking because of the service platform in the south.
             if (ha >= -17.6) & (dec <= -45):
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} at HA {ha} > 17.6 for dec < -45, skipping')
                 idx += 1
                 continue
              # fabs(HA) > 3 deg is rejected for Dec < -46 to protect the shutter "ears".
             if (np.abs(ha) >= 3.) & (dec <= -46):
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} at |HA| {ha} > 3 for dec < -46, skipping')
                 idx += 1
                 continue
              # dec > 87.5 is rejected
             if (dec > 87.5):
+                self.logger.warning(f'Field {self.queue.iloc[idx].field_id} has dec > 87.5, skipping')
                 idx += 1
                 continue
 
@@ -1807,6 +1819,8 @@ class ListQueueManager(QueueManager):
             'target_metric_value':  0.,
             'target_total_requests_tonight': 1,  
             'target_mode_num': int(self.queue.iloc[idx].mode_num),
+            'target_ra_rate': self.queue.iloc[idx].ra_rate,
+            'target_dec_rate': self.queue.iloc[idx].dec_rate,
             'target_num_images': int(self.queue.iloc[idx].num_images),
             'request_id': self.queue.index[idx]}
 
